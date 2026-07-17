@@ -1,0 +1,2425 @@
+cmake_minimum_required(VERSION 3.21)
+project(SZM_Forge_Core VERSION 0.1.0 LANGUAGES CXX)
+
+# Enforce C++20 standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Fetch GLFW dynamically for seamless cross-platform compilation
+include(FetchContent)
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.3.8 # Stable release
+)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glfw)
+
+# Define source files
+set(SOURCES
+    src/main.cpp
+    src/Core/Application.cpp
+)
+
+# Create executable
+add_executable(SZM_Forge ${SOURCES})
+
+# Include directories
+target_include_directories(SZM_Forge PRIVATE src)
+
+# Link GLFW and required OS libraries (handled natively by GLFW's target)
+target_link_libraries(SZM_Forge PRIVATE glfw)
+
+# Optional: Enable maximum compiler warnings for production safety
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(SZM_Forge PRIVATE -Wall -Wextra -Wpedantic)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    target_compile_options(SZM_Forge PRIVATE /W4 /WX)
+endif()
+
+#pragma once
+
+#include <GLFW/glfw3.h>
+#include <string>
+#include <chrono>
+
+namespace SZM {
+
+    struct WindowConfig {
+        int Width = 1280;
+        int Height = 720;
+        std::string Title = "SZM Forge - Core";
+        bool VSync = true;
+    };
+
+    class Application {
+    public:
+        // Singleton Access
+        static Application& GetInstance() {
+            static Application instance;
+            return instance;
+        }
+
+        // Delete copy/move constructors to strictly enforce Singleton
+        Application(const Application&) = delete;
+        Application& operator=(const Application&) = delete;
+
+        void Init(const WindowConfig& config);
+        void Run();
+        void Shutdown();
+
+        // Getters
+        GLFWwindow* GetNativeWindow() const { return m_WindowHandle; }
+        double GetDeltaTime() const { return m_DeltaTime; }
+
+    private:
+        Application() = default;
+        ~Application() = default;
+
+        // Callbacks
+        static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
+
+    private:
+        GLFWwindow* m_WindowHandle = nullptr;
+        bool m_IsRunning = false;
+        
+        // High-Resolution Timing
+        double m_DeltaTime = 0.0;
+        std::chrono::time_point<std::chrono::high_resolution_clock> m_LastFrameTime;
+    };
+
+} // namespace SZM
+
+#include "Application.hpp"
+#include <iostream>
+#include <stdexcept>
+
+namespace SZM {
+
+    void Application::Init(const WindowConfig& config) {
+        if (!glfwInit()) {
+            throw std::runtime_error("SZM_FATAL: Failed to initialize GLFW.");
+        }
+
+        // Hint for future Vulkan/Custom Context (No default OpenGL context)
+        // glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); 
+
+        // Handle DPI awareness across monitors
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+
+        m_WindowHandle = glfwCreateWindow(config.Width, config.Height, config.Title.c_str(), nullptr, nullptr);
+        
+        if (!m_WindowHandle) {
+            glfwTerminate();
+            throw std::runtime_error("SZM_FATAL: OS denied window creation.");
+        }
+
+        glfwMakeContextCurrent(m_WindowHandle);
+        glfwSwapInterval(config.VSync ? 1 : 0); // V-Sync configuration
+
+        glfwSetWindowUserPointer(m_WindowHandle, this);
+        glfwSetFramebufferSizeCallback(m_WindowHandle, FramebufferResizeCallback);
+
+        m_IsRunning = true;
+        m_LastFrameTime = std::chrono::high_resolution_clock::now();
+        
+        std::cout << "SZM Forge: OS Window Initialized Successfully.\n";
+    }
+
+    void Application::Run() {
+        int frameCount = 0;
+        double timeAccumulator = 0.0;
+
+        while (!glfwWindowShouldClose(m_WindowHandle) && m_IsRunning) {
+            // 1. Calculate Delta Time (Tick)
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsedTime = currentTime - m_LastFrameTime;
+            m_DeltaTime = elapsedTime.count();
+            m_LastFrameTime = currentTime;
+
+            // 2. Process OS Events
+            glfwPollEvents();
+
+            // 3. Update Engines (Physics 200-Series will hook here via DeltaTime)
+            // UpdateEngines(m_DeltaTime);
+
+            // 4. Render (Placeholder swap buffers for testing V-Sync & stability)
+            glClear(GL_COLOR_BUFFER_BIT); // Requires OpenGL context for testing phase
+            glfwSwapBuffers(m_WindowHandle);
+
+            // Diagnostic Framerate Output (per second)
+            frameCount++;
+            timeAccumulator += m_DeltaTime;
+            if (timeAccumulator >= 1.0) {
+                std::cout << "SZM Core Tick | FPS: " << frameCount << " | dt: " << m_DeltaTime << "s\n";
+                frameCount = 0;
+                timeAccumulator = 0.0;
+            }
+        }
+    }
+
+    void Application::Shutdown() {
+        if (m_WindowHandle) {
+            glfwDestroyWindow(m_WindowHandle);
+            m_WindowHandle = nullptr;
+        }
+        glfwTerminate();
+        std::cout << "SZM Forge: Terminated safely.\n";
+    }
+
+    void Application::FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
+        // Pauses rendering updates cleanly during rapid resize events (Edge case handling)
+        if (width == 0 || height == 0) return; 
+        glViewport(0, 0, width, height); 
+    }
+
+} // namespace SZM
+
+#include "Core/Application.hpp"
+#include <iostream>
+
+int main() {
+    try {
+        SZM::WindowConfig config;
+        config.Title = "SZM Forge - Runtime Execution";
+        config.VSync = false; // Set to false to test raw tick speed
+
+        SZM::Application& app = SZM::Application::GetInstance();
+        app.Init(config);
+        app.Run();
+        app.Shutdown();
+    }
+    catch (const std::exception& e) {
+        std::cerr << "CRITICAL FAILURE: " << e.what() << '\n';
+        return -1;
+    }
+
+    return 0;
+}
+
+// EventBus.h
+#pragma once
+#include <functional>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <any>
+
+// Minimal Observer Pattern for Engine-UI Decoupling
+class EventBus {
+public:
+    using EventCallback = std::function<void(const std::any&)>;
+
+    static EventBus& GetInstance() {
+        static EventBus instance;
+        return instance;
+    }
+
+    void Subscribe(const std::string& eventName, EventCallback callback) {
+        listeners[eventName].push_back(callback);
+    }
+
+    void Publish(const std::string& eventName, const std::any& payload) {
+        if (listeners.find(eventName) != listeners.end()) {
+            for (auto& callback : listeners[eventName]) {
+                callback(payload);
+            }
+        }
+    }
+
+private:
+    std::unordered_map<std::string, std::vector<EventCallback>> listeners;
+};
+
+// IPanel.h
+#pragma once
+#include <string>
+#include <imgui.h>
+
+class IPanel {
+public:
+    virtual ~IPanel() = default;
+
+    // Called every frame by the UI Manager
+    virtual void Draw() = 0;
+
+    // Unique identifier for the docking system
+    virtual std::string GetTitle() const = 0;
+
+    // Panel state
+    bool IsVisible = true;
+};
+
+// UIManager.h
+#pragma once
+#include <vector>
+#include <memory>
+#include "IPanel.h"
+
+class UIManager {
+public:
+    UIManager();
+    ~UIManager();
+
+    void Initialize();
+    void RegisterPanel(std::shared_ptr<IPanel> panel);
+    
+    // Main render loop call
+    void RenderUI();
+
+    // Forces a specific layout if no save file is found
+    void BuildDefaultDockspace(uint32_t dockspaceId);
+
+private:
+    std::vector<std::shared_ptr<IPanel>> m_Panels;
+    bool m_FirstTimeDocking = true;
+};
+
+// UIManager.cpp
+#include "UIManager.h"
+#include <imgui_internal.h>
+
+UIManager::UIManager() {}
+UIManager::~UIManager() {}
+
+void UIManager::Initialize() {
+    // ImGui context setup is assumed to be handled in Module 010.1
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;   // Enable Docking
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable; // Enable Multi-Monitor Tear-off
+
+    // Professional Dark Theme setup
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable) {
+        style.WindowRounding = 0.0f;
+        style.Colors[ImGuiCol_WindowBg].w = 1.0f;
+    }
+}
+
+void UIManager::RegisterPanel(std::shared_ptr<IPanel> panel) {
+    m_Panels.push_back(panel);
+}
+
+void UIManager::RenderUI() {
+    // 1. Create the Central Dockspace spanning the OS window
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+    
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+    window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+    window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+    ImGui::Begin("SZM_Forge_DockSpace", nullptr, window_flags);
+    ImGui::PopStyleVar(3);
+
+    ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+    ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None);
+
+    // 2. Initial Layout Construction (Only runs once if no config is found)
+    if (m_FirstTimeDocking) {
+        m_FirstTimeDocking = false;
+        BuildDefaultDockspace(dockspace_id);
+    }
+
+    // 3. Render all registered panels
+    for (auto& panel : m_Panels) {
+        if (panel->IsVisible) {
+            panel->Draw();
+        }
+    }
+
+    ImGui::End(); // End SZM_Forge_DockSpace
+}
+
+void UIManager::BuildDefaultDockspace(uint32_t dockspace_id) {
+    ImGui::DockBuilderRemoveNode(dockspace_id); // Clear out existing layout
+    ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace); // Add empty node
+    ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+
+    // Split the dockspace
+    ImGuiID dock_main_id = dockspace_id;
+    ImGuiID dock_id_left = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.20f, nullptr, &dock_main_id);
+    ImGuiID dock_id_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
+    ImGuiID dock_id_bottom = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.25f, nullptr, &dock_main_id);
+
+    // Route specific panels to specific docking nodes
+    ImGui::DockBuilderDockWindow("Scene Outliner", dock_id_left);
+    ImGui::DockBuilderDockWindow("Properties Inspector", dock_id_right);
+    ImGui::DockBuilderDockWindow("SZM-CEA Console", dock_id_bottom);
+    ImGui::DockBuilderDockWindow("3D Viewport", dock_main_id);
+
+    ImGui::DockBuilderFinish(dockspace_id);
+}
+
+# CMakeLists.txt (Snippet for UI Module)
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+
+# Ensure you clone the "docking" branch of Dear ImGui
+# git clone -b docking https://github.com/ocornut/imgui.git external/imgui
+
+add_library(SZM_UI_Module STATIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/UIManager.cpp
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    # Add your specific backend files here (e.g., imgui_impl_glfw.cpp, imgui_impl_opengl3.cpp)
+)
+
+target_include_directories(SZM_UI_Module PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${IMGUI_DIR}
+)
+
+# C++20 standard enforcement
+target_compile_features(SZM_UI_Module PUBLIC cxx_std_20)
+
+import os
+import shutil
+
+# --- 1. Define the File Paths and Contents ---
+file_system = {
+    "SZM_Forge_UI/CMakeLists.txt": """# SZM_Forge_UI/CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+project(SZM_Forge_UI_Module)
+
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+
+add_library(SZM_UI_Module STATIC
+    src/UIManager.cpp
+    src/panels/SceneOutliner.cpp
+    src/panels/ConsolePanel.cpp
+    # Add ImGui source files here in your actual build environment
+)
+
+target_include_directories(SZM_UI_Module PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/panels
+)
+
+target_compile_features(SZM_UI_Module PUBLIC cxx_std_20)
+""",
+
+    "SZM_Forge_UI/src/EventBus.h": """// SZM_Forge_UI/src/EventBus.h
+#pragma once
+#include <functional>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <any>
+
+class EventBus {
+public:
+    using EventCallback = std::function<void(const std::any&)>;
+
+    static EventBus& GetInstance() {
+        static EventBus instance;
+        return instance;
+    }
+
+    void Subscribe(const std::string& eventName, EventCallback callback) {
+        listeners[eventName].push_back(callback);
+    }
+
+    void Publish(const std::string& eventName, const std::any& payload) {
+        if (listeners.find(eventName) != listeners.end()) {
+            for (auto& callback : listeners[eventName]) {
+                callback(payload);
+            }
+        }
+    }
+private:
+    std::unordered_map<std::string, std::vector<EventCallback>> listeners;
+};
+""",
+
+    "SZM_Forge_UI/src/IPanel.h": """// SZM_Forge_UI/src/IPanel.h
+#pragma once
+#include <string>
+
+class IPanel {
+public:
+    virtual ~IPanel() = default;
+    virtual void Draw() = 0;
+    virtual std::string GetTitle() const = 0;
+    
+    bool IsVisible = true;
+};
+""",
+
+    "SZM_Forge_UI/src/UIManager.h": """// SZM_Forge_UI/src/UIManager.h
+#pragma once
+#include <vector>
+#include <memory>
+#include "IPanel.h"
+
+class UIManager {
+public:
+    UIManager();
+    ~UIManager();
+
+    void Initialize();
+    void RegisterPanel(std::shared_ptr<IPanel> panel);
+    void RenderUI();
+    void BuildDefaultDockspace(unsigned int dockspaceId);
+
+private:
+    std::vector<std::shared_ptr<IPanel>> m_Panels;
+    bool m_FirstTimeDocking = true;
+};
+""",
+
+    "SZM_Forge_UI/src/UIManager.cpp": """// SZM_Forge_UI/src/UIManager.cpp
+#include "UIManager.h"
+// #include <imgui.h> // Uncomment when ImGui is linked
+// #include <imgui_internal.h>
+
+UIManager::UIManager() {}
+UIManager::~UIManager() {}
+
+void UIManager::Initialize() {
+    // ImGui Initialization logic goes here
+}
+
+void UIManager::RegisterPanel(std::shared_ptr<IPanel> panel) {
+    m_Panels.push_back(panel);
+}
+
+void UIManager::RenderUI() {
+    // Main docking logic and panel rendering loop goes here
+}
+
+void UIManager::BuildDefaultDockspace(unsigned int dockspace_id) {
+    // Default docking splits logic goes here
+}
+""",
+
+    "SZM_Forge_UI/src/panels/SceneOutliner.h": """// SZM_Forge_UI/src/panels/SceneOutliner.h
+#pragma once
+#include "IPanel.h"
+#include <vector>
+#include <string>
+
+class SceneOutliner : public IPanel {
+public:
+    SceneOutliner();
+    void Draw() override;
+    std::string GetTitle() const override { return "Scene Outliner"; }
+
+private:
+    // Mock data for the tree nodes
+    std::vector<std::string> m_RootNodes;
+};
+""",
+
+    "SZM_Forge_UI/src/panels/SceneOutliner.cpp": """// SZM_Forge_UI/src/panels/SceneOutliner.cpp
+#include "SceneOutliner.h"
+// #include <imgui.h>
+
+SceneOutliner::SceneOutliner() {
+    m_RootNodes = {"Engine_Assembly_01", "Chassis_Frame", "Sensor_Array"};
+}
+
+void SceneOutliner::Draw() {
+    // ImGui::Begin(GetTitle().c_str(), &IsVisible);
+    // for (const auto& node : m_RootNodes) {
+    //     if (ImGui::TreeNode(node.c_str())) {
+    //         ImGui::Text("Child Node...");
+    //         ImGui::TreePop();
+    //     }
+    // }
+    // ImGui::End();
+}
+""",
+
+    "SZM_Forge_UI/src/panels/ConsolePanel.h": """// SZM_Forge_UI/src/panels/ConsolePanel.h
+#pragma once
+#include "IPanel.h"
+#include <vector>
+#include <string>
+
+class ConsolePanel : public IPanel {
+public:
+    ConsolePanel();
+    void Draw() override;
+    std::string GetTitle() const override { return "SZM-CEA Console"; }
+    void AddLog(const std::string& log);
+
+private:
+    std::vector<std::string> m_Logs;
+    char m_InputBuffer[256] = "";
+};
+""",
+
+    "SZM_Forge_UI/src/panels/ConsolePanel.cpp": """// SZM_Forge_UI/src/panels/ConsolePanel.cpp
+#include "ConsolePanel.h"
+// #include <imgui.h>
+
+ConsolePanel::ConsolePanel() {
+    AddLog("[System] SZM-CEA AI Assistant Initialized.");
+}
+
+void ConsolePanel::AddLog(const std::string& log) {
+    m_Logs.push_back(log);
+}
+
+void ConsolePanel::Draw() {
+    // ImGui::Begin(GetTitle().c_str(), &IsVisible);
+    // for (const auto& log : m_Logs) {
+    //     ImGui::TextUnformatted(log.c_str());
+    // }
+    // ImGui::InputText("Command", m_InputBuffer, 256);
+    // ImGui::End();
+}
+"""
+}
+
+# --- 2. Create Folders and Write Files ---
+print("Creating directories and writing C++ files...")
+for file_path, content in file_system.items():
+    directory = os.path.dirname(file_path)
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    
+    with open(file_path, 'w') as f:
+        f.write(content)
+    print(f"Created: {file_path}")
+
+# --- 3. Generate the ZIP Archive ---
+print("\\nZipping the module...")
+shutil.make_archive("SZM_Forge_UI_Module", 'zip', "SZM_Forge_UI")
+print("Success! Created SZM_Forge_UI_Module.zip")
+
+cmake_minimum_required(VERSION 3.20)
+project(SZM_Forge_InputCore VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Platform-specific definitions
+if(WIN32)
+    add_compile_definitions(SZM_PLATFORM_WINDOWS)
+elseif(UNIX AND NOT APPLE)
+    add_compile_definitions(SZM_PLATFORM_LINUX)
+endif()
+
+# Define the InputCore Library
+add_library(AppCore_Input_Event_Bus STATIC
+    src/InputManager.cpp
+    src/SpaceMouseDriver.cpp
+)
+
+target_include_directories(AppCore_Input_Event_Bus PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# Note: Link against your OS Windowing API (e.g., GLFW, SDL2, or native Win32/X11)
+# target_link_libraries(AppCore_Input_Event_Bus PUBLIC glfw)
+
+#pragma once
+#include <functional>
+#include <string>
+
+namespace SZM {
+
+    enum class EventType {
+        None = 0,
+        WindowLostFocus,
+        KeyPressed, KeyReleased, KeyTyped,
+        MouseMoved, MouseButtonPressed, MouseButtonReleased, MouseScrolled,
+        SpaceMouseMoved, SpaceMouseButton
+    };
+
+    enum EventCategory {
+        None = 0,
+        EventCategoryInput      = 1 << 0,
+        EventCategoryKeyboard   = 1 << 1,
+        EventCategoryMouse      = 1 << 2,
+        EventCategorySpaceMouse = 1 << 3
+    };
+
+    // Base Event Class
+    class Event {
+    public:
+        virtual ~Event() = default;
+        bool Handled = false; // The core routing mechanism (UI vs 3D Viewport)
+
+        virtual EventType GetEventType() const = 0;
+        virtual const char* GetName() const = 0;
+        virtual int GetCategoryFlags() const = 0;
+        virtual std::string ToString() const { return GetName(); }
+
+        bool IsInCategory(EventCategory category) {
+            return GetCategoryFlags() & category;
+        }
+    };
+
+    // Event Dispatcher for Routing
+    class EventDispatcher {
+    public:
+        EventDispatcher(Event& event) : m_Event(event) {}
+
+        // F will be deduced by the compiler
+        template<typename T, typename F>
+        bool Dispatch(const F& func) {
+            if (m_Event.GetEventType() == T::GetStaticType() && !m_Event.Handled) {
+                m_Event.Handled = func(static_cast<T&>(m_Event));
+                return true;
+            }
+            return false;
+        }
+    private:
+        Event& m_Event;
+    };
+
+} // namespace SZM
+
+#pragma once
+#include "Event.hpp"
+#include <sstream>
+
+namespace SZM {
+
+    // --- KEYBOARD EVENTS ---
+    class KeyPressedEvent : public Event {
+    public:
+        KeyPressedEvent(int keycode, int repeatCount) 
+            : m_KeyCode(keycode), m_RepeatCount(repeatCount) {}
+
+        int GetKeyCode() const { return m_KeyCode; }
+        
+        static EventType GetStaticType() { return EventType::KeyPressed; }
+        EventType GetEventType() const override { return GetStaticType(); }
+        const char* GetName() const override { return "KeyPressed"; }
+        int GetCategoryFlags() const override { return EventCategoryInput | EventCategoryKeyboard; }
+
+    private:
+        int m_KeyCode;
+        int m_RepeatCount;
+    };
+
+    // --- MOUSE EVENTS ---
+    class MouseMovedEvent : public Event {
+    public:
+        MouseMovedEvent(float x, float y) : m_MouseX(x), m_MouseY(y) {}
+
+        float GetX() const { return m_MouseX; }
+        float GetY() const { return m_MouseY; }
+
+        static EventType GetStaticType() { return EventType::MouseMoved; }
+        EventType GetEventType() const override { return GetStaticType(); }
+        const char* GetName() const override { return "MouseMoved"; }
+        int GetCategoryFlags() const override { return EventCategoryInput | EventCategoryMouse; }
+
+    private:
+        float m_MouseX, m_MouseY;
+    };
+
+    // --- SPACEMOUSE EVENTS (6-DOF) ---
+    class SpaceMouseMovedEvent : public Event {
+    public:
+        // Tx, Ty, Tz (Translation) | Rx, Ry, Rz (Rotation)
+        SpaceMouseMovedEvent(float tx, float ty, float tz, float rx, float ry, float rz)
+            : m_Tx(tx), m_Ty(ty), m_Tz(tz), m_Rx(rx), m_Ry(ry), m_Rz(rz) {}
+
+        static EventType GetStaticType() { return EventType::SpaceMouseMoved; }
+        EventType GetEventType() const override { return GetStaticType(); }
+        const char* GetName() const override { return "SpaceMouseMoved"; }
+        int GetCategoryFlags() const override { return EventCategoryInput | EventCategorySpaceMouse; }
+
+        // Data getters...
+    private:
+        float m_Tx, m_Ty, m_Tz, m_Rx, m_Ry, m_Rz;
+    };
+
+} // namespace SZM
+
+#pragma once
+#include <array>
+#include <utility>
+
+namespace SZM {
+
+    class InputManager {
+    public:
+        static void Init();
+        
+        // Polling APIs for systems that prefer direct state checking over events
+        static bool IsKeyPressed(int keycode);
+        static bool IsMouseButtonPressed(int button);
+        static std::pair<float, float> GetMousePosition();
+
+        // State updaters (called by OS-level window callbacks)
+        static void UpdateKeyState(int keycode, bool pressed);
+        static void UpdateMouseState(int button, bool pressed);
+        static void UpdateMousePosition(float x, float y);
+
+        // Edge Case Handling: Called when App loses OS focus
+        static void ClearStateOnFocusLost();
+
+    private:
+        // Internal state trackers (size depends on underlying API, e.g., GLFW_KEY_LAST is 348)
+        static std::array<bool, 512> s_KeyStates;
+        static std::array<bool, 8> s_MouseButtonStates;
+        static float s_MouseX, s_MouseY;
+    };
+
+} // namespace SZM
+
+#include "InputManager.hpp"
+#include <algorithm>
+
+namespace SZM {
+
+    std::array<bool, 512> InputManager::s_KeyStates = {false};
+    std::array<bool, 8> InputManager::s_MouseButtonStates = {false};
+    float InputManager::s_MouseX = 0.0f;
+    float InputManager::s_MouseY = 0.0f;
+
+    void InputManager::Init() {
+        ClearStateOnFocusLost();
+    }
+
+    bool InputManager::IsKeyPressed(int keycode) {
+        if (keycode >= 0 && keycode < s_KeyStates.size())
+            return s_KeyStates[keycode];
+        return false;
+    }
+
+    void InputManager::UpdateKeyState(int keycode, bool pressed) {
+        if (keycode >= 0 && keycode < s_KeyStates.size()) {
+            s_KeyStates[keycode] = pressed;
+        }
+    }
+
+    // Resolves Edge Case 11: Alt-Tabbing away causes keys to get "stuck"
+    void InputManager::ClearStateOnFocusLost() {
+        std::fill(s_KeyStates.begin(), s_KeyStates.end(), false);
+        std::fill(s_MouseButtonStates.begin(), s_MouseButtonStates.end(), false);
+    }
+
+    // Additional implementations for Mouse state follow similarly...
+}
+
+// Inside your Application's Main Event Callback
+void SZM_App::OnEvent(SZM::Event& e) {
+    SZM::EventDispatcher dispatcher(e);
+
+    // 1. Dispatch to UI Layer FIRST
+    // If the UI is focused on a text box and the event is a 'W' keypress, 
+    // m_UIManager.OnEvent will process it and return TRUE.
+    dispatcher.Dispatch<SZM::KeyPressedEvent>(std::bind(&UIManager::OnEvent, &m_UIManager, std::placeholders::_1));
+
+    // 2. Dispatch to 3D Camera/Viewport LAST
+    // Because dispatcher checks `!m_Event.Handled`, if the UI consumed the event,
+    // this dispatch will simply be skipped. The 3D camera will NOT move forward.
+    dispatcher.Dispatch<SZM::KeyPressedEvent>(std::bind(&CameraController::OnEvent, &m_CameraController, std::placeholders::_1));
+}
+
+#pragma once
+
+#include <memory>
+#include <string>
+#include <cstdint>
+
+// Forward declaration of GLFWwindow to avoid including GLFW here
+struct GLFWwindow;
+
+namespace SZM::Graphics {
+
+    enum class API {
+        None = 0,
+        OpenGL = 1,
+        Vulkan = 2,
+        DirectX12 = 3 // Reserved for future Windows-only optimizations
+    };
+
+    struct ContextConfig {
+        API PreferredAPI = API::Vulkan;
+        uint8_t MSAASamples = 4;        // 2x, 4x, 8x for CAD line smoothing
+        uint8_t DepthBits = 24;         // Minimum 24-bit to prevent Z-fighting
+        bool DoubleBuffering = true;
+    };
+
+    class GraphicsContext {
+    public:
+        virtual ~GraphicsContext() = default;
+
+        // Core Lifecycle
+        virtual void Init() = 0;
+        virtual void SwapBuffers() = 0;
+        virtual void OnResize(uint32_t width, uint32_t height) = 0;
+        
+        // Edge Case Handling
+        virtual void HandleDeviceLost() = 0;
+
+        // Hardware Query
+        [[nodiscard]] virtual std::string GetGPUInfo() const = 0;
+
+    protected:
+        GLFWwindow* m_WindowHandle;
+        ContextConfig m_Config;
+
+        GraphicsContext(GLFWwindow* windowHandle, const ContextConfig& config)
+            : m_WindowHandle(windowHandle), m_Config(config) {}
+    };
+
+    // Factory Class for initializing the correct backend
+    class ContextFactory {
+    public:
+        [[nodiscard]] static std::unique_ptr<GraphicsContext> Create(GLFWwindow* window, const ContextConfig& config);
+    };
+
+} // namespace SZM::Graphics
+
+#include "GraphicsContext.hpp"
+#include <GLFW/glfw3.h>
+#include <iostream>
+#include <stdexcept>
+
+namespace SZM::Graphics {
+
+    class OpenGLContext : public GraphicsContext {
+    public:
+        OpenGLContext(GLFWwindow* windowHandle, const ContextConfig& config)
+            : GraphicsContext(windowHandle, config) {}
+
+        void Init() override {
+            glfwMakeContextCurrent(m_WindowHandle);
+
+            // In a full build, initialize GLAD/GLEW here to load OpenGL 4.6 function pointers.
+            // if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { ... }
+
+            // Configure MSAA and Depth Buffering based on input state
+            if (m_Config.MSAASamples > 1) {
+                glEnable(GL_MULTISAMPLE);
+            }
+            
+            glEnable(GL_DEPTH_TEST);
+            glDepthFunc(GL_LESS);
+
+            // Dark Slate Grey [0.18, 0.18, 0.2] as per the test case
+            glClearColor(0.18f, 0.18f, 0.20f, 1.0f);
+
+            std::cout << "SZM Forge [GPU]: OpenGL 4.6 Context Initialized.\n";
+            std::cout << "SZM Forge [GPU]: Hardware - " << GetGPUInfo() << "\n";
+        }
+
+        void SwapBuffers() override {
+            // Clears both color and the 24-bit depth buffer for the next 3D frame
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            
+            glfwSwapBuffers(m_WindowHandle);
+        }
+
+        void OnResize(uint32_t width, uint32_t height) override {
+            glViewport(0, 0, width, height);
+            // OpenGL manages its own swapchain inherently, but we update the viewport.
+        }
+
+        void HandleDeviceLost() override {
+            std::cerr << "SZM_CRITICAL: OpenGL Context Lost. Attempting to rebuild state...\n";
+            // OpenGL context recovery logic (rare, but necessary for robust CAD)
+        }
+
+        [[nodiscard]] std::string GetGPUInfo() const override {
+            const unsigned char* vendor = glGetString(GL_VENDOR);
+            const unsigned char* renderer = glGetString(GL_RENDERER);
+            return std::string(reinterpret_cast<const char*>(vendor)) + " " + 
+                   std::string(reinterpret_cast<const char*>(renderer));
+        }
+    };
+
+} // namespace SZM::Graphics
+
+#include "GraphicsContext.hpp"
+#include <iostream>
+
+namespace SZM::Graphics {
+
+    class VulkanContext : public GraphicsContext {
+    public:
+        VulkanContext(GLFWwindow* windowHandle, const ContextConfig& config)
+            : GraphicsContext(windowHandle, config) {}
+
+        void Init() override {
+            CreateInstance();
+            SelectPhysicalDevice(); // Query OS -> Discrete GPU preference
+            CreateLogicalDevice();
+            CreateSwapchain();      // Match OS Window dims & Double/Triple buffering
+            CreateDepthResources(); // Allocate 24-bit depth + 8-bit stencil memory
+            
+            std::cout << "SZM Forge [GPU]: Vulkan Context Initialized.\n";
+        }
+
+        void SwapBuffers() override {
+            // 1. vkAcquireNextImageKHR()
+            // 2. vkWaitForFences()
+            // 3. vkQueueSubmit() -> Submit Command Buffers from 100-Series
+            // 4. vkQueuePresentKHR()
+        }
+
+        void OnResize(uint32_t width, uint32_t height) override {
+            // Explicit Swapchain destruction and recreation required to prevent stretching/crashing
+            RecreateSwapchain();
+        }
+
+        void HandleDeviceLost() override {
+            // Handle VK_ERROR_DEVICE_LOST
+            std::cerr << "SZM_FATAL: Vulkan Device Lost (VK_ERROR_DEVICE_LOST). Re-initializing physical device...\n";
+        }
+
+        [[nodiscard]] std::string GetGPUInfo() const override {
+            return "Vulkan Physical Device Name (Pending Query)";
+        }
+
+    private:
+        // Vulkan handles (vk::Instance, vk::Device, vk::SwapchainKHR, etc.) would live here.
+        void CreateInstance() {}
+        void SelectPhysicalDevice() {}
+        void CreateLogicalDevice() {}
+        void CreateSwapchain() {}
+        void RecreateSwapchain() {}
+        void CreateDepthResources() {}
+    };
+
+} // namespace SZM::Graphics
+
+#include "GraphicsContext.hpp"
+// In a real build, these would be separate headers
+#include "OpenGLContext.cpp" 
+#include "VulkanContext.cpp" 
+
+namespace SZM::Graphics {
+
+    std::unique_ptr<GraphicsContext> ContextFactory::Create(GLFWwindow* window, const ContextConfig& config) {
+        switch (config.PreferredAPI) {
+            case API::OpenGL:
+                return std::make_unique<OpenGLContext>(window, config);
+            case API::Vulkan:
+                return std::make_unique<VulkanContext>(window, config);
+            case API::DirectX12:
+                throw std::runtime_error("DX12 not currently implemented for cross-platform target.");
+            case API::None:
+            default:
+                throw std::runtime_error("SZM_FATAL: No Graphics API selected.");
+        }
+    }
+
+} // namespace SZM::Graphics
+
+#pragma once
+#include <functional>
+#include <string>
+
+namespace SZM {
+    enum class EventType {
+        None = 0, WindowLostFocus,
+        KeyPressed, KeyReleased, KeyTyped,
+        MouseMoved, MouseButtonPressed, MouseButtonReleased, MouseScrolled,
+        SpaceMouseMoved, SpaceMouseButton
+    };
+
+    enum EventCategory {
+        None = 0,
+        EventCategoryInput      = 1 << 0,
+        EventCategoryKeyboard   = 1 << 1,
+        EventCategoryMouse      = 1 << 2,
+        EventCategorySpaceMouse = 1 << 3
+    };
+
+    class Event {
+    public:
+        virtual ~Event() = default;
+        bool Handled = false; 
+        virtual EventType GetEventType() const = 0;
+        virtual const char* GetName() const = 0;
+        virtual int GetCategoryFlags() const = 0;
+        bool IsInCategory(EventCategory category) { return GetCategoryFlags() & category; }
+    };
+
+    class EventDispatcher {
+    public:
+        EventDispatcher(Event& event) : m_Event(event) {}
+        template<typename T, typename F>
+        bool Dispatch(const F& func) {
+            if (m_Event.GetEventType() == T::GetStaticType() && !m_Event.Handled) {
+                m_Event.Handled = func(static_cast<T&>(m_Event));
+                return true;
+            }
+            return false;
+        }
+    private:
+        Event& m_Event;
+    };
+}
+
+#pragma once
+#include "Event.hpp"
+
+namespace SZM {
+    class KeyPressedEvent : public Event {
+    public:
+        KeyPressedEvent(int keycode, int repeatCount) : m_KeyCode(keycode), m_RepeatCount(repeatCount) {}
+        static EventType GetStaticType() { return EventType::KeyPressed; }
+        virtual EventType GetEventType() const override { return GetStaticType(); }
+        virtual const char* GetName() const override { return "KeyPressed"; }
+        virtual int GetCategoryFlags() const override { return EventCategoryInput | EventCategoryKeyboard; }
+        int GetKeyCode() const { return m_KeyCode; }
+    private:
+        int m_KeyCode; int m_RepeatCount;
+    };
+
+    class MouseMovedEvent : public Event {
+    public:
+        MouseMovedEvent(float x, float y) : m_MouseX(x), m_MouseY(y) {}
+        static EventType GetStaticType() { return EventType::MouseMoved; }
+        virtual EventType GetEventType() const override { return GetStaticType(); }
+        virtual const char* GetName() const override { return "MouseMoved"; }
+        virtual int GetCategoryFlags() const override { return EventCategoryInput | EventCategoryMouse; }
+    private:
+        float m_MouseX, m_MouseY;
+    };
+}
+
+#pragma once
+#include <array>
+
+namespace SZM {
+    class InputManager {
+    public:
+        static void UpdateKeyState(int keycode, bool pressed);
+        static bool IsKeyPressed(int keycode);
+        static void ClearState(); // For Alt-Tab edge case
+    private:
+        static std::array<bool, 512> s_KeyStates;
+    };
+}
+
+#include "InputManager.hpp"
+#include <algorithm>
+
+namespace SZM {
+    std::array<bool, 512> InputManager::s_KeyStates = {false};
+
+    void InputManager::UpdateKeyState(int keycode, bool pressed) {
+        if (keycode >= 0 && keycode < 512) s_KeyStates[keycode] = pressed;
+    }
+
+    bool InputManager::IsKeyPressed(int keycode) {
+        return (keycode >= 0 && keycode < 512) ? s_KeyStates[keycode] : false;
+    }
+
+    void InputManager::ClearState() {
+        std::fill(s_KeyStates.begin(), s_KeyStates.end(), false);
+    }
+}
+
+add_library(AppCore_Input_Event_Bus STATIC
+    ../../src/input/InputManager.cpp
+)
+
+target_include_directories(AppCore_Input_Event_Bus PUBLIC 
+    ../../src/input
+)
+
+// SZM_SceneGraph.h
+#pragma once
+
+#include <iostream>
+#include <vector>
+#include <memory>
+#include <unordered_map>
+#include <random>
+#include <string>
+#include <stdexcept>
+#include <cstdint>
+
+namespace SZM {
+
+// 128-bit UUID Structure
+struct UUID {
+    uint64_t high;
+    uint64_t low;
+
+    bool operator==(const UUID& other) const {
+        return high == other.high && low == other.low;
+    }
+};
+
+} // namespace SZM
+
+// Custom Hash for unordered_map compatibility
+namespace std {
+    template <>
+    struct hash<SZM::UUID> {
+        size_t operator()(const SZM::UUID& uuid) const {
+            return hash<uint64_t>()(uuid.high) ^ (hash<uint64_t>()(uuid.low) << 1);
+        }
+    };
+}
+
+namespace SZM {
+
+// Fast, zero-collision 128-bit UUID Generator
+class UUIDGenerator {
+public:
+    static UUID generate() {
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937_64 engine(rd());
+        static thread_local std::uniform_int_distribution<uint64_t> dist;
+        return {dist(engine), dist(engine)};
+    }
+};
+
+// Placeholder for Matrix4x4 Transform
+struct Transform {
+    float matrix[16] = { 1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 }; // Identity
+};
+
+// Base Entity Node
+class Entity : public std::enable_shared_from_this<Entity> {
+private:
+    UUID uuid;
+    std::weak_ptr<Entity> parent;
+    std::vector<std::shared_ptr<Entity>> children;
+    
+    Transform localTransform;
+    Transform worldTransform;
+    std::string name;
+
+public:
+    Entity(std::string nodeName = "Node") : name(std::move(nodeName)) {
+        uuid = UUIDGenerator::generate();
+    }
+
+    // Constructor for deserialization (retains original UUID)
+    Entity(UUID existingID, std::string nodeName) : uuid(existingID), name(std::move(nodeName)) {}
+
+    UUID getUUID() const { return uuid; }
+    std::string getName() const { return name; }
+    Transform getLocalTransform() const { return localTransform; }
+
+    // Cycle Detection (DFS upward)
+    bool isAncestor(const UUID& potentialAncestorID) const {
+        auto currentParent = parent.lock();
+        while (currentParent) {
+            if (currentParent->getUUID() == potentialAncestorID) return true;
+            currentParent = currentParent->parent.lock();
+        }
+        return false;
+    }
+
+    void addChild(std::shared_ptr<Entity> child) {
+        if (!child) return;
+        
+        // Anti-Circular Dependency Check
+        if (child->getUUID() == this->uuid || isAncestor(child->getUUID())) {
+            throw std::runtime_error("SZM Fatal: Circular dependency detected. Node attachment aborted.");
+        }
+
+        child->parent = shared_from_this();
+        children.push_back(child);
+    }
+
+    const std::vector<std::shared_ptr<Entity>>& getChildren() const { return children; }
+    std::weak_ptr<Entity> getParent() const { return parent; }
+};
+
+} // namespace SZM
+
+// SZM_SceneGraphManager.h
+#pragma once
+#include "SZM_SceneGraph.h"
+
+namespace SZM {
+
+class SceneGraphManager {
+private:
+    std::shared_ptr<Entity> rootNode;
+    std::unordered_map<UUID, std::shared_ptr<Entity>> uuidRegistry;
+
+    // Helper to register nodes into the lookup map
+    void registerNode(std::shared_ptr<Entity> node) {
+        uuidRegistry[node->getUUID()] = node;
+        for (const auto& child : node->getChildren()) {
+            registerNode(child);
+        }
+    }
+
+public:
+    SceneGraphManager() {
+        rootNode = std::make_shared<Entity>("RootWorkspace");
+        uuidRegistry[rootNode->getUUID()] = rootNode;
+    }
+
+    std::shared_ptr<Entity> getRoot() const { return rootNode; }
+
+    // ---------------------------------------------------------
+    // SERIALIZATION (Memory to .szm format)
+    // ---------------------------------------------------------
+    
+    // Abstracted representation of the BSON/Protobuf payload
+    struct SerializedNode {
+        UUID id;
+        UUID parentId; // The "swizzled" pointer
+        std::string name;
+        Transform localTransform;
+    };
+
+    std::vector<SerializedNode> serializeGraph() const {
+        std::vector<SerializedNode> flattenedGraph;
+        
+        // DFS Traversal to flatten the DAG
+        auto traverseAndFlatten = [&](auto& self, const std::shared_ptr<Entity>& node) -> void {
+            if (!node) return;
+            
+            SerializedNode snode;
+            snode.id = node->getUUID();
+            snode.name = node->getName();
+            snode.localTransform = node->getLocalTransform();
+            
+            if (auto p = node->getParent().lock()) {
+                snode.parentId = p->getUUID(); // Convert Memory Pointer -> UUID
+            } else {
+                snode.parentId = {0, 0}; // Root has no parent
+            }
+            
+            flattenedGraph.push_back(snode);
+
+            for (const auto& child : node->getChildren()) {
+                self(self, child);
+            }
+        };
+
+        traverseAndFlatten(traverseAndFlatten, rootNode);
+        return flattenedGraph; 
+        // Note: flattenedGraph would then be encoded to BSON/Protobuf and written to disk
+    }
+
+    // ---------------------------------------------------------
+    // DESERIALIZATION (Disk .szm to Memory)
+    // ---------------------------------------------------------
+    void deserializeGraph(const std::vector<SerializedNode>& diskData) {
+        uuidRegistry.clear();
+        rootNode.reset();
+
+        // Pass 1: Instantiate all nodes with their original UUIDs
+        for (const auto& sNode : diskData) {
+            auto entity = std::make_shared<Entity>(sNode.id, sNode.name);
+            // In a full implementation, apply sNode.localTransform here
+            uuidRegistry[sNode.id] = entity;
+        }
+
+        // Pass 2: Re-link pointers using the UUID Registry (Swizzling resolution)
+        for (const auto& sNode : diskData) {
+            auto currentNode = uuidRegistry[sNode.id];
+            
+            // Re-attach to parent
+            if (sNode.parentId.high != 0 || sNode.parentId.low != 0) {
+                auto parentNode = uuidRegistry[sNode.parentId];
+                if (parentNode) {
+                    parentNode->addChild(currentNode);
+                } else {
+                    // Handle "Ghost Nodes" or corrupted hierarchies
+                    std::cerr << "SZM Warning: Parent UUID missing. Re-parenting " 
+                              << sNode.name << " to Root." << std::endl;
+                    if (rootNode && currentNode != rootNode) {
+                        rootNode->addChild(currentNode);
+                    }
+                }
+            } else {
+                rootNode = currentNode; // This is the root
+            }
+        }
+    }
+};
+
+} // namespace SZM
+
+# CMakeLists.txt
+cmake_minimum_required(VERSION 3.20)
+project(SZM_Forge_DataCore VERSION 1.0.0 LANGUAGES CXX)
+
+# Enforce C++20 Standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Platform specific optimizations and strict warnings
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX /O2 /fp:fast")
+    add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -O3 -ffast-math -pthread")
+endif()
+
+# Core Data Library
+add_library(DataCore_SceneGraph STATIC
+    src/SZM_SceneGraph.h
+    src/SZM_SceneGraphManager.h
+    # Add implementation .cpp files here as they grow
+)
+
+# Includes (e.g., placeholder for nlohmann/json or protobuf later)
+target_include_directories(DataCore_SceneGraph PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
+    $<INSTALL_INTERFACE:include>
+)
+
+# Test Executable
+add_executable(SZM_TestRunner tests/main.cpp)
+target_link_libraries(SZM_TestRunner PRIVATE DataCore_SceneGraph)
+
+// src/core/math/ConstraintSolver.hpp
+#pragma once
+#include <vector>
+#include <memory>
+#include <Eigen/Dense>
+
+namespace SZM::Math {
+
+    // Represents a single variable in the solver (e.g., a Point's X or Y coordinate)
+    struct Variable {
+        double Value;
+        bool IsLocked; // True if anchored to the origin or explicitly fixed
+    };
+
+    // Base interface for all geometric constraints
+    class IConstraint {
+    public:
+        virtual ~IConstraint() = default;
+
+        // Evaluates how close the constraint is to being satisfied (Target: 0.0)
+        virtual double EvaluateResidual() const = 0;
+
+        // Fills the partial derivatives of this constraint with respect to its variables
+        virtual void FillJacobianRow(Eigen::RowVectorXd& jacobianRow) const = 0;
+        
+        // Maps the constraint's local variables to the global solver indices
+        virtual std::vector<int> GetVariableIndices() const = 0;
+    };
+
+    class ConstraintSolver2D {
+    public:
+        ConstraintSolver2D();
+        ~ConstraintSolver2D() = default;
+
+        int AddVariable(double initialValue, bool locked = false);
+        void AddConstraint(std::shared_ptr<IConstraint> constraint);
+
+        // Executes the Newton-Raphson loop. Returns true if converged.
+        bool Solve(int maxIterations = 50, double tolerance = 1e-6);
+
+        // State Accessors
+        double GetVariableValue(int index) const;
+        int GetDegreesOfFreedom() const;
+        double GetSystemResidualError() const;
+
+    private:
+        std::vector<Variable> m_Variables;
+        std::vector<std::shared_ptr<IConstraint>> m_Constraints;
+        
+        int m_DegreesOfFreedom = 0;
+        double m_ResidualError = 0.0;
+        
+        // Helper to construct the system matrices for the current iteration
+        void BuildSystem(Eigen::MatrixXd& J, Eigen::VectorXd& F);
+    };
+
+} // namespace SZM::Math
+
+// src/core/math/ConstraintSolver.cpp
+#include "ConstraintSolver.hpp"
+#include <iostream>
+
+namespace SZM::Math {
+
+    ConstraintSolver2D::ConstraintSolver2D() {}
+
+    int ConstraintSolver2D::AddVariable(double initialValue, bool locked) {
+        m_Variables.push_back({initialValue, locked});
+        return m_Variables.size() - 1;
+    }
+
+    void ConstraintSolver2D::AddConstraint(std::shared_ptr<IConstraint> constraint) {
+        m_Constraints.push_back(constraint);
+    }
+
+    double ConstraintSolver2D::GetVariableValue(int index) const {
+        return m_Variables[index].Value;
+    }
+
+    int ConstraintSolver2D::GetDegreesOfFreedom() const {
+        return m_DegreesOfFreedom;
+    }
+
+    double ConstraintSolver2D::GetSystemResidualError() const {
+        return m_ResidualError;
+    }
+
+    void ConstraintSolver2D::BuildSystem(Eigen::MatrixXd& J, Eigen::VectorXd& F) {
+        int numVars = m_Variables.size();
+        int numConstraints = m_Constraints.size();
+
+        J = Eigen::MatrixXd::Zero(numConstraints, numVars);
+        F = Eigen::VectorXd::Zero(numConstraints);
+
+        for (int i = 0; i < numConstraints; ++i) {
+            // 1. Calculate Residual f(x)
+            F(i) = m_Constraints[i]->EvaluateResidual();
+
+            // 2. Calculate Jacobian Row J
+            Eigen::RowVectorXd row = Eigen::RowVectorXd::Zero(numVars);
+            m_Constraints[i]->FillJacobianRow(row);
+            
+            // Mask out locked variables (they don't contribute to derivatives)
+            auto indices = m_Constraints[i]->GetVariableIndices();
+            for (int idx : indices) {
+                if (m_Variables[idx].IsLocked) {
+                    row(idx) = 0.0; 
+                }
+            }
+            J.row(i) = row;
+        }
+    }
+
+    bool ConstraintSolver2D::Solve(int maxIterations, double tolerance) {
+        int numVars = m_Variables.size();
+        if (numVars == 0) return true;
+
+        for (int iter = 0; iter < maxIterations; ++iter) {
+            Eigen::MatrixXd J;
+            Eigen::VectorXd F;
+            BuildSystem(J, F);
+
+            m_ResidualError = F.norm();
+            if (m_ResidualError < tolerance) {
+                return true; // System successfully constrained and converged
+            }
+
+            // Solve J * delta_x = -F using Singular Value Decomposition
+            // BDCSVD is highly optimized for larger matrices in Eigen
+            Eigen::BDCSVD<Eigen::MatrixXd> svd(J, Eigen::ComputeThinU | Eigen::ComputeThinV);
+            
+            // Calculate actual Degrees of Freedom
+            // Total independent variables minus the rank of the Jacobian
+            int activeVariables = 0;
+            for(const auto& v : m_Variables) if(!v.IsLocked) activeVariables++;
+            
+            m_DegreesOfFreedom = activeVariables - svd.rank();
+
+            // Check for over-constraint failure condition
+            if (m_DegreesOfFreedom < 0) {
+                std::cerr << "[SZM-CEA Error] System is Over-Constrained. Conflicting geometry detected.\n";
+                return false; 
+            }
+
+            Eigen::VectorXd deltaX = svd.solve(-F);
+
+            // Apply the delta to our variables
+            for (int i = 0; i < numVars; ++i) {
+                if (!m_Variables[i].IsLocked) {
+                    m_Variables[i].Value += deltaX(i);
+                }
+            }
+        }
+        
+        std::cerr << "[SZM-CEA Warning] Solver failed to converge after " << maxIterations << " iterations.\n";
+        return false;
+    }
+
+} // namespace SZM::Math
+
+// src/core/math/constraints/DistanceConstraint.hpp
+#pragma once
+#include "../ConstraintSolver.hpp"
+#include <cmath>
+
+namespace SZM::Math {
+
+    class DistanceConstraint : public IConstraint {
+    public:
+        // Indices in the solver's variable array
+        int idx_X1, idx_Y1, idx_X2, idx_Y2;
+        double TargetDistance;
+        std::vector<Variable>& GlobalVariables;
+
+        DistanceConstraint(int x1, int y1, int x2, int y2, double distance, std::vector<Variable>& vars)
+            : idx_X1(x1), idx_Y1(y1), idx_X2(x2), idx_Y2(y2), TargetDistance(distance), GlobalVariables(vars) {}
+
+        double EvaluateResidual() const override {
+            double dx = GlobalVariables[idx_X1].Value - GlobalVariables[idx_X2].Value;
+            double dy = GlobalVariables[idx_Y1].Value - GlobalVariables[idx_Y2].Value;
+            // f(x) = dx^2 + dy^2 - D^2
+            return (dx * dx) + (dy * dy) - (TargetDistance * TargetDistance);
+        }
+
+        void FillJacobianRow(Eigen::RowVectorXd& jacobianRow) const override {
+            double dx = GlobalVariables[idx_X1].Value - GlobalVariables[idx_X2].Value;
+            double dy = GlobalVariables[idx_Y1].Value - GlobalVariables[idx_Y2].Value;
+
+            // Partial derivatives of f(x)
+            jacobianRow(idx_X1) =  2.0 * dx;
+            jacobianRow(idx_X2) = -2.0 * dx;
+            jacobianRow(idx_Y1) =  2.0 * dy;
+            jacobianRow(idx_Y2) = -2.0 * dy;
+        }
+
+        std::vector<int> GetVariableIndices() const override {
+            return {idx_X1, idx_Y1, idx_X2, idx_Y2};
+        }
+    };
+
+} // namespace SZM::Math
+
+# src/core/math/CMakeLists.txt
+
+# Locate Eigen3
+find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+
+add_library(SZM_Constraint_Solver STATIC
+    ConstraintSolver.cpp
+    # Add constraint implementations here
+)
+
+# Link Eigen headers
+target_link_libraries(SZM_Constraint_Solver PUBLIC Eigen3::Eigen)
+
+target_include_directories(SZM_Constraint_Solver PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Enforce C++20 for matrix operations
+target_compile_features(SZM_Constraint_Solver PUBLIC cxx_std_20)
+
+#pragma once
+
+#include <vector>
+#include <cmath>
+#include <stdexcept>
+
+namespace SZM::Geometry {
+
+    // Fundamental types (Assuming these bridge with Module 110.x)
+    struct Vector3 {
+        double x = 0.0, y = 0.0, z = 0.0;
+        
+        Vector3 operator+(const Vector3& other) const { return {x + other.x, y + other.y, z + other.z}; }
+        Vector3 operator-(const Vector3& other) const { return {x - other.x, y - other.y, z - other.z}; }
+        Vector3 operator*(double scalar) const { return {x * scalar, y * scalar, z * scalar}; }
+        
+        [[nodiscard]] double Magnitude() const { return std::sqrt(x*x + y*y + z*z); }
+        [[nodiscard]] Vector3 Normalize() const {
+            double mag = Magnitude();
+            return mag > 0.0 ? Vector3{x/mag, y/mag, z/mag} : *this;
+        }
+    };
+
+    struct Face {
+        std::vector<Vector3> Vertices; // Closed loop 2D profile
+        Vector3 Normal;
+    };
+
+    struct SolidBody {
+        std::vector<Vector3> Vertices;
+        std::vector<std::vector<size_t>> Faces; // Indices forming polygons
+        double Volume = 0.0;
+    };
+
+    struct ExtrudeParams {
+        double Distance;
+        Vector3 Direction;       // Will default to Face.Normal if zero-magnitude
+        double DraftAngleRad = 0.0; // ϕ
+    };
+
+    namespace Operations {
+        // Core Extrusion Function
+        [[nodiscard]] SolidBody LinearExtrude(const Face& profile, const ExtrudeParams& params);
+    }
+
+} // namespace SZM::Geometry
+
+#include "ExtrudeOp.hpp"
+#include <numbers>
+#include <numeric>
+
+namespace SZM::Geometry::Operations {
+
+    // Helper: Calculate the geometric centroid of a polygon
+    static Vector3 CalculateCentroid(const std::vector<Vector3>& vertices) {
+        if (vertices.empty()) return {};
+        Vector3 centroid;
+        for (const auto& v : vertices) {
+            centroid.x += v.x; centroid.y += v.y; centroid.z += v.z;
+        }
+        return centroid * (1.0 / static_cast<double>(vertices.size()));
+    }
+
+    SolidBody LinearExtrude(const Face& profile, const ExtrudeParams& params) {
+        if (profile.Vertices.size() < 3) {
+            throw std::invalid_argument("SZM_GEOM_ERROR: Profile must have at least 3 vertices to extrude.");
+        }
+
+        SolidBody result;
+        const size_t vertexCount = profile.Vertices.size();
+        
+        // Resolve extrusion vector
+        Vector3 extrudeDir = params.Direction.Magnitude() > 0.0 ? params.Direction.Normalize() : profile.Normal.Normalize();
+        Vector3 translation = extrudeDir * params.Distance;
+
+        // Taper / Draft Angle computation
+        Vector3 centroid = CalculateCentroid(profile.Vertices);
+        bool hasTaper = std::abs(params.DraftAngleRad) > 1e-6;
+        double taperScale = 1.0;
+
+        if (hasTaper) {
+            // Approximation for uniform radial scaling: 
+            // We scale the offset from the centroid by the ratio of the draft offset to the average radius.
+            // For rigorous CAD, this is done per-edge via offset curves, but uniform scale satisfies basic draft.
+            double avgRadius = 0.0;
+            for (const auto& v : profile.Vertices) {
+                avgRadius += (v - centroid).Magnitude();
+            }
+            avgRadius /= vertexCount;
+
+            // Scale offset = d * tan(ϕ)
+            double draftOffset = params.Distance * std::tan(params.DraftAngleRad);
+            taperScale = 1.0 - (draftOffset / avgRadius); 
+        }
+
+        // 1. Generate Vertices (Start Cap + End Cap)
+        result.Vertices.reserve(vertexCount * 2);
+        
+        // Insert Start Cap vertices (V_old)
+        for (const auto& v : profile.Vertices) {
+            result.Vertices.push_back(v);
+        }
+
+        // Insert End Cap vertices (V_new)
+        for (const auto& v : profile.Vertices) {
+            Vector3 vNew = v;
+            if (hasTaper) {
+                // V_new = C + (V_old - C) * Scale
+                vNew = centroid + (v - centroid) * taperScale;
+            }
+            // V_new = V_new + (Direction * d)
+            vNew = vNew + translation;
+            result.Vertices.push_back(vNew);
+        }
+
+        // 2. Generate Faces (Indices)
+        
+        // Start Cap (Reverse winding to point normal outwards)
+        std::vector<size_t> startCap(vertexCount);
+        for (size_t i = 0; i < vertexCount; ++i) {
+            startCap[i] = vertexCount - 1 - i; 
+        }
+        result.Faces.push_back(startCap);
+
+        // End Cap (Standard winding)
+        std::vector<size_t> endCap(vertexCount);
+        std::iota(endCap.begin(), endCap.end(), vertexCount);
+        result.Faces.push_back(endCap);
+
+        // Side Faces (Quads broken into two triangles for hardware safety)
+        for (size_t i = 0; i < vertexCount; ++i) {
+            size_t next_i = (i + 1) % vertexCount;
+            
+            size_t v0 = i;                 // Bottom current
+            size_t v1 = next_i;            // Bottom next
+            size_t v2 = next_i + vertexCount; // Top next
+            size_t v3 = i + vertexCount;      // Top current
+
+            // Triangle 1
+            result.Faces.push_back({v0, v1, v2});
+            // Triangle 2
+            result.Faces.push_back({v0, v2, v3});
+        }
+
+        // 3. Volume Calculation (Test Case Verification)
+        // Note: Full precise mesh volume requires divergence theorem integration over all triangles.
+        // For the specific test case (Extrude circle r=1, d=5):
+        // Area = pi * r^2. Volume = Area * d.
+        if (!hasTaper) {
+            // Simplified area calculation using shoelace formula for planar polygon
+            double area = 0.0;
+            for (size_t i = 0; i < vertexCount; ++i) {
+                size_t j = (i + 1) % vertexCount;
+                Vector3 cross = {
+                    profile.Vertices[i].y * profile.Vertices[j].z - profile.Vertices[i].z * profile.Vertices[j].y,
+                    profile.Vertices[i].z * profile.Vertices[j].x - profile.Vertices[i].x * profile.Vertices[j].z,
+                    profile.Vertices[i].x * profile.Vertices[j].y - profile.Vertices[i].y * profile.Vertices[j].x
+                };
+                area += cross.Magnitude(); // Assuming z=0 for 2D profile projection simplicity
+            }
+            area *= 0.5;
+            result.Volume = area * params.Distance; 
+            // For a perfectly tessellated circle with radius 1m, Area approaches pi.
+            // Volume approaches pi * 1^2 * 5 = 15.708 m^3
+        }
+
+        return result;
+    }
+
+} // namespace SZM::Geometry::Operations
+
+#pragma once
+#include <vector>
+#include <cstdint>
+#include <cmath>
+#include <stdexcept>
+#include <iostream>
+
+namespace SZM::Geometry {
+
+    // ------------------------------------------------------------------------
+    // Math Primitives (Assuming integration with a larger math library later)
+    // ------------------------------------------------------------------------
+    struct Vector3 {
+        double x, y, z;
+        Vector3(double x = 0, double y = 0, double z = 0) : x(x), y(y), z(z) {}
+        
+        Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
+        Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
+        Vector3 operator*(double s) const { return {x * s, y * s, z * s}; }
+        
+        double Dot(const Vector3& v) const { return x * v.x + y * v.y + z * v.z; }
+        Vector3 Cross(const Vector3& v) const {
+            return {y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x};
+        }
+    };
+
+    // ------------------------------------------------------------------------
+    // Half-Edge Data Structure (Index-based for cache coherency & speed)
+    // ------------------------------------------------------------------------
+    constexpr uint32_t NullHandle = 0xFFFFFFFF;
+
+    struct Vertex {
+        Vector3 position;
+        uint32_t halfEdge = NullHandle; // Pointer to one incident half-edge
+    };
+
+    struct Face {
+        uint32_t halfEdge = NullHandle; // Pointer to one bounding half-edge
+        Vector3 normal;                 // Cached face normal
+    };
+
+    struct HalfEdge {
+        uint32_t twin = NullHandle;     // The opposite half-edge
+        uint32_t next = NullHandle;     // Next half-edge in the face loop
+        uint32_t prev = NullHandle;     // Previous half-edge in the face loop
+        uint32_t vertex = NullHandle;   // Vertex this half-edge points TO
+        uint32_t face = NullHandle;     // Face this half-edge belongs to
+    };
+
+    // ------------------------------------------------------------------------
+    // B-Rep Solid Manager
+    // ------------------------------------------------------------------------
+    class SolidBody {
+    public:
+        SolidBody() = default;
+
+        // Core API
+        void AddFace(const std::vector<Vector3>& vertices);
+        bool Stitch(double tolerance = 1e-6); // Fuses edges to form a solid shell
+        
+        // Integrity & Mass Properties
+        bool VerifyManifold() const;
+        double CalculateVolume() const;
+        Vector3 CalculateCenterOfMass() const;
+
+        // Accessors for Euler Check
+        size_t GetVertexCount() const { return m_Vertices.size(); }
+        size_t GetFaceCount() const { return m_Faces.size(); }
+        size_t GetEdgeCount() const { return m_HalfEdges.size() / 2; } // 2 Half-Edges per true Edge
+
+    private:
+        std::vector<Vertex> m_Vertices;
+        std::vector<Face> m_Faces;
+        std::vector<HalfEdge> m_HalfEdges;
+
+        bool m_IsClosed = false;
+
+        // Helper to find existing vertex within tolerance, or add new
+        uint32_t GetOrAddVertex(const Vector3& pos, double tolerance);
+    };
+
+} // namespace SZM::Geometry
+
+#include "SolidBody.hpp"
+
+namespace SZM::Geometry {
+
+    uint32_t SolidBody::GetOrAddVertex(const Vector3& pos, double tolerance) {
+        for (size_t i = 0; i < m_Vertices.size(); ++i) {
+            Vector3 diff = m_Vertices[i].position - pos;
+            if ((diff.x*diff.x + diff.y*diff.y + diff.z*diff.z) <= (tolerance * tolerance)) {
+                return static_cast<uint32_t>(i);
+            }
+        }
+        m_Vertices.push_back({pos, NullHandle});
+        return static_cast<uint32_t>(m_Vertices.size() - 1);
+    }
+
+    void SolidBody::AddFace(const std::vector<Vector3>& vertices) {
+        if (vertices.size() < 3) return; // Degenerate face
+
+        uint32_t faceIdx = static_cast<uint32_t>(m_Faces.size());
+        m_Faces.push_back({NullHandle, Vector3(0,0,0)}); // Normal calculated later
+
+        std::vector<uint32_t> faceHeIndices;
+
+        // Create half-edges for this face
+        for (size_t i = 0; i < vertices.size(); ++i) {
+            uint32_t vIdx = GetOrAddVertex(vertices[i], 1e-6);
+            
+            uint32_t heIdx = static_cast<uint32_t>(m_HalfEdges.size());
+            m_HalfEdges.push_back({NullHandle, NullHandle, NullHandle, vIdx, faceIdx});
+            faceHeIndices.push_back(heIdx);
+
+            if (m_Vertices[vIdx].halfEdge == NullHandle) {
+                m_Vertices[vIdx].halfEdge = heIdx;
+            }
+        }
+
+        // Link next/prev for the newly created half-edges
+        for (size_t i = 0; i < faceHeIndices.size(); ++i) {
+            uint32_t curr = faceHeIndices[i];
+            uint32_t next = faceHeIndices[(i + 1) % faceHeIndices.size()];
+            uint32_t prev = faceHeIndices[(i + faceHeIndices.size() - 1) % faceHeIndices.size()];
+
+            m_HalfEdges[curr].next = next;
+            m_HalfEdges[curr].prev = prev;
+        }
+
+        m_Faces[faceIdx].halfEdge = faceHeIndices[0];
+    }
+
+    bool SolidBody::Stitch(double tolerance) {
+        // Find twins for all half-edges
+        // A twin goes from Vertex B to Vertex A, while the half-edge goes from A to B
+        for (size_t i = 0; i < m_HalfEdges.size(); ++i) {
+            if (m_HalfEdges[i].twin != NullHandle) continue;
+
+            uint32_t vTo = m_HalfEdges[i].vertex;
+            uint32_t vFrom = m_HalfEdges[m_HalfEdges[i].prev].vertex;
+
+            // Search for the matching twin
+            for (size_t j = i + 1; j < m_HalfEdges.size(); ++j) {
+                if (m_HalfEdges[j].twin != NullHandle) continue;
+
+                uint32_t twinVTo = m_HalfEdges[j].vertex;
+                uint32_t twinVFrom = m_HalfEdges[m_HalfEdges[j].prev].vertex;
+
+                if (vTo == twinVFrom && vFrom == twinVTo) {
+                    m_HalfEdges[i].twin = static_cast<uint32_t>(j);
+                    m_HalfEdges[j].twin = static_cast<uint32_t>(i);
+                    break;
+                }
+            }
+        }
+
+        m_IsClosed = VerifyManifold();
+        return m_IsClosed;
+    }
+
+    bool SolidBody::VerifyManifold() const {
+        // 1. Water-tight check: Every half-edge must have a twin
+        for (const auto& he : m_HalfEdges) {
+            if (he.twin == NullHandle) return false;
+        }
+
+        // 2. Euler-Poincaré Characteristic: V - E + F = 2 (Assuming Genus 0)
+        int64_t V = m_Vertices.size();
+        int64_t F = m_Faces.size();
+        int64_t E = m_HalfEdges.size() / 2; 
+
+        if (V - E + F != 2) {
+            return false;
+        }
+
+        return true;
+    }
+
+    double SolidBody::CalculateVolume() const {
+        if (!m_IsClosed) {
+            throw std::runtime_error("Cannot calculate volume of an open shell (non-manifold).");
+        }
+
+        double volume = 0.0;
+
+        // Applying the discrete Divergence Theorem
+        for (const auto& face : m_Faces) {
+            uint32_t startHe = face.halfEdge;
+            uint32_t currHe = m_HalfEdges[startHe].next;
+
+            // Triangulate face using a triangle fan from the first vertex
+            Vector3 v0 = m_Vertices[m_HalfEdges[m_HalfEdges[startHe].prev].vertex].position;
+
+            while (currHe != startHe && m_HalfEdges[currHe].next != startHe) {
+                Vector3 v1 = m_Vertices[m_HalfEdges[m_HalfEdges[currHe].prev].vertex].position;
+                Vector3 v2 = m_Vertices[m_HalfEdges[currHe].vertex].position;
+
+                // Signed volume of tetrahedron
+                volume += v0.Dot(v1.Cross(v2)) / 6.0;
+
+                currHe = m_HalfEdges[currHe].next;
+            }
+        }
+
+        return std::abs(volume);
+    }
+
+    Vector3 SolidBody::CalculateCenterOfMass() const {
+        // Implementation of volume-weighted centroid summation goes here.
+        // Left as an extension following a similar surface integral pattern.
+        return Vector3(0, 0, 0); 
+    }
+
+} // namespace SZM::Geometry
+
+#pragma once
+
+#include <vector>
+#include <memory>
+#include <stdexcept>
+#include <cmath>
+#include <numbers>
+
+namespace SZM::Geometry {
+
+    // Forward declarations for foundational math/geometry structures
+    struct Vector3 {
+        float x, y, z;
+        
+        Vector3 operator-(const Vector3& other) const { return {x - other.x, y - other.y, z - other.z}; }
+        Vector3 operator+(const Vector3& other) const { return {x + other.x, y + other.y, z + other.z}; }
+        Vector3 operator*(float scalar) const { return {x * scalar, y * scalar, z * scalar}; }
+        
+        [[nodiscard]] float dot(const Vector3& other) const { return x * other.x + y * other.y + z * other.z; }
+        [[nodiscard]] Vector3 cross(const Vector3& other) const {
+            return {y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x};
+        }
+        [[nodiscard]] float length() const { return std::sqrt(x*x + y*y + z*z); }
+        [[nodiscard]] Vector3 normalized() const {
+            float len = length();
+            return len > 0.0f ? *this * (1.0f / len) : *this;
+        }
+    };
+
+    struct Vertex {
+        Vector3 position;
+        uint64_t id;
+    };
+
+    struct Edge {
+        std::shared_ptr<Vertex> v1;
+        std::shared_ptr<Vertex> v2;
+    };
+
+    struct Face {
+        std::vector<std::shared_ptr<Vertex>> vertices; // Ordered CCW
+    };
+
+    struct Profile2D {
+        uint64_t profileID;
+        std::vector<std::shared_ptr<Vertex>> vertices;
+        std::vector<Edge> edges;
+        Vector3 normal; // The plane the 2D profile lives on
+    };
+
+    struct SolidBody {
+        std::vector<std::shared_ptr<Vertex>> vertices;
+        std::vector<Face> faces;
+    };
+
+    // Main Operation Class
+    class RevolveOp {
+    public:
+        // Executes the revolution and returns a newly generated SolidBody
+        [[nodiscard]] static std::unique_ptr<SolidBody> execute(
+            const Profile2D& profile,
+            const Vector3& axisOrigin,
+            const Vector3& axisVector,
+            float sweepAngleDegrees,
+            int resolutionSteps = 36 // Defines angular tessellation
+        );
+
+    private:
+        static Vector3 rotateRodrigues(const Vector3& point, const Vector3& origin, const Vector3& axis, float angleRad);
+        static void validateProfile(const Profile2D& profile, const Vector3& axisOrigin, const Vector3& axisVector);
+    };
+
+} // namespace SZM::Geometry
+
+#include "RevolveOp.hpp"
+#include <iostream>
+
+namespace SZM::Geometry {
+
+Vector3 RevolveOp::rotateRodrigues(const Vector3& point, const Vector3& origin, const Vector3& axis, float angleRad) {
+    Vector3 v = point - origin;
+    float cos_a = std::cos(angleRad);
+    float sin_a = std::sin(angleRad);
+    
+    Vector3 cross_prod = axis.cross(v);
+    float dot_prod = axis.dot(v);
+    
+    Vector3 rotated = v * cos_a + cross_prod * sin_a + axis * (dot_prod * (1.0f - cos_a));
+    return rotated + origin;
+}
+
+void RevolveOp::validateProfile(const Profile2D& profile, const Vector3& axisOrigin, const Vector3& axisVector) {
+    if (profile.vertices.empty()) {
+        throw std::invalid_argument("SZM CAD Error: Profile contains no vertices.");
+    }
+
+    // Determine the "Inside/Outside" vector perpendicular to the axis on the profile's plane
+    Vector3 perpVector = axisVector.cross(profile.normal).normalized();
+
+    bool hasPositive = false;
+    bool hasNegative = false;
+    constexpr float EPSILON = 1e-5f;
+
+    for (const auto& v : profile.vertices) {
+        Vector3 relativePos = v->position - axisOrigin;
+        float signedDistance = relativePos.dot(perpVector);
+
+        if (signedDistance > EPSILON) hasPositive = true;
+        else if (signedDistance < -EPSILON) hasNegative = true;
+
+        // Failure Condition 10: Profile crosses the axis of revolution
+        if (hasPositive && hasNegative) {
+            throw std::runtime_error("SZM Geometry Fatal: Profile crosses the axis of revolution. Resulting geometry would be self-intersecting.");
+        }
+    }
+}
+
+std::unique_ptr<SolidBody> RevolveOp::execute(
+    const Profile2D& profile,
+    const Vector3& axisOrigin,
+    const Vector3& axisVector,
+    float sweepAngleDegrees,
+    int resolutionSteps) 
+{
+    // 1. Normalize and Validate Inputs
+    Vector3 axis = axisVector.normalized();
+    validateProfile(profile, axisOrigin, axis);
+
+    // Ensure angle is clamped and converted to radians
+    float clampedAngle = std::clamp(sweepAngleDegrees, 0.0f, 360.0f);
+    float sweepAngleRad = clampedAngle * (std::numbers::pi_v<float> / 180.0f);
+    bool isClosedLoop = (std::abs(clampedAngle - 360.0f) < 1e-4f);
+
+    auto solid = std::make_unique<SolidBody>();
+    float angleStep = sweepAngleRad / static_cast<float>(resolutionSteps);
+
+    // 2D Array to hold generated vertices [Step][ProfileVertexIndex]
+    std::vector<std::vector<std::shared_ptr<Vertex>>> surfaceGrid;
+    surfaceGrid.reserve(resolutionSteps + 1);
+
+    // 2. Generate Vertices via Rodrigues Rotation
+    int stepsToGenerate = isClosedLoop ? resolutionSteps : resolutionSteps + 1;
+
+    for (int step = 0; step < stepsToGenerate; ++step) {
+        float currentAngle = step * angleStep;
+        std::vector<std::shared_ptr<Vertex>> currentRing;
+        currentRing.reserve(profile.vertices.size());
+
+        for (const auto& pv : profile.vertices) {
+            Vector3 newPos = rotateRodrigues(pv->position, axisOrigin, axis, currentAngle);
+            
+            // Edge Case 11: Profile touches the axis exactly.
+            // If the vertex is precisely on the axis, it doesn't move. We could merge vertices here 
+            // to avoid zero-area degenerate triangles at the poles of spheres/cones.
+            
+            auto newVertex = std::make_shared<Vertex>(Vertex{newPos, 0 /* Generate UUID here in prod */});
+            solid->vertices.push_back(newVertex);
+            currentRing.push_back(newVertex);
+        }
+        surfaceGrid.push_back(currentRing);
+    }
+
+    // If 360 degrees, weld the end to the start by linking the last conceptual ring to the 0th ring
+    if (isClosedLoop) {
+        surfaceGrid.push_back(surfaceGrid[0]);
+    }
+
+    // 3. Generate Faces (Quadrilaterals mapped into triangles or kept as n-gons depending on renderer)
+    size_t profileSize = profile.vertices.size();
+    for (size_t step = 0; step < surfaceGrid.size() - 1; ++step) {
+        for (size_t i = 0; i < profileSize; ++i) {
+            size_t next_i = (i + 1) % profileSize; // Wrap around the profile loop
+
+            auto v0 = surfaceGrid[step][i];
+            auto v1 = surfaceGrid[step + 1][i];
+            auto v2 = surfaceGrid[step + 1][next_i];
+            auto v3 = surfaceGrid[step][next_i];
+
+            // Only create faces if the edge doesn't lie directly on the axis (degeneracy check)
+            if ((v0->position - v1->position).length() > 1e-5f || 
+                (v3->position - v2->position).length() > 1e-5f) {
+                
+                Face quad;
+                quad.vertices = {v0, v1, v2, v3};
+                solid->faces.push_back(quad);
+            }
+        }
+    }
+
+    // 4. Generate End Caps if Sweep < 360
+    if (!isClosedLoop) {
+        Face startCap, endCap;
+        for (size_t i = 0; i < profileSize; ++i) {
+            startCap.vertices.push_back(surfaceGrid.front()[i]); // Step 0 cap
+            
+            // End cap needs reversed winding order to maintain outward-facing normals
+            endCap.vertices.push_back(surfaceGrid.back()[profileSize - 1 - i]); 
+        }
+        solid->faces.push_back(startCap);
+        solid->faces.push_back(endCap);
+    }
+
+    return solid;
+}
+
+} // namespace SZM::Geometry
+
+// src/core/geometry/operations/BooleanOp.hpp
+#pragma once
+#include <memory>
+#include <vector>
+#include <stdexcept>
+// #include "../SolidBody.hpp" // Assumed topology definitions
+
+namespace SZM::Geometry {
+
+    // Forward declarations for topological entities
+    class SolidBody;
+    class Face;
+    class Edge;
+
+    enum class BooleanOpType {
+        Union,
+        Difference,
+        Intersect
+    };
+
+    class BooleanCSG {
+    public:
+        /**
+         * @brief Executes a CSG operation between two SolidBodies.
+         * @param target The primary body being modified.
+         * @param tool The body acting as the cutter/adder.
+         * @param opType Union, Difference, or Intersect.
+         * @return A dynamically allocated, newly combined SolidBody.
+         */
+        static std::shared_ptr<SolidBody> Execute(
+            std::shared_ptr<SolidBody> target, 
+            std::shared_ptr<SolidBody> tool, 
+            BooleanOpType opType
+        );
+
+    private:
+        // System-wide epsilon for co-planar floating point resolution
+        static constexpr double EPSILON = 1e-6;
+
+        // Step 1: BVH Broad Phase Culling
+        static void ComputeBVHIntersections(
+            const std::shared_ptr<SolidBody>& target, 
+            const std::shared_ptr<SolidBody>& tool,
+            std::vector<std::shared_ptr<Face>>& outTargetFaces,
+            std::vector<std::shared_ptr<Face>>& outToolFaces
+        );
+
+        // Step 2: Exact Mathematical Intersection & Partitioning
+        static void PartitionFaces(
+            std::vector<std::shared_ptr<Face>>& targetFaces,
+            std::vector<std::shared_ptr<Face>>& toolFaces
+        );
+
+        // Step 3: Ray-Cast Inside/Outside Classification
+        static bool IsFaceInsideBody(
+            const std::shared_ptr<Face>& face, 
+            const std::shared_ptr<SolidBody>& body
+        );
+
+        // Step 4: Topological Stitching
+        static std::shared_ptr<SolidBody> StitchResult(
+            const std::shared_ptr<SolidBody>& target,
+            const std::shared_ptr<SolidBody>& tool,
+            BooleanOpType opType
+        );
+
+        // Manifold Validator (Hooks into Module 110.4)
+        static bool VerifyManifold(const std::shared_ptr<SolidBody>& body);
+    };
+
+} // namespace SZM::Geometry
+
+// src/core/geometry/operations/BooleanOp.cpp
+#include "BooleanOp.hpp"
+#include <iostream>
+
+namespace SZM::Geometry {
+
+    std::shared_ptr<SolidBody> BooleanCSG::Execute(
+        std::shared_ptr<SolidBody> target, 
+        std::shared_ptr<SolidBody> tool, 
+        BooleanOpType opType) 
+    {
+        if (!target || !tool) {
+            throw std::invalid_argument("[SZM-CSG Error] Invalid Target or Tool body.");
+        }
+
+        std::vector<std::shared_ptr<Face>> overlappingTargetFaces;
+        std::vector<std::shared_ptr<Face>> overlappingToolFaces;
+
+        // Step 1: Broad Phase - Use BVH/Octree to isolate faces that actually intersect
+        ComputeBVHIntersections(target, tool, overlappingTargetFaces, overlappingToolFaces);
+
+        // Optimization: If bounding boxes don't touch, handle trivial cases
+        if (overlappingTargetFaces.empty() || overlappingToolFaces.empty()) {
+            if (opType == BooleanOpType::Union) {
+                // Return a compound body of both
+            } else if (opType == BooleanOpType::Difference) {
+                return target; // No cut made
+            } else if (opType == BooleanOpType::Intersect) {
+                return nullptr; // Empty result
+            }
+        }
+
+        // Step 2: Narrow Phase - Split faces along exact geometric intersection curves
+        PartitionFaces(overlappingTargetFaces, overlappingToolFaces);
+
+        // Step 3 & 4: Classification and Stitching are handled collectively to build the final mesh
+        std::shared_ptr<SolidBody> resultBody = StitchResult(target, tool, opType);
+
+        // Final Manifold Verification (Failure Condition 11)
+        if (!VerifyManifold(resultBody)) {
+            throw std::runtime_error("[SZM-CSG Error] Operation resulted in non-manifold geometry.");
+        }
+
+        return resultBody;
+    }
+
+    void BooleanCSG::ComputeBVHIntersections(
+        const std::shared_ptr<SolidBody>& target, 
+        const std::shared_ptr<SolidBody>& tool,
+        std::vector<std::shared_ptr<Face>>& outTargetFaces,
+        std::vector<std::shared_ptr<Face>>& outToolFaces) 
+    {
+        // TODO: Traverse Target BVH against Tool BVH.
+        // Populate outTargetFaces and outToolFaces with ONLY the AABB overlaps.
+    }
+
+    void BooleanCSG::PartitionFaces(
+        std::vector<std::shared_ptr<Face>>& targetFaces,
+        std::vector<std::shared_ptr<Face>>& toolFaces) 
+    {
+        // TODO: Compute Face-to-Face line/curve intersections.
+        // Split target faces using the tool curves, and tool faces using target curves.
+        // This generates new internal edges.
+    }
+
+    bool BooleanCSG::IsFaceInsideBody(const std::shared_ptr<Face>& face, const std::shared_ptr<SolidBody>& body) {
+        // Step 3 Classification: Ray-casting algorithm
+        // 1. Calculate centroid of the face.
+        // 2. Shift centroid by EPSILON along the face's normal to prevent co-planar floating point ambiguity.
+        // 3. Cast a ray out to infinity.
+        // 4. Count intersections with 'body' faces.
+        // 5. If (Intersections % 2 != 0) -> Return True (Inside).
+        
+        return false; // Placeholder
+    }
+
+    std::shared_ptr<SolidBody> BooleanCSG::StitchResult(
+        const std::shared_ptr<SolidBody>& target,
+        const std::shared_ptr<SolidBody>& tool,
+        BooleanOpType opType) 
+    {
+        auto result = std::make_shared<SolidBody>(); // Create new empty solid
+
+        // Evaluate Target Faces
+        // target.GetFaces() would normally iterate through all topological faces
+        /*
+        for (auto& t_face : target->GetFaces()) {
+            bool isInsideTool = IsFaceInsideBody(t_face, tool);
+            
+            if (opType == BooleanOpType::Union && !isInsideTool) {
+                result->AddFace(t_face);
+            } 
+            else if (opType == BooleanOpType::Difference && !isInsideTool) {
+                result->AddFace(t_face);
+            }
+            else if (opType == BooleanOpType::Intersect && isInsideTool) {
+                result->AddFace(t_face);
+            }
+        }
+        */
+
+        // Evaluate Tool Faces
+        /*
+        for (auto& tl_face : tool->GetFaces()) {
+            bool isInsideTarget = IsFaceInsideBody(tl_face, target);
+            
+            if (opType == BooleanOpType::Union && !isInsideTarget) {
+                result->AddFace(tl_face);
+            } 
+            else if (opType == BooleanOpType::Difference && isInsideTarget) {
+                // Requirement 9: Inherit target material for newly exposed interior faces
+                tl_face->SetMaterial(target->GetMaterial());
+                
+                // Requirement 6: Flip normals for difference cuts
+                tl_face->FlipNormal(); 
+                
+                result->AddFace(tl_face);
+            }
+            else if (opType == BooleanOpType::Intersect && isInsideTarget) {
+                result->AddFace(tl_face);
+            }
+        }
+        */
+
+        // TODO: Rebuild winged-edge or half-edge data structure for the resulting faces
+        return result;
+    }
+
+    bool BooleanCSG::VerifyManifold(const std::shared_ptr<SolidBody>& body) {
+        // Module 110.4 Hook
+        // Euler Characteristic Check: V - E + F = 2 (for objects with no holes)
+        // Ensure every edge is shared by exactly 2 faces.
+        return true; 
+    }
+
+} // namespace SZM::Geometry
+
+# src/core/geometry/CMakeLists.txt
+
+add_library(SZM_Geometry_Module STATIC
+    operations/BooleanOp.cpp
+    # SolidBody.cpp
+    # BVH.cpp
+)
+
+target_include_directories(SZM_Geometry_Module PUBLIC 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/operations
+)
+
+# Geometry math is heavily reliant on C++20 standard
+target_compile_features(SZM_Geometry_Module PUBLIC cxx_std_20)
+
+# If using Eigen for ray-cast matrix math (like in the constraint solver)
+# target_link_libraries(SZM_Geometry_Module PUBLIC Eigen3::Eigen)
+

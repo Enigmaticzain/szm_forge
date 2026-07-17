@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+files: |
+    (?x)^(
+        .github|
+        src/Base|
+        src/Gui|
+        src/Main|
+        src/Tools|
+        src/Mod/Assembly|
+        src/Mod/BIM|
+        src/Mod/CAM|
+        src/Mod/Cloud|
+        src/Mod/Draft|
+        src/Mod/Fem|
+        src/Mod/Help|
+        src/Mod/Import|
+        src/Mod/Inspection|
+        src/Mod/JtReader|
+        src/Mod/Measure|
+        src/Mod/MeshPart|
+        src/Mod/Mesh|
+        src/Mod/PartDesign|
+        src/Mod/Part|
+        src/Mod/Plot|
+        src/Mod/Points|
+        src/Mod/ReverseEngineering|
+        src/Mod/Robot|
+        src/Mod/Show|
+        src/Mod/Sketcher|
+        src/Mod/Spreadsheet|
+        src/Mod/Start|
+        src/Mod/Surface|
+        src/Mod/Test|
+        src/Mod/Tux|
+        src/Mod/Web|
+        tests/src
+    )
+exclude: |
+    (?x)^(
+        .*vcproj.*|
+        .*vcxproj.*|
+        .github/ISSUE_TEMPLATE|
+        src/App/ExpressionParser.tab.c|
+        src/App/ExpressionParser.tab.h|
+        src/App/ExpressionParser.y|
+        src/App/lex.ExpressionParser.c|
+        src/Doc/ThirdPartyLibraries.html.cmake|
+        src/Gui/3Dconnexion/navlib|
+        src/Gui/QSint|
+        src/Gui/Quarter|
+        src/Mod/Fem/femexamples|
+        src/Mod/Import/App/SCL|
+        src/Mod/Import/App/SCL_output|
+        src/Mod/Mesh/App/TestData|
+        src/Mod/Mesh/App/WildMagic4|
+        src/Mod/Robot/App/kdl_cp|
+        src/Mod/Robot/Lib|
+        .*\.ts$|
+        .*\.brep$
+    )
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+    -   id: mixed-line-ending
+-   repo: https://github.com/psf/black-pre-commit-mirror
+    rev: fa505ab9c3e0fedafe1709fd7ac2b5f8996c670d  # frozen: 26.3.1
+    hooks:
+        -   id: black
+            args: ['--line-length', '100']
+-   repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: d730ad6820486029c4fd4cd291a6461a0b6501a3  # frozen: v22.1.3
+    hooks:
+        -   id: clang-format
+-   repo: local
+    hooks:
+    -   id: version-sync
+        name: Push version changes to other necessary files
+        entry: python src/Tools/sync_version.py --update
+        language: python
+        files: '(version\.json)'
+        pass_filenames: false
+    -   id: version-sync
+        name: Verify version consistency
+        entry: python src/Tools/sync_version.py --check
+        language: python
+        files: '(pixi\.toml|recipe\.yaml|declarations\.nsh|freecad\.spec)'
+        pass_filenames: false

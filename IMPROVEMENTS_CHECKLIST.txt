@@ -1,0 +1,127 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                   SZM FORGE — USABILITY IMPROVEMENTS                       ║
+║                              v0.2.0 → v0.2.1                              ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+✅ INTERACTIVE CLI MENU SYSTEM
+   ├─ Main menu with 5 options
+   ├─ Scenario selection menu
+   ├─ Settings menu (speed, colors, verbosity)
+   ├─ Help menu (about, results, materials, controls)
+   └─ Graceful exit handling
+
+✅ QUICK-START SCRIPTS
+   ├─ quick_start.sh (Linux/macOS)
+   ├─ quick_start.bat (Windows)
+   ├─ Automatic prerequisite checking
+   ├─ Automatic build
+   └─ Automatic launch
+
+✅ COLOR-CODED OUTPUT
+   ├─ SAFE (Green) — < 70% utilization
+   ├─ WARN (Yellow) — 70–99% utilization
+   ├─ FAIL (Red) — >= 100% utilization
+   └─ Toggleable in Settings menu
+
+✅ CONFIGURATION FILE
+   ├─ config/simulation_config.json
+   ├─ Customize forces, heat, duration
+   ├─ Add/modify materials
+   ├─ Adjust thresholds
+   └─ No recompilation needed
+
+✅ COMPREHENSIVE DOCUMENTATION
+   ├─ GETTING_STARTED.md (quick start guide)
+   ├─ USER_MANUAL.md (full reference)
+   ├─ USABILITY_IMPROVEMENTS.md (technical details)
+   ├─ QUICK_REFERENCE.md (cheat sheet)
+   └─ In-app Help menu
+
+✅ NEW SOURCE FILES
+   ├─ src/CLI/InteractiveMenu.hpp
+   ├─ src/CLI/InteractiveMenu.cpp
+   ├─ src/CLI/CMakeLists.txt
+   └─ src/main_interactive.cpp
+
+✅ BUILD SYSTEM UPDATES
+   ├─ Updated root CMakeLists.txt
+   ├─ Added CLI module
+   ├─ New SZM_Forge_Interactive executable
+   └─ Backward compatible with SZM_Forge
+
+✅ USER EXPERIENCE IMPROVEMENTS
+   ├─ One-command build and run
+   ├─ Menu-driven scenario selection
+   ├─ Real-time customization
+   ├─ Clear status indicators
+   ├─ Helpful error messages
+   └─ Cross-platform support
+
+════════════════════════════════════════════════════════════════════════════
+
+BEFORE:
+  cmake -B build -DCMAKE_BUILD_TYPE=Release
+  cmake --build build --parallel
+  ./build/SZM_Forge
+  # Runs all scenarios automatically, no user control
+
+AFTER:
+  ./quick_start.sh
+  # Builds and launches interactive menu
+  # User selects scenarios, adjusts settings, reads help
+
+════════════════════════════════════════════════════════════════════════════
+
+NEW EXECUTABLES:
+  • SZM_Forge_Interactive  (recommended for users)
+  • SZM_Forge              (original, still available)
+
+NEW DOCUMENTATION:
+  • GETTING_STARTED.md              (start here!)
+  • USER_MANUAL.md                  (complete reference)
+  • USABILITY_IMPROVEMENTS.md       (technical details)
+  • QUICK_REFERENCE.md              (cheat sheet)
+  • IMPROVEMENTS_SUMMARY.md         (overview)
+
+NEW CONFIGURATION:
+  • config/simulation_config.json   (customize without recompiling)
+
+════════════════════════════════════════════════════════════════════════════
+
+QUICK START:
+  1. cd szm_forge
+  2. ./quick_start.sh (or quick_start.bat on Windows)
+  3. Select a scenario from the menu
+  4. Watch the simulation run
+  5. Adjust settings as needed
+  6. Read help for more information
+
+════════════════════════════════════════════════════════════════════════════
+
+FEATURES:
+  ✓ Interactive menu system
+  ✓ Scenario selection
+  ✓ Settings customization
+  ✓ In-app help system
+  ✓ Color-coded output
+  ✓ Configuration file support
+  ✓ One-command quick start
+  ✓ Cross-platform (Linux, macOS, Windows)
+  ✓ Comprehensive documentation
+  ✓ Error handling and validation
+
+════════════════════════════════════════════════════════════════════════════
+
+DESIGN PRINCIPLES:
+  • User-First: Prioritize ease of use
+  • Non-Invasive: Don't break existing code
+  • Configurable: Customize without recompiling
+  • Accessible: Clear documentation and help
+  • Cross-Platform: Works everywhere
+  • Extensible: Easy to add features
+
+════════════════════════════════════════════════════════════════════════════
+
+RESULT: SZM Forge is now easy to use for everyone!
+
+════════════════════════════════════════════════════════════════════════════

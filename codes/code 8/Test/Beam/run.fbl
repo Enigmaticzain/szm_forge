@@ -1,0 +1,36 @@
+valu incfile & file .inc
+sys cp incfile c.inc
+sys ccx modal > modal.log
+ulin file
+read modal.frd new
+# setup the view
+frame
+plot fv all
+view elem
+rot y
+rot l 50
+rot u 40
+zoom 1.3
+# show undeformed model edges
+#anim model
+view elem
+
+# file prefix for movies
+valu topre & Refs/ file
+# loop over movies
+valu counter 0
+while counter < 10
+  valu counter + counter 1
+  # convert counter value to integer
+  valu counter int counter
+  # build output file name from prefix, counter and extension
+  valu target & topre counter
+  valu target & target .gif
+  # make sure that the frequency is correctly displayed
+  ds counter e 4
+  # write 11 frames from the output of the subsequent command
+  movi frames auto
+  ds counter a 4
+  # store the movie under the target name target
+  sys mv movie.gif target
+endwhile

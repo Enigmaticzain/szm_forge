@@ -1,0 +1,52 @@
+# run the simulations and generate the images
+ulin Distributing coupling
+sys cp dpin.inc pin.inc
+sys ccx solve > solve-d.log
+read solve.frd new
+read solve.inp nom
+
+frame
+view elem
+rot -z
+rot u 90
+rot l 45
+rot u 45
+tra l 30
+plot fv all
+# movie counter
+valu counter 0
+# number of modes
+valu num 10
+# increment for modes
+valu incr 1
+# loop over movies
+while counter < num
+  valu counter + counter incr
+  # convert counter value to integer
+  valu counter int counter
+  # build output file name from prefix, counter and extension
+  valu target & Refs/dist counter
+  valu target & target .gif
+  # make sure that the frequency is correctly displayed
+  ds counter e 4
+  # write 11 frames from the output of the subsequent command
+  movi frames auto
+  ds counter a 4
+  # store the movie under the target name target
+  sys mv movie.gif target
+endwhile
+
+ds 12 e 7
+view disp
+scal d 10000
+frame
+rot -z
+rot u 90
+rot l 45
+rot u 45
+tra l 30
+plot fv all
+hcpy png Refs/se-dist
+sys dat2txt.py solve
+sys gnuplot frequency.gpl
+sys mv f.png Refs/f-dist.png

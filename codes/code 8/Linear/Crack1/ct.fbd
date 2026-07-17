@@ -1,0 +1,52 @@
+sys gmsh ct.geo
+read gmsh.inp
+
+# remove all surface elements
+zap +CPS6
+
+send all abq
+send Symy abq nam
+send Symz abq nam
+comp Load do
+send Load abq pres 1
+# point at origin for x constraint
+enq all origin rec 0 0 0 0.1
+send origin abq nam
+
+# plot of the sets
+rot -z
+rot l 30
+rot d 30
+view ill
+plot fb all n 30
+plus f Load
+plus n Symy r
+plus n Symz b
+plus n origin g 8
+hcpy png Refs/sets
+
+# solver run
+sys ccx solve
+read solve.frd
+
+# symmetry expansion
+seta orig e all
+copy all new mir y
+copy all new mir z
+# plot of the equivalent stress
+view disp
+view sh
+scal d 2000
+ds -1 e 7
+rot -z
+rot r 25
+rot u 5
+plot ev orig
+plus e new n
+min 0 f
+max 10 f
+frame
+hcpy png Refs/se
+
+# display of the strain energy
+sys more solve.dat

@@ -1,0 +1,45 @@
+sys gmsh - Welle.geo
+read mesh.inp
+zap +CPS6
+comp s* do
+send s1 abq sur
+send s2 abq sur
+send all abq
+# image
+ulin bearing surfaces (red and blue)
+view elem
+plot f all n
+plus f s1 r
+plus f s2 b
+frame
+hcpy png Refs/mesh
+
+sys ccx solve
+
+read solve.frd new
+
+# ref node plots, nodes are defined in the INP file
+ulin Ref nodes
+plot n r1 r 10
+plus n r2 b 10
+hcpy png Refs/refnodes
+
+anim model
+# loop over movies
+valu counter 0
+while counter < 20
+  valu counter + counter 1
+  # convert counter value to integer
+  valu counter int counter
+  ulin Mode counter
+  # build output file name from prefix, counter and extension
+  valu to & Refs/shape_gmsh_ counter
+  valu to & to .gif
+  # make sure that the frequency is correctly displayed
+  ds counter e 4
+  # write 11 frames from the output of the subsequent command
+  movi frames auto
+  ds counter a 4
+  # store the file under the target name
+  sys mv movie.gif to
+endwhile

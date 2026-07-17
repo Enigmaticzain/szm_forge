@@ -1,0 +1,165 @@
+{
+  "app": {
+    "name": "SZM Forge",
+    "version": "0.2.0",
+    "description": "Physics-Driven Engineering Platform"
+  },
+
+  "ui": {
+    "colorOutput": true,
+    "verboseOutput": false,
+    "outputPrecision": 2,
+    "simulationSpeed": 1.0
+  },
+
+  "scenarios": {
+    "table_demo": {
+      "name": "Table Stress Analysis",
+      "description": "Steel table with 200 kg load",
+      "enabled": true,
+      "parts": [
+        {
+          "name": "Tabletop",
+          "material": "Steel-Structural",
+          "area_m2": 0.0384,
+          "thickness_m": 0.025,
+          "force_N": 1962.0,
+          "heat_W": 0.0
+        },
+        {
+          "name": "Leg-FL",
+          "material": "Steel-Structural",
+          "area_m2": 0.0025,
+          "thickness_m": 0.75,
+          "force_N": 490.5,
+          "heat_W": 0.0
+        },
+        {
+          "name": "Leg-FR",
+          "material": "Steel-Structural",
+          "area_m2": 0.0025,
+          "thickness_m": 0.75,
+          "force_N": 490.5,
+          "heat_W": 0.0
+        },
+        {
+          "name": "Leg-RL",
+          "material": "Steel-Structural",
+          "area_m2": 0.0025,
+          "thickness_m": 0.75,
+          "force_N": 490.5,
+          "heat_W": 0.0
+        },
+        {
+          "name": "Leg-RR",
+          "material": "Steel-Structural",
+          "area_m2": 0.0025,
+          "thickness_m": 0.75,
+          "force_N": 490.5,
+          "heat_W": 0.0
+        }
+      ]
+    },
+
+    "normal_operation": {
+      "name": "Normal Operation",
+      "description": "Safe load and mild heating",
+      "enabled": true,
+      "duration_steps": 6,
+      "time_step_s": 0.5,
+      "parts": [
+        {
+          "name": "Steel Beam",
+          "material": "Steel-Structural",
+          "area_m2": 0.005,
+          "thickness_m": 0.1,
+          "force_N": 150000.0,
+          "heat_W": 0.8
+        },
+        {
+          "name": "Al Bracket",
+          "material": "Aluminum-6061",
+          "area_m2": 0.0008,
+          "thickness_m": 0.05,
+          "force_N": 22000.0,
+          "heat_W": 0.0
+        }
+      ]
+    },
+
+    "mechanical_overload": {
+      "name": "Mechanical Overload",
+      "description": "Force spike on aluminum bracket",
+      "enabled": true,
+      "duration_steps": 6,
+      "time_step_s": 0.5,
+      "parts": [
+        {
+          "name": "Steel Beam",
+          "material": "Steel-Structural",
+          "area_m2": 0.005,
+          "thickness_m": 0.1,
+          "force_N": 160000.0,
+          "heat_W": 0.8
+        },
+        {
+          "name": "Al Bracket",
+          "material": "Aluminum-6061",
+          "area_m2": 0.0008,
+          "thickness_m": 0.05,
+          "force_N": 95000.0,
+          "heat_W": 0.0
+        }
+      ]
+    },
+
+    "thermal_overload": {
+      "name": "Thermal Overload",
+      "description": "Heat input spike on steel beam",
+      "enabled": true,
+      "duration_steps": 10,
+      "time_step_s": 0.5,
+      "parts": [
+        {
+          "name": "Steel Beam",
+          "material": "Steel-Structural",
+          "area_m2": 0.005,
+          "thickness_m": 0.1,
+          "force_N": 160000.0,
+          "heat_W": 10.0
+        },
+        {
+          "name": "Al Bracket",
+          "material": "Aluminum-6061",
+          "area_m2": 0.0008,
+          "thickness_m": 0.05,
+          "force_N": 30000.0,
+          "heat_W": 0.0
+        }
+      ]
+    }
+  },
+
+  "materials": {
+    "Steel-Structural": {
+      "name": "Structural Steel",
+      "yield_strength_Pa": 250000000,
+      "density_kg_m3": 7850,
+      "thermal_limit_C": 400
+    },
+    "Aluminum-6061": {
+      "name": "Aluminum 6061-T6",
+      "yield_strength_Pa": 95000000,
+      "density_kg_m3": 2700,
+      "thermal_limit_C": 150
+    }
+  },
+
+  "simulation": {
+    "ambient_temp_K": 293.15,
+    "max_temp_K": 373.15,
+    "heat_dissipation_rate": 0.1,
+    "danger_threshold_percent": 70,
+    "failure_threshold_percent": 100
+  }
+}

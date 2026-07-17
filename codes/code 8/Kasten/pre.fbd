@@ -1,0 +1,48 @@
+valu lx 100
+valu ly 100
+valu lz 150
+valu nd 7.8
+valu dz 20
+
+pnt p1 0 0 0
+pnt p2 lx 0 0
+line l1 p1 p2 12
+swep all new tra 0 ly 0 12
+del s A001
+seta lower all
+swep all upper tra 0 0 lz 20
+flip A003
+flip A004
+
+plot la all
+plus pa all
+plus sa all
+rot y
+rot d 10
+rot r 10
+frame
+hcpy png geo
+
+div all auto nd
+elty all qu8r
+mesh all
+send all abq
+
+send all abq pres -0.01
+send lower abq nam
+send upper abq nam
+
+view elem
+plot f all
+
+# export displacement to CCX INP and Gnuplot
+valu neg_dz * -1 dz
+sys echo Nupper,3,3, neg_dz > disp.inc
+sys echo disp= dz > disp.txt
+
+# sets
+ulin Sets: upper (blue), lower (red)
+plot n upper b 6
+plus n lower r 6
+plus l all k
+hcpy png sets

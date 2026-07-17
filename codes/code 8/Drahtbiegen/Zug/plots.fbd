@@ -1,0 +1,37 @@
+read Zug.frd
+read Zug.inp nom
+read rad.nam inp
+# path definition
+seti cp n Ntop Nsym
+pnt cp cp
+pnt p0 0 0 0
+pnt rad Nrad
+line l1 p0 cp 40 1.1
+line l2 p0 rad 20
+seto path
+ lcmb ! - l1 + l2
+setc
+comp path do
+
+# Path plot of PE in the undeformed geometry
+view elem
+ds -2 e 1
+rot -z
+plot f all n
+plus l path b 6
+plus p cp b 10
+hcpy png path0geo
+
+plot fv all
+graph path length +
+sys convert -rotate 90 graph_0.ps path0.png
+
+# Path plot of PE in the deformed geometry
+view disp
+plot f all n
+plus l path b 6
+plus p cp b 10
+hcpy png pathgeo.png
+graph path length +
+sys convert -rotate 90 graph_1.ps path.png
+# END OF SCRIPT

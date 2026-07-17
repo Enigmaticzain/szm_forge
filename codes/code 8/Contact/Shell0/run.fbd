@@ -1,0 +1,89 @@
+# set default for etyp and ctyp
+#valu etyp qu4
+#valu etyp qu8
+valu etyp qu8r
+#valu ctyp tie
+#valu ctyp equ
+valu ctyp pc-ss
+#valu ctyp pc-ns
+
+# read values from file. If file doesn't exist, the defaults are used
+# print pwd
+sys pwd
+stack on
+read values.fbd
+
+
+# etyp ctyp
+ulin etyp: etyp , ctyp: ctyp
+valu frdname & ctyp .frd
+
+# plate 1
+seto s1
+pnt p0 0 0 0
+swep all new tra 10 0 0
+swep all new tra 0 10 0
+setc s1
+
+# plate 2
+seto s2
+pnt p1 7 0 0
+swep s2 new tra 0 0 -10
+swep s2 new tra 0 7 0
+setc s2
+
+# mesh
+# generate 4x4 elements with or without midside nodes
+if etyp ne qu4
+   div all mult 2
+endif
+elty all etyp
+mesh all
+
+# surface
+send s1 abq sur
+
+# edge
+seta k1 l L007
+comp k1 do
+comp k1 do
+send k1 abq sur
+
+send all abq
+send all abq nam
+
+# equations for MPC contact
+send k1 s1 abq areampc 123456
+
+# image
+view elem
+rot y
+rot d 60
+rot l 20
+plot n all
+frame
+#tra d 2
+#tra r 2
+seta ! all
+hcpy png model
+
+# plot of the contact pair
+view ill
+ulin Contact pair: s1 (blue), k1 (red)
+plot f k1 r 8
+plus f s1 b
+plus n k1 r 8
+frame s1
+hcpy png contact
+
+sys ccx ctyp
+sys dat2txt.py ctyp
+
+ulin etyp: etyp , ctyp: ctyp
+
+read frdname
+view elem
+view sh
+plot fv all
+scal d 2
+ds 1 a 4

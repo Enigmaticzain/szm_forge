@@ -1,0 +1,94 @@
+cmake_minimum_required(VERSION 3.20)
+project(LegendaryAI VERSION 0.1.0 LANGUAGES CXX)
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# LEGENDARY AI ASSISTANT — STANDALONE BUILD
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Find nlohmann_json
+find_package(nlohmann_json 3.2.0 QUIET)
+if(NOT nlohmann_json_FOUND)
+    message(STATUS "nlohmann_json not found, using header-only mode")
+    # Header-only mode - just need the include path
+    set(NLOHMANN_JSON_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann_json/include")
+    if(NOT EXISTS "${NLOHMANN_JSON_INCLUDE_DIR}")
+        message(FATAL_ERROR "nlohmann_json headers not found. Please install: sudo apt-get install nlohmann-json3-dev")
+    endif()
+endif()
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# LEGENDARY CORE MODULE
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+set(LEGENDARY_CORE_SOURCES
+    src/AI/LegendaryCore/MemoryEngine.cpp
+    src/AI/LegendaryCore/SkillSystem.cpp
+    src/AI/LegendaryCore/AgentFramework.cpp
+    src/AI/LegendaryCore/TrainingPipeline.cpp
+    src/AI/LegendaryCore/ModificationSystem.cpp
+    src/AI/LegendaryCore/LegendaryAIAssistant.cpp
+)
+
+set(LEGENDARY_CORE_HEADERS
+    src/AI/LegendaryCore/MemoryEngine.hpp
+    src/AI/LegendaryCore/SkillSystem.hpp
+    src/AI/LegendaryCore/AgentFramework.hpp
+    src/AI/LegendaryCore/TrainingPipeline.hpp
+    src/AI/LegendaryCore/ModificationSystem.hpp
+    src/AI/LegendaryCore/LegendaryAIAssistant.hpp
+)
+
+add_library(SZM_LegendaryCore_Module STATIC
+    ${LEGENDARY_CORE_SOURCES}
+    ${LEGENDARY_CORE_HEADERS}
+)
+
+target_include_directories(SZM_LegendaryCore_Module PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${NLOHMANN_JSON_INCLUDE_DIR}
+)
+
+if(nlohmann_json_FOUND)
+    target_link_libraries(SZM_LegendaryCore_Module PUBLIC nlohmann_json::nlohmann_json)
+endif()
+
+target_compile_features(SZM_LegendaryCore_Module PUBLIC cxx_std_20)
+
+if(MSVC)
+    target_compile_options(SZM_LegendaryCore_Module PRIVATE /W4)
+else()
+    target_compile_options(SZM_LegendaryCore_Module PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+message(STATUS "✓ SZM_LegendaryCore_Module configured")
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# TEST EXECUTABLE
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+add_executable(test_legendary_ai
+    src/AI/LegendaryCore/test_legendary_ai.cpp
+)
+
+target_link_libraries(test_legendary_ai PRIVATE
+    SZM_LegendaryCore_Module
+)
+
+target_include_directories(test_legendary_ai PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${NLOHMANN_JSON_INCLUDE_DIR}
+)
+
+target_compile_features(test_legendary_ai PRIVATE cxx_std_20)
+
+message(STATUS "✓ test_legendary_ai configured")
+message(STATUS "")
+message(STATUS "Build commands:")
+message(STATUS "  mkdir -p build-legendary")
+message(STATUS "  cd build-legendary")
+message(STATUS "  cmake -B . -DCMAKE_BUILD_TYPE=Release ..")
+message(STATUS "  cmake --build . --parallel")
+message(STATUS "  ./test_legendary_ai")

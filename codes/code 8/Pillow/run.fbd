@@ -1,0 +1,79 @@
+valu L 100
+valu Ldiv 20
+valu Etyp qu4
+
+pnt ! 0 0 0
+swep all new tra 0 L 0 Ldiv
+swep all new tra L 0 0 Ldiv
+seta x0 l L001
+comp x0 do
+seta y0 l L003
+comp y0 do
+seta outer l L002 L004
+comp outer do
+
+elty all Etyp
+mesh all
+send all abq
+send all abq nam
+
+rot -z
+view elem
+ulim red: x0, blue: y0, green: outer
+view edge off
+view elem
+plot f all n
+frame
+plus n x0 r 6
+#plus l x0 r
+plus n y0 b 6
+#plus l y0 b
+plus n outer g 6
+#plus l outer g
+hcpy png sets
+del mesh
+
+sys ccx static
+
+read static.frd new
+# magnitude of displacement, set number depends on
+# whether solution has converged or not.
+# first get time of last dataset
+stack on
+ds l
+valu time pop 3
+stack off
+if time == 2.0
+  ds -2 e 4
+  ulin Etyp
+else
+  ds -1 e 4
+  ulin Etyp (unconverged)
+endif
+# symmetry expansion
+seta base f all
+copy all new mir x
+copy all new mir y
+copy all new mir z
+# expanded view
+view disp
+view elem
+view sh
+plot f all n
+# plot nodes to enforce correct colors
+plus n outer g 1
+plus fv base
+rot -z
+rot c -100
+rot d 65
+frame
+hcpy png expanded
+# cut y=0
+rot y
+frame
+zoom 8
+tra l 75
+tra d 10
+plot n all r 1
+plus f base n
+hcpy png cuty0

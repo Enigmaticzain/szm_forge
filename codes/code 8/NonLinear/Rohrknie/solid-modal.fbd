@@ -1,0 +1,9 @@
+# modal analysis of the full solid model
+# pre-processing
+read solid.fbd
+# solving
+sys ccx solid-modal
+# post-processing
+read solid-modal.frd
+valu model solid
+read post-modal.fbd

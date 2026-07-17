@@ -1,0 +1,97 @@
+# test of mean rotation MPC
+valu lx 50
+valu ly 25
+valu lz 2
+valu df 0.1
+
+pnt ! 0 0 0
+swep all new tra lx 0 0
+swep all new tra 0 ly 0
+copy all new mir x
+copy all new mir y
+merg p all
+merg l all
+swep all new tra 0 0 lz
+
+div all auto 2
+div all mult 0.5
+elty all he8i
+mesh all
+
+seta nodes n all
+enq nodes fix rec _ _ 0 0.01
+
+seta nodes n all
+enq nodes load rec _ _ lz 0.01
+
+# send meanrot mpc under different names
+seta mx n load
+send mx abq mpc df 1 0 0
+# dummy node to increment the max node number so that for the next mpc a different node number is created.
+# store it in a set for application of load instead of constraint
+seto refx
+node ! 0 0 0
+setc refx
+
+seta my n load
+send my abq mpc df 0 1 0
+seto refy
+node ! 0 0 0
+setc refy
+
+seta mz n load
+send mz abq mpc df 0 0 1
+seto refz
+node ! 0 0 0
+setc refz
+
+# sets for paths
+enq nodes pathx rec _ 0 0 0.01
+enq nodes pathy rec 0 _ 0 0.01
+
+send all abq
+send all abq nam
+
+rot z
+view elem
+plot f all n
+plus n pathx m 6
+plus n pathy r 6
+frame
+
+hcpy png Refs/mesh.png
+
+sys ccx solve
+read solve.frd nom
+
+ulin Moment about x
+ds 2 e 3
+frame
+hcpy png Refs/mx.png
+asgn graph off
+graph pathy length
+
+ulin Moment about y
+ds 5 e 3
+frame
+hcpy png Refs/my.png
+
+graph pathx length
+
+ulin Moment about z
+ds 8 e 24
+frame
+hcpy png Refs/mz.png
+
+graph pathx length
+
+rot -z
+frame
+ulin Moment about z
+view disp
+scal d 100000
+ds 8 e 24
+frame
+hcpy png Refs/mz-disp.png
+
+sys gnuplot path.plt

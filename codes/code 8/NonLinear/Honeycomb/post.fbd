@@ -1,0 +1,34 @@
+read Biegung.frd
+read double.nam inp
+read single.nam inp
+read upper.nam inp
+read lower.nam inp
+seta Esand se Elower Eupper Esingle Edouble
+comp Esand do
+rot -z
+rot c 45
+rot d 60
+frame
+zoom 1.5
+view disp
+view sh
+# Equivalent strain
+ds -1 e 1
+plot ev Edouble
+plus ev Esingle
+hcpy png PE-core
+plot fv Esand
+hcpy png PE
+# Equivalent stress
+ds -2 e 7
+plot ev Edouble
+plus ev Esingle
+hcpy png SE-core
+plot fv Esand
+hcpy png SE
+# Force-displacement curve
+sys dat2txt.py Biegung
+sys mv "total force fx,fy,fz_NCYL1.txt" f.txt
+sys mv "displacements vx,vy,vz_NMON1.txt" d.txt
+sys join f.txt d.txt > df.txt
+sys gnuplot df.gnu

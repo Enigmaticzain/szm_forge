@@ -1,0 +1,37 @@
+read Zug.frd
+read monitor.nam inp
+# verify constraints
+text Displacement in x (normal to section)
+ds -3 e 1
+frame
+view disp
+view elem
+rot -x
+rot c -90
+rot r 45
+rot u 30
+plot fv all
+frame
+hcpy png dx
+text Displacement in y (lateral)
+ds -3 e 2
+plot fv all
+frame
+hcpy png dy
+
+copy all new mir y
+copy all new mir z
+view disp
+view elem
+ds -1 e 1
+rot x
+rot c 90
+text Equivalent plastic strain
+plot fv all
+frame
+hcpy png exp
+
+asgn graph off
+graph Nmonitor time PE PE
+sys dat2txt.py Zug
+sys gnuplot pe.gnu

@@ -1,0 +1,202 @@
+cmake_minimum_required(VERSION 3.21)
+project(SZM_Forge_Core VERSION 0.1.0 LANGUAGES CXX)
+
+# Enforce C++20 standard
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Fetch GLFW dynamically for seamless cross-platform compilation
+include(FetchContent)
+FetchContent_Declare(
+    glfw
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.3.8 # Stable release
+)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(glfw)
+
+# Define source files
+set(SOURCES
+    src/main.cpp
+    src/Core/Application.cpp
+)
+
+# Create executable
+add_executable(SZM_Forge ${SOURCES})
+
+# Include directories
+target_include_directories(SZM_Forge PRIVATE src)
+
+# Link GLFW and required OS libraries (handled natively by GLFW's target)
+target_link_libraries(SZM_Forge PRIVATE glfw)
+
+# Optional: Enable maximum compiler warnings for production safety
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(SZM_Forge PRIVATE -Wall -Wextra -Wpedantic)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    target_compile_options(SZM_Forge PRIVATE /W4 /WX)
+endif()
+
+#pragma once
+
+#include <GLFW/glfw3.h>
+#include <string>
+#include <chrono>
+
+namespace SZM {
+
+    struct WindowConfig {
+        int Width = 1280;
+        int Height = 720;
+        std::string Title = "SZM Forge - Core";
+        bool VSync = true;
+    };
+
+    class Application {
+    public:
+        // Singleton Access
+        static Application& GetInstance() {
+            static Application instance;
+            return instance;
+        }
+
+        // Delete copy/move constructors to strictly enforce Singleton
+        Application(const Application&) = delete;
+        Application& operator=(const Application&) = delete;
+
+        void Init(const WindowConfig& config);
+        void Run();
+        void Shutdown();
+
+        // Getters
+        GLFWwindow* GetNativeWindow() const { return m_WindowHandle; }
+        double GetDeltaTime() const { return m_DeltaTime; }
+
+    private:
+        Application() = default;
+        ~Application() = default;
+
+        // Callbacks
+        static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
+
+    private:
+        GLFWwindow* m_WindowHandle = nullptr;
+        bool m_IsRunning = false;
+        
+        // High-Resolution Timing
+        double m_DeltaTime = 0.0;
+        std::chrono::time_point<std::chrono::high_resolution_clock> m_LastFrameTime;
+    };
+
+} // namespace SZM
+
+#include "Application.hpp"
+#include <iostream>
+#include <stdexcept>
+
+namespace SZM {
+
+    void Application::Init(const WindowConfig& config) {
+        if (!glfwInit()) {
+            throw std::runtime_error("SZM_FATAL: Failed to initialize GLFW.");
+        }
+
+        // Hint for future Vulkan/Custom Context (No default OpenGL context)
+        // glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); 
+
+        // Handle DPI awareness across monitors
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
+
+        m_WindowHandle = glfwCreateWindow(config.Width, config.Height, config.Title.c_str(), nullptr, nullptr);
+        
+        if (!m_WindowHandle) {
+            glfwTerminate();
+            throw std::runtime_error("SZM_FATAL: OS denied window creation.");
+        }
+
+        glfwMakeContextCurrent(m_WindowHandle);
+        glfwSwapInterval(config.VSync ? 1 : 0); // V-Sync configuration
+
+        glfwSetWindowUserPointer(m_WindowHandle, this);
+        glfwSetFramebufferSizeCallback(m_WindowHandle, FramebufferResizeCallback);
+
+        m_IsRunning = true;
+        m_LastFrameTime = std::chrono::high_resolution_clock::now();
+        
+        std::cout << "SZM Forge: OS Window Initialized Successfully.\n";
+    }
+
+    void Application::Run() {
+        int frameCount = 0;
+        double timeAccumulator = 0.0;
+
+        while (!glfwWindowShouldClose(m_WindowHandle) && m_IsRunning) {
+            // 1. Calculate Delta Time (Tick)
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsedTime = currentTime - m_LastFrameTime;
+            m_DeltaTime = elapsedTime.count();
+            m_LastFrameTime = currentTime;
+
+            // 2. Process OS Events
+            glfwPollEvents();
+
+            // 3. Update Engines (Physics 200-Series will hook here via DeltaTime)
+            // UpdateEngines(m_DeltaTime);
+
+            // 4. Render (Placeholder swap buffers for testing V-Sync & stability)
+            glClear(GL_COLOR_BUFFER_BIT); // Requires OpenGL context for testing phase
+            glfwSwapBuffers(m_WindowHandle);
+
+            // Diagnostic Framerate Output (per second)
+            frameCount++;
+            timeAccumulator += m_DeltaTime;
+            if (timeAccumulator >= 1.0) {
+                std::cout << "SZM Core Tick | FPS: " << frameCount << " | dt: " << m_DeltaTime << "s\n";
+                frameCount = 0;
+                timeAccumulator = 0.0;
+            }
+        }
+    }
+
+    void Application::Shutdown() {
+        if (m_WindowHandle) {
+            glfwDestroyWindow(m_WindowHandle);
+            m_WindowHandle = nullptr;
+        }
+        glfwTerminate();
+        std::cout << "SZM Forge: Terminated safely.\n";
+    }
+
+    void Application::FramebufferResizeCallback(GLFWwindow* window, int width, int height) {
+        // Pauses rendering updates cleanly during rapid resize events (Edge case handling)
+        if (width == 0 || height == 0) return; 
+        glViewport(0, 0, width, height); 
+    }
+
+} // namespace SZM
+
+#include "Core/Application.hpp"
+#include <iostream>
+
+int main() {
+    try {
+        SZM::WindowConfig config;
+        config.Title = "SZM Forge - Runtime Execution";
+        config.VSync = false; // Set to false to test raw tick speed
+
+        SZM::Application& app = SZM::Application::GetInstance();
+        app.Init(config);
+        app.Run();
+        app.Shutdown();
+    }
+    catch (const std::exception& e) {
+        std::cerr << "CRITICAL FAILURE: " << e.what() << '\n';
+        return -1;
+    }
+
+    return 0;
+}
+

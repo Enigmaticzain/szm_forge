@@ -1,0 +1,52 @@
+# sys gmsh part.step -clcurv -3 -o gmsh.inp -order 2
+
+ulin gmsh without virtual topology
+sys gmsh part.geo
+read gmsh.inp
+# remove surface elements
+zap +CPS6
+
+plot f all n
+view elem
+rot y
+rot d 20
+zoom 2
+plus n all
+hcpy png Refs/mesh
+
+frame
+zoom 5
+rot y
+rot u 20
+tra l 30
+tra d 30
+plot f all n
+plus n all
+hcpy png Refs/mesh1
+
+del mesh
+
+ulin gmsh with virtual topology
+sys gmsh partVT.geo
+read gmshVT.inp new
+# remove surface elements
+zap +CPS6
+
+plot f all n
+view elem
+frame
+rot y
+rot d 20
+zoom 2
+plus n all
+hcpy png Refs/VTmesh
+
+frame
+zoom 5
+rot y
+rot u 20
+tra l 30
+tra d 30
+plot f all n
+plus n all
+hcpy png Refs/VTmesh1

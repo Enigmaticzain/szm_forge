@@ -1,0 +1,46 @@
+#wsize 800 550
+read solve.frd
+seta ! all
+view elem
+view edge off
+view disp
+view sh
+
+ds -1 e 1
+rot -z
+plot ev +CF3
+zoom 1.5
+rot u 10
+rot l 10
+hcpy png Refs/blech-pe-1
+
+rot r 30
+hcpy png Refs/blech-pe-2
+
+ulin Fixed tool (feed), cutting edges
+rot -z
+ds -2 e 7
+#scal d 10
+plot ev +CF1
+frame
+hcpy png Refs/tool1-se
+
+ds -2 e 11
+plot ev +CF1
+hcpy png Refs/tool1-s1
+
+ulin Moving tool (exit), cutting edges
+ds -2 e 7
+rot z
+plot ev +CF2
+frame
+hcpy png Refs/tool2-se
+
+ds -2 e 11
+rot -z
+rot r 30
+rot u 30
+plot ev +CF2
+plus e +CF1 n
+frame
+hcpy png Refs/tool2-s1

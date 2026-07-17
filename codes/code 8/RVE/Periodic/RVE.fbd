@@ -1,0 +1,57 @@
+valu lx 1
+valu ly 1
+valu lz 1
+valu le 0.1
+valu rad 0.21
+valu tol 0.00001
+
+# create the cube
+pnt p0 0 0 0
+swep all new tra lx 0 0
+swep all new tra 0 ly 0
+swep all new tra 0 0 lz
+
+# meshing
+div all auto le
+elty all he8i
+mesh all
+send all abq
+
+# create fiber (cylinder along x in the center)
+valu my / ly 2
+valu mz / lz 2
+seta nodes n all
+enq nodes fiber rec _ my mz rad
+comp fiber up
+
+# define set for the matrix
+seta matrix se all
+setr matrix e fiber
+
+# write set definitions
+send all abq nam
+
+# images
+view elem
+frame
+plot e fiber r
+hcpy png fiber
+
+plot e matrix n
+hcpy png matrix
+
+# adds faces to fiber
+comp fiber do
+# removes these faces from matrix
+setr matrix f fiber
+# removes matrix elements from fiber (why are they there?)
+setr fiber e matrix
+
+rot x
+rot r 30
+rot u 20
+frame
+zoom 0.8
+plot e fiber r
+plus fb matrix n 20
+hcpy png matrix-fiber

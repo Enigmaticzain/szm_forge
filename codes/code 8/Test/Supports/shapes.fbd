@@ -1,0 +1,30 @@
+# read the solution
+read solve.frd new
+# setup the view
+rot x
+rot c 90
+rot r 10
+rot u 10
+zoom 3
+# show undeformed model edges
+#anim model
+view elem
+view sh
+
+# loop over movies
+valu counter 0
+while counter < 20
+  valu counter + counter 1
+  # convert counter value to integer
+  valu counter int counter
+  # build output file name from prefix, counter and extension
+  valu to & Refs/shape_ counter
+  valu to & to .gif
+  # make sure that the frequency is correctly displayed
+  ds counter e 4
+  # write 11 frames from the output of the subsequent command
+  movi frames auto
+  ds counter a 4
+  # store the file under the target name
+  sys mv movie.gif to
+endwhile

@@ -1,0 +1,39 @@
+# results data are loaded in the calling script
+# set view and animate first dataset
+rot -z
+rot u 90
+scal d 2
+anim steps 16
+
+# select modes to display
+valu num 0
+valu incr 1
+valu end 4
+# name for movies to store
+valu pre & Refs/ model
+valu pre & pre -modal-
+# subset for shaded plot
+enq all new rec _ _ -100 101 a
+comp new do
+# loop over modes
+#view surf
+while num < end
+  valu num + num incr
+  valu num int num
+  # static dataset and display setting
+  #plot n all
+  ds num e 4
+  ulin model mode num
+  plot fv all
+  #plus f new n
+  # init movie recording and start animation
+  movi frames auto
+  #ds num e 4
+  anim start
+  #view surf
+  # storage of the movie
+  valu name & pre num
+  valu name & name .gif
+  sys mv movie.gif name
+endwhile
+ds 1 a 1

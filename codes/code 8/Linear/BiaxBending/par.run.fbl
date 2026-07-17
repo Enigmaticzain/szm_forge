@@ -1,0 +1,117 @@
+# <th=10.>
+# <he=50.>
+# <lx=200.>
+
+
+# rotated rectangle section
+pnt ! 0 <th/2.> <he/2.>
+swep all new tra 0 <-th> 0 2
+swep all new tra 0 0 <-he> 8
+move all rot x 45
+swep all load1 tra <lx> 0 0 10
+
+# z section
+# <y0z=-45>
+# <z0z=20>
+# <la=40>
+# <lb=10>
+# <th=3>
+del se new
+seto zprof
+pnt p0z 0 <y0z> <z0z>
+swep zprof new tra 0 <-th> 0 2
+swep zprof new1 tra 0 0 <-th> 2
+swep new1 new2 tra 0 0 <-la+2*th> 6
+swep new2 new3 tra 0 0 <-th> 2
+seta fu l L00F
+swep fu new tra 0 <lb> 0 3
+seta fo l L00M
+swep fo new tra 0 <-lb> 0 3
+swep zprof load2 tra <lx> 0 0 10
+setc
+
+# angle section
+# <y0a=-90>
+# <z0a=20>
+# <la=40>
+# <lb=20>
+# <tha=3>
+del se new
+seto angle
+pnt p0a 0 <y0a> <z0a>
+swep angle new tra 0 <-tha> 0 2
+swep new new1 tra 0 <-lb+tha> 0 4
+swep angle new tra 0 0 <-tha> 2
+seta tmp l L01N
+swep tmp new tra 0 0 <-la+tha> 8
+swep angle load3 tra <lx> 0 0 10
+setc
+
+# ref nodes
+node 1 <lx> 0 0
+node 2 <lx> <y0z> <z0z>
+node 3 <lx> <y0a> <z0a>
+
+seta ref n all
+
+# meshing
+elty all he8i
+mesh all
+
+# quick and dirty support
+seta nodes n all
+enq nodes support rec 0 _ _ 0.01
+
+# load application surfaces
+send load1 abq surf
+send load2 abq surf
+send load3 abq surf
+
+# write mesh and sets
+send all abq
+send all abq nam
+
+# plot of mesh and ref node
+ulin support (red), load (yellow) with ref node (blue)
+frame
+zoom 1.5
+rot -x
+rot c 90
+rot l 10
+rot u 10
+view elem
+plot n ref r
+plus f all n
+plus f load1 y
+plus f load2 y
+plus f load3 y
+plus n ref b 10
+plus n support r 10
+hcpy png Refs/mesh
+
+# Solving
+sys ccx Biegung
+read Biegung.frd new
+
+# display of stress distribution and deformed geometry
+ulin Stress distribution
+view disp
+view sh
+scal d 1000
+# sxx
+ds 2 e 1
+hcpy png Refs/sxx
+
+# neutral fiber
+ulin Neutral fiber
+steps 2
+mm 1
+hcpy png Refs/neutral
+
+#
+ulin displacement
+rot -x
+rot c 90
+plot n all r 1
+plus f all n
+hcpy png Refs/disp

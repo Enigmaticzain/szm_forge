@@ -1,0 +1,29 @@
+# Large rotations, small strain
+# beam model
+pnt p1 0 0 0
+seta fix se all
+swep all rot tra 100 0 0 20
+
+elty all be3r
+mesh all
+send all abq
+send all abq nam
+
+send fix abq spc 123456
+send rot abq spc 5 1.57
+
+read view.fbd
+plot l all
+plus n all
+plus n fix b
+plus n rot t
+hcpy png b-mesh
+
+sys ccx b
+sys monitor.py b&
+
+read b.frd
+ds -0 e 4
+view sh off
+read def-plot.fbd
+sys mv hcpy_2.png b-def.png

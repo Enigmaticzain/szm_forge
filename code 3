@@ -1,0 +1,2824 @@
+===== FILE: /module_010_1/index.ts =====
+
+TypeScript
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/EventDispatcher";
+export * from "./core/WindowManager";
+
+export const ModuleMetadata = {
+  module: "010.1",
+  version: "1.0.0"
+} as const;
+===== FILE: /module_010_1/types/index.ts =====
+
+TypeScript
+export type Vector2 = { readonly x: number; readonly y: number };
+
+export type WindowConfig = {
+  readonly id?: string;
+  readonly position: Vector2;
+  readonly size: Vector2;
+};
+
+export type Window = {
+  readonly id: string;
+  readonly position: Vector2;
+  readonly size: Vector2;
+  readonly state: "active" | "minimized";
+};
+
+export type OSConfig = {
+  readonly maxWindows: number;
+  readonly minWindowSize: Vector2;
+  readonly desktopBounds: { readonly width: number; readonly height: number };
+};
+
+export type WindowEvent =
+  | { readonly type: "WINDOW_CREATED"; readonly payload: Window }
+  | { readonly type: "WINDOW_MOVED"; readonly payload: { readonly id: string; readonly position: Vector2 } }
+  | { readonly type: "WINDOW_RESIZED"; readonly payload: { readonly id: string; readonly size: Vector2 } }
+  | { readonly type: "WINDOW_DESTROYED"; readonly payload: { readonly id: string } }
+  | { readonly type: "WINDOW_FOCUSED"; readonly payload: { readonly id: string } };
+
+export interface EventBus {
+  emit(event: WindowEvent): void;
+  subscribe(handler: (event: WindowEvent) => void): void;
+}
+===== FILE: /module_010_1/utils/Result.ts =====
+
+TypeScript
+export type Result<T> = 
+  | { readonly success: true; readonly data: T } 
+  | { readonly success: false; readonly error: string };
+
+export const success = <T>(data: T): Result<T> => ({ success: true, data });
+export const failure = <T = never>(error: string): Result<T> => ({ success: false, error });
+===== FILE: /module_010_1/systems/EventDispatcher.ts =====
+
+TypeScript
+import { EventBus, WindowEvent } from "../types";
+
+export class EventDispatcher {
+  private bus: EventBus | null = null;
+  private debug: boolean = false;
+
+  public connect(bus: EventBus): void {
+    this.bus = bus;
+  }
+
+  public setDebug(enabled: boolean): void {
+    this.debug = enabled;
+  }
+
+  public dispatch(event: WindowEvent): void {
+    if (!this.bus) return;
+    if (this.debug) {
+      console.log(`[EventDispatcher] Emitting: ${event.type}`, event.payload);
+    }
+    this.bus.emit(event);
+  }
+}
+===== FILE: /module_010_1/core/WindowManager.ts =====
+
+TypeScript
+import { OSConfig, WindowConfig, Window, EventBus } from "../types";
+import { Result, success, failure } from "../utils/Result";
+import { EventDispatcher } from "../systems/EventDispatcher";
+
+export class WindowManager {
+  private stateMap: Map<string, Window> = new Map();
+  private zOrder: string[] = [];
+  private config: OSConfig | null = null;
+  private dispatcher: EventDispatcher = new EventDispatcher();
+  private isInitialized: boolean = false;
+  private debugMode: boolean = false;
+
+  public initialize(config: OSConfig, eventBus: EventBus): Result<void> {
+    if (this.isInitialized) return failure("WindowManager already initialized.");
+    this.config = config;
+    this.dispatcher.connect(eventBus);
+    this.isInitialized = true;
+    return success(undefined);
+  }
+
+  public enableDebug(enabled: boolean): void {
+    this.debugMode = enabled;
+    this.dispatcher.setDebug(enabled);
+  }
+
+  public createWindow(config: WindowConfig): Result<Window> {
+    if (!this.isInitialized || !this.config) return failure("System not initialized");
+    if (this.stateMap.size >= this.config.maxWindows) return failure("Max windows limit reached");
+
+    const id = config.id || this.generateId();
+    if (this.stateMap.has(id)) return failure("Window ID already exists");
+
+    if (!this.isValidSize(config.size)) return failure("Window size violates constraints");
+    if (!this.isValidPosition(config.position, config.size)) return failure("Window bounds violate constraints");
+
+    const newWindow: Window = {
+      id,
+      position: { ...config.position },
+      size: { ...config.size },
+      state: "active"
+    };
+
+    this.stateMap.set(id, newWindow);
+    this.zOrder.push(id);
+    this.dispatcher.dispatch({ type: "WINDOW_CREATED", payload: newWindow });
+
+    return success(newWindow);
+  }
+
+  public destroyWindow(id: string): Result<void> {
+    if (!this.isInitialized) return failure("System not initialized");
+    if (!this.stateMap.has(id)) return failure("Window ID not found");
+
+    this.stateMap.delete(id);
+    this.zOrder = this.zOrder.filter(wId => wId !== id);
+    this.dispatcher.dispatch({ type: "WINDOW_DESTROYED", payload: { id } });
+
+    return success(undefined);
+  }
+
+  public resizeWindow(id: string, width: number, height: number): Result<void> {
+    if (!this.isInitialized || !this.config) return failure("System not initialized");
+    const win = this.stateMap.get(id);
+    if (!win) return failure("Window ID not found");
+
+    const newSize = { x: width, y: height };
+    if (!this.isValidSize(newSize)) return failure("Window size violates constraints");
+    if (!this.isValidPosition(win.position, newSize)) return failure("Window bounds violate constraints");
+
+    const updatedWindow: Window = { ...win, size: newSize };
+    this.stateMap.set(id, updatedWindow);
+    this.dispatcher.dispatch({ type: "WINDOW_RESIZED", payload: { id, size: newSize } });
+
+    return success(undefined);
+  }
+
+  public moveWindow(id: string, x: number, y: number): Result<void> {
+    if (!this.isInitialized || !this.config) return failure("System not initialized");
+    const win = this.stateMap.get(id);
+    if (!win) return failure("Window ID not found");
+
+    const newPos = { x, y };
+    if (!this.isValidPosition(newPos, win.size)) return failure("Window bounds violate constraints");
+
+    const updatedWindow: Window = { ...win, position: newPos };
+    this.stateMap.set(id, updatedWindow);
+    this.dispatcher.dispatch({ type: "WINDOW_MOVED", payload: { id, position: newPos } });
+
+    return success(undefined);
+  }
+
+  public focusWindow(id: string): Result<void> {
+    if (!this.isInitialized) return failure("System not initialized");
+    if (!this.stateMap.has(id)) return failure("Window ID not found");
+
+    this.zOrder = this.zOrder.filter(wId => wId !== id);
+    this.zOrder.push(id);
+    
+    this.dispatcher.dispatch({ type: "WINDOW_FOCUSED", payload: { id } });
+    return success(undefined);
+  }
+
+  public getStateSnapshot(): Window[] {
+    const snapshot: Window[] = [];
+    for (let i = 0; i < this.zOrder.length; i++) {
+      const win = this.stateMap.get(this.zOrder[i]);
+      if (win) snapshot.push(win);
+    }
+    return snapshot;
+  }
+
+  private generateId(): string {
+    return `win_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  private isValidSize(size: { x: number; y: number }): boolean {
+    if (!this.config) return false;
+    return size.x >= this.config.minWindowSize.x && size.y >= this.config.minWindowSize.y;
+  }
+
+  private isValidPosition(pos: { x: number; y: number }, size: { x: number; y: number }): boolean {
+    if (!this.config) return false;
+    return pos.x >= 0 && pos.y >= 0 && 
+           pos.x + size.x <= this.config.desktopBounds.width && 
+           pos.y + size.y <= this.config.desktopBounds.height;
+  }
+}
+===== FILE: /module_010_1/tests/WindowManager.test.ts =====
+
+TypeScript
+import { WindowManager } from "../core/WindowManager";
+import { OSConfig, EventBus, WindowEvent } from "../types";
+
+// Note: Test suite placeholder indicating final engineering verification point
+export function runTests() {
+  const manager = new WindowManager();
+  const mockBus: EventBus = {
+    emit: (e: WindowEvent) => {},
+    subscribe: () => {}
+  };
+
+  const config: OSConfig = {
+    maxWindows: 10,
+    minWindowSize: { x: 100, y: 100 },
+    desktopBounds: { width: 1920, height: 1080 }
+  };
+
+  manager.initialize(config, mockBus);
+  // Engineer to implement concrete assertions here.
+}
+===== FILE: /module_010_3/index.ts =====
+
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/EventBusImpl";
+export * from "./core/InputManager";
+
+===== FILE: /module_010_3/types/index.ts =====
+
+export type ModuleMetadata = {
+module: "010.3";
+version: "1.0.0";
+};
+
+export const METADATA: ModuleMetadata = {
+module: "010.3",
+version: "1.0.0",
+};
+
+export type Vector2 = {
+readonly x: number;
+readonly y: number;
+};
+
+export type VirtualInputRegion = {
+readonly id: string;
+readonly position: Vector2;
+readonly size: Vector2;
+readonly state: "active" | "minimized";
+};
+
+export type RegionConfig = {
+readonly id?: string;
+readonly position: Vector2;
+readonly size: Vector2;
+};
+
+export type OSConfig = {
+readonly maxRegions: number;
+readonly desktopBounds: Vector2;
+readonly minSize: Vector2;
+};
+
+export type InputEvent =
+| { type: "REGION_CREATED"; payload: VirtualInputRegion }
+| { type: "REGION_MOVED"; payload: { id: string; position: Vector2 } }
+| { type: "REGION_RESIZED"; payload: { id: string; size: Vector2 } }
+| { type: "REGION_DESTROYED"; payload: { id: string } }
+| { type: "REGION_FOCUSED"; payload: { id: string } };
+
+export interface EventBus {
+emit(event: InputEvent): void;
+subscribe(handler: (event: InputEvent) => void): void;
+}
+
+===== FILE: /module_010_3/utils/Result.ts =====
+
+export type Result<T> =
+| { success: true; data: T }
+| { success: false; error: string };
+
+===== FILE: /module_010_3/systems/EventBusImpl.ts =====
+
+import { EventBus, InputEvent } from "../types";
+
+export class EventBusImpl implements EventBus {
+private handlers: Array<(event: InputEvent) => void> = [];
+
+public emit(event: InputEvent): void {
+const currentHandlers = [...this.handlers];
+for (const handler of currentHandlers) {
+try {
+handler(event);
+} catch (e) {
+console.error("Event handler failed", e);
+}
+}
+}
+
+public subscribe(handler: (event: InputEvent) => void): void {
+this.handlers.push(handler);
+}
+}
+
+===== FILE: /module_010_3/core/InputManager.ts =====
+
+import { Result } from "../utils/Result";
+import {
+VirtualInputRegion,
+RegionConfig,
+OSConfig,
+EventBus,
+InputEvent,
+Vector2
+} from "../types";
+
+export class InputManager {
+private isInitialized: boolean = false;
+private isDebug: boolean = false;
+private config: OSConfig | null = null;
+private eventBus: EventBus | null = null;
+
+private regions: Map<string, VirtualInputRegion> = new Map();
+private priorityList: string[] = [];
+
+public initialize(config: OSConfig, eventBus: EventBus): Result<void> {
+if (this.isInitialized) {
+return { success: false, error: "System already initialized" };
+}
+this.config = Object.freeze({ ...config });
+this.eventBus = eventBus;
+this.isInitialized = true;
+return { success: true, data: undefined };
+}
+
+public enableDebug(enabled: boolean): void {
+this.isDebug = enabled;
+}
+
+public createRegion(config: RegionConfig): Result<string> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const id = config.id || this.generateId();
+
+if (this.regions.has(id)) {
+  return { success: false, error: "Duplicate region ID" };
+}
+
+if (this.regions.size >= this.config!.maxRegions) {
+  return { success: false, error: "Max regions exceeded" };
+}
+
+const boundsCheck = this.validateBounds(config.position, config.size);
+if (!boundsCheck.success) return boundsCheck;
+
+const newRegion: VirtualInputRegion = Object.freeze({
+  id,
+  position: Object.freeze({ ...config.position }),
+  size: Object.freeze({ ...config.size }),
+  state: "active"
+});
+
+const nextRegions = new Map(this.regions);
+nextRegions.set(id, newRegion);
+
+this.regions = nextRegions;
+this.priorityList = [...this.priorityList, id];
+
+this.dispatch({ type: "REGION_CREATED", payload: newRegion });
+return { success: true, data: id };
+}
+
+public destroyRegion(id: string): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+if (!this.regions.has(id)) {
+  return { success: false, error: "Invalid region id" };
+}
+
+const nextRegions = new Map(this.regions);
+nextRegions.delete(id);
+this.regions = nextRegions;
+this.priorityList = this.priorityList.filter(regId => regId !== id);
+
+this.dispatch({ type: "REGION_DESTROYED", payload: { id } });
+return { success: true, data: undefined };
+}
+
+public resizeRegion(id: string, width: number, height: number): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const currentRegion = this.regions.get(id);
+if (!currentRegion) return { success: false, error: "Invalid region id" };
+
+const newSize: Vector2 = { x: width, y: height };
+const boundsCheck = this.validateBounds(currentRegion.position, newSize);
+if (!boundsCheck.success) return boundsCheck;
+
+const updatedRegion: VirtualInputRegion = Object.freeze({
+  ...currentRegion,
+  size: Object.freeze(newSize)
+});
+
+const nextRegions = new Map(this.regions);
+nextRegions.set(id, updatedRegion);
+this.regions = nextRegions;
+
+this.dispatch({ type: "REGION_RESIZED", payload: { id, size: updatedRegion.size } });
+return { success: true, data: undefined };
+}
+
+public moveRegion(id: string, x: number, y: number): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const currentRegion = this.regions.get(id);
+if (!currentRegion) return { success: false, error: "Invalid region id" };
+
+const newPosition: Vector2 = { x, y };
+const boundsCheck = this.validateBounds(newPosition, currentRegion.size);
+if (!boundsCheck.success) return boundsCheck;
+
+const updatedRegion: VirtualInputRegion = Object.freeze({
+  ...currentRegion,
+  position: Object.freeze(newPosition)
+});
+
+const nextRegions = new Map(this.regions);
+nextRegions.set(id, updatedRegion);
+this.regions = nextRegions;
+
+this.dispatch({ type: "REGION_MOVED", payload: { id, position: updatedRegion.position } });
+return { success: true, data: undefined };
+}
+
+public getStateSnapshot(): VirtualInputRegion[] {
+if (!this.isInitialized) return [];
+
+return Object.freeze(
+  this.priorityList.map(id => this.regions.get(id) as VirtualInputRegion)
+) as unknown as VirtualInputRegion[];
+}
+
+private validateState(): Result<void> {
+if (!this.isInitialized || !this.config || !this.eventBus) {
+return { success: false, error: "Manager not initialized" };
+}
+return { success: true, data: undefined };
+}
+
+private validateBounds(pos: Vector2, size: Vector2): Result<void> {
+const cfg = this.config!;
+
+if (size.x < cfg.minSize.x || size.y < cfg.minSize.y) {
+  return { success: false, error: "Size below minSize invariant" };
+}
+if (pos.x < 0 || pos.y < 0) {
+  return { success: false, error: "Position out of desktop bounds" };
+}
+if (pos.x + size.x > cfg.desktopBounds.x || pos.y + size.y > cfg.desktopBounds.y) {
+  return { success: false, error: "Region exceeds desktop bounds" };
+}
+
+return { success: true, data: undefined };
+}
+
+private generateId(): string {
+return region_${Date.now()}_${Math.random().toString(36).substring(2, 9)};
+}
+
+private dispatch(event: InputEvent): void {
+if (this.isDebug) {
+console.log([InputManager] ${event.type}, event.payload);
+}
+this.eventBus!.emit(event);
+}
+}
+
+===== FILE: /module_010_3/tests/InputManager.test.ts =====
+
+import { InputManager } from "../core/InputManager";
+import { EventBusImpl } from "../systems/EventBusImpl";
+import { OSConfig } from "../types";
+
+export function runTests() {
+const manager = new InputManager();
+const eventBus = new EventBusImpl();
+
+const config: OSConfig = {
+maxRegions: 5,
+desktopBounds: { x: 1920, y: 1080 },
+minSize: { x: 100, y: 100 }
+};
+
+const initRes = manager.initialize(config, eventBus);
+if (!initRes.success) throw new Error("Init failed");
+
+const createRes = manager.createRegion({
+id: "test_1",
+position: { x: 50, y: 50 },
+size: { x: 200, y: 200 }
+});
+if (!createRes.success) throw new Error("Create failed");
+
+const moveRes = manager.moveRegion("test_1", 100, 100);
+if (!moveRes.success) throw new Error("Move failed");
+
+const resizeFailRes = manager.resizeRegion("test_1", 50, 50);
+if (resizeFailRes.success) throw new Error("Invariant failure missed");
+
+const destroyRes = manager.destroyRegion("test_1");
+if (!destroyRes.success) throw new Error("Destroy failed");
+
+const snapshot = manager.getStateSnapshot();
+if (snapshot.length !== 0) throw new Error("Snapshot invalid state");
+
+console.log("All invariant constraints & atomic tests passed.");
+}
+
+===== FILE: /module_010_4/index.ts =====
+
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/GraphicsEventDispatcher";
+export * from "./core/GraphicsManager";
+
+export const ModuleMetadata = {
+module: "010.4",
+version: "1.0.0"
+} as const;
+
+===== FILE: /module_010_4/types/index.ts =====
+
+export type Resolution = {
+readonly width: number;
+readonly height: number;
+};
+
+export type SwapchainConfig = {
+readonly id: string;
+readonly resolution: Resolution;
+readonly vsync: boolean;
+};
+
+export type Swapchain = {
+readonly id: string;
+readonly resolution: Resolution;
+readonly vsync: boolean;
+readonly state: "ready" | "presenting" | "lost";
+};
+
+export type GraphicsConfig = {
+readonly maxSwapchains: number;
+readonly hardwareAcceleration: boolean;
+};
+
+export type GraphicsEvent =
+| { readonly type: "CONTEXT_INITIALIZED"; readonly payload: { readonly accelerated: boolean } }
+| { readonly type: "SWAPCHAIN_CREATED"; readonly payload: Swapchain }
+| { readonly type: "SWAPCHAIN_RESIZED"; readonly payload: { readonly id: string; readonly resolution: Resolution } }
+| { readonly type: "FRAME_PRESENTED"; readonly payload: { readonly id: string } }
+| { readonly type: "SWAPCHAIN_DESTROYED"; readonly payload: { readonly id: string } };
+
+export interface EventBus {
+emit(event: GraphicsEvent): void;
+subscribe(handler: (event: GraphicsEvent) => void): void;
+}
+
+===== FILE: /module_010_4/utils/Result.ts =====
+
+export type Result<T> =
+| { readonly success: true; readonly data: T }
+| { readonly success: false; readonly error: string };
+
+export const success = <T>(data: T): Result<T> => ({ success: true, data });
+export const failure = <T = never>(error: string): Result<T> => ({ success: false, error });
+
+===== FILE: /module_010_4/systems/GraphicsEventDispatcher.ts =====
+
+import { EventBus, GraphicsEvent } from "../types";
+
+export class GraphicsEventDispatcher {
+private bus: EventBus | null = null;
+private debug: boolean = false;
+
+public connect(bus: EventBus): void {
+this.bus = bus;
+}
+
+public setDebug(enabled: boolean): void {
+this.debug = enabled;
+}
+
+public dispatch(event: GraphicsEvent): void {
+if (!this.bus) return;
+if (this.debug) {
+console.log([GraphicsEventDispatcher] Emitting: ${event.type}, event.payload);
+}
+this.bus.emit(event);
+}
+}
+
+===== FILE: /module_010_4/core/GraphicsManager.ts =====
+
+import { GraphicsConfig, SwapchainConfig, Swapchain, EventBus, Resolution } from "../types";
+import { Result, success, failure } from "../utils/Result";
+import { GraphicsEventDispatcher } from "../systems/GraphicsEventDispatcher";
+
+export class GraphicsManager {
+private stateMap: Map<string, Swapchain> = new Map();
+private priorityList: string[] = [];
+private config: GraphicsConfig | null = null;
+private dispatcher: GraphicsEventDispatcher = new GraphicsEventDispatcher();
+private isInitialized: boolean = false;
+private debugMode: boolean = false;
+
+public initialize(config: GraphicsConfig, eventBus: EventBus): Result<void> {
+if (this.isInitialized) return failure("GraphicsManager already initialized.");
+this.config = config;
+this.dispatcher.connect(eventBus);
+this.isInitialized = true;
+
+this.dispatcher.dispatch({ 
+  type: "CONTEXT_INITIALIZED", 
+  payload: { accelerated: config.hardwareAcceleration } 
+});
+
+return success(undefined);
+}
+
+public enableDebug(enabled: boolean): void {
+this.debugMode = enabled;
+this.dispatcher.setDebug(enabled);
+}
+
+public createSwapchain(config: SwapchainConfig): Result<Swapchain> {
+if (!this.isInitialized || !this.config) return failure("System not initialized");
+if (this.stateMap.size >= this.config.maxSwapchains) return failure("Max swapchains limit reached");
+if (this.stateMap.has(config.id)) return failure("Swapchain ID already exists");
+if (!this.isValidResolution(config.resolution)) return failure("Invalid resolution: must be > 0");
+
+const newSwapchain: Swapchain = {
+  id: config.id,
+  resolution: { ...config.resolution },
+  vsync: config.vsync,
+  state: "ready"
+};
+
+this.stateMap.set(config.id, newSwapchain);
+this.priorityList.push(config.id);
+this.dispatcher.dispatch({ type: "SWAPCHAIN_CREATED", payload: newSwapchain });
+
+return success(newSwapchain);
+}
+
+public destroySwapchain(id: string): Result<void> {
+if (!this.isInitialized) return failure("System not initialized");
+if (!this.stateMap.has(id)) return failure("Swapchain ID not found");
+
+this.stateMap.delete(id);
+this.priorityList = this.priorityList.filter(sId => sId !== id);
+this.dispatcher.dispatch({ type: "SWAPCHAIN_DESTROYED", payload: { id } });
+
+return success(undefined);
+}
+
+public resizeSwapchain(id: string, width: number, height: number): Result<void> {
+if (!this.isInitialized) return failure("System not initialized");
+const current = this.stateMap.get(id);
+if (!current) return failure("Swapchain ID not found");
+
+const newRes: Resolution = { width, height };
+if (!this.isValidResolution(newRes)) return failure("Invalid resolution: must be > 0");
+
+const updatedSwapchain: Swapchain = { ...current, resolution: newRes };
+this.stateMap.set(id, updatedSwapchain);
+this.dispatcher.dispatch({ type: "SWAPCHAIN_RESIZED", payload: { id, resolution: newRes } });
+
+return success(undefined);
+}
+
+public presentFrame(id: string): Result<void> {
+if (!this.isInitialized) return failure("System not initialized");
+const current = this.stateMap.get(id);
+if (!current) return failure("Swapchain ID not found");
+if (current.state === "lost") return failure("Swapchain is in lost state");
+
+const presentingSwapchain: Swapchain = { ...current, state: "presenting" };
+this.stateMap.set(id, presentingSwapchain);
+
+this.dispatcher.dispatch({ type: "FRAME_PRESENTED", payload: { id } });
+
+const readySwapchain: Swapchain = { ...presentingSwapchain, state: "ready" };
+this.stateMap.set(id, readySwapchain);
+
+return success(undefined);
+}
+
+public getSwapchainSnapshot(): Swapchain[] {
+const snapshot: Swapchain[] = [];
+for (let i = 0; i < this.priorityList.length; i++) {
+const swp = this.stateMap.get(this.priorityList[i]);
+if (swp) snapshot.push(swp);
+}
+return snapshot;
+}
+
+private isValidResolution(res: Resolution): boolean {
+return res.width > 0 && res.height > 0;
+}
+}
+
+===== FILE: /module_010_4/tests/GraphicsManager.test.ts =====
+
+import { GraphicsManager } from "../core/GraphicsManager";
+import { GraphicsConfig, EventBus, GraphicsEvent } from "../types";
+
+export function runTests() {
+const manager = new GraphicsManager();
+const mockBus: EventBus = {
+emit: (e: GraphicsEvent) => {},
+subscribe: () => {}
+};
+
+const config: GraphicsConfig = {
+maxSwapchains: 4,
+hardwareAcceleration: true
+};
+
+manager.initialize(config, mockBus);
+}
+
+===== FILE: /module_150_1/index.ts =====
+
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/EventBusImpl";
+export * from "./core/CameraController";
+
+===== FILE: /module_150_1/types/index.ts =====
+
+export type ModuleMetadata = {
+module: "150.1";
+version: "1.0.0";
+};
+
+export const METADATA: ModuleMetadata = {
+module: "150.1",
+version: "1.0.0",
+};
+
+export type Vector3 = {
+readonly x: number;
+readonly y: number;
+readonly z: number;
+};
+
+export type Camera = {
+readonly id: string;
+readonly position: Vector3;
+readonly target: Vector3;
+readonly fov: number;
+readonly up: Vector3;
+readonly state: "active" | "inactive";
+};
+
+export type CameraConfig = {
+readonly id?: string;
+readonly position: Vector3;
+readonly target: Vector3;
+readonly fov: number;
+};
+
+export type ViewportConfig = {
+readonly maxCameras: number;
+readonly fovLimits: { readonly min: number; readonly max: number };
+};
+
+export type CameraEvent =
+| { type: "CAMERA_CREATED"; payload: Camera }
+| { type: "CAMERA_MOVED"; payload: { id: string; position: Vector3 } }
+| { type: "CAMERA_TARGET_UPDATED"; payload: { id: string; target: Vector3 } }
+| { type: "CAMERA_FOV_CHANGED"; payload: { id: string; fov: number } }
+| { type: "CAMERA_DESTROYED"; payload: { id: string } };
+
+export interface EventBus {
+emit(event: CameraEvent): void;
+subscribe(handler: (event: CameraEvent) => void): void;
+}
+
+===== FILE: /module_150_1/utils/Result.ts =====
+
+export type Result<T> =
+| { success: true; data: T }
+| { success: false; error: string };
+
+===== FILE: /module_150_1/systems/EventBusImpl.ts =====
+
+import { EventBus, CameraEvent } from "../types";
+
+export class EventBusImpl implements EventBus {
+private handlers: Array<(event: CameraEvent) => void> = [];
+
+public emit(event: CameraEvent): void {
+const currentHandlers = [...this.handlers];
+for (const handler of currentHandlers) {
+try {
+handler(event);
+} catch (e) {
+console.error("Event handler failed", e);
+}
+}
+}
+
+public subscribe(handler: (event: CameraEvent) => void): void {
+this.handlers.push(handler);
+}
+}
+
+===== FILE: /module_150_1/core/CameraController.ts =====
+
+import { Result } from "../utils/Result";
+import {
+Camera,
+CameraConfig,
+ViewportConfig,
+EventBus,
+CameraEvent,
+Vector3
+} from "../types";
+
+export class CameraController {
+private isInitialized: boolean = false;
+private isDebug: boolean = false;
+private config: ViewportConfig | null = null;
+private eventBus: EventBus | null = null;
+
+private cameras: Map<string, Camera> = new Map();
+private activeCameraIds: string[] = [];
+
+public initialize(config: ViewportConfig, eventBus: EventBus): Result<void> {
+if (this.isInitialized) {
+return { success: false, error: "System already initialized" };
+}
+this.config = Object.freeze({ ...config });
+this.eventBus = eventBus;
+this.isInitialized = true;
+return { success: true, data: undefined };
+}
+
+public enableDebug(enabled: boolean): void {
+this.isDebug = enabled;
+}
+
+public createCamera(config: CameraConfig): Result<string> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const id = config.id || this.generateId();
+
+if (this.cameras.has(id)) {
+  return { success: false, error: "Duplicate camera ID" };
+}
+
+if (this.cameras.size >= this.config!.maxCameras) {
+  return { success: false, error: "Max cameras exceeded" };
+}
+
+const distCheck = this.validateDistance(config.position, config.target);
+if (!distCheck.success) return distCheck;
+
+const fovCheck = this.validateFov(config.fov);
+if (!fovCheck.success) return fovCheck;
+
+const newCamera: Camera = Object.freeze({
+  id,
+  position: Object.freeze({ ...config.position }),
+  target: Object.freeze({ ...config.target }),
+  fov: config.fov,
+  up: Object.freeze({ x: 0, y: 1, z: 0 }),
+  state: "active"
+});
+
+const nextCameras = new Map(this.cameras);
+nextCameras.set(id, newCamera);
+
+this.cameras = nextCameras;
+this.activeCameraIds = [...this.activeCameraIds, id];
+
+this.dispatch({ type: "CAMERA_CREATED", payload: newCamera });
+return { success: true, data: id };
+}
+
+public destroyCamera(id: string): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+if (!this.cameras.has(id)) {
+  return { success: false, error: "Invalid camera id" };
+}
+
+const nextCameras = new Map(this.cameras);
+nextCameras.delete(id);
+this.cameras = nextCameras;
+this.activeCameraIds = this.activeCameraIds.filter(camId => camId !== id);
+
+this.dispatch({ type: "CAMERA_DESTROYED", payload: { id } });
+return { success: true, data: undefined };
+}
+
+public updatePosition(id: string, position: Vector3): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const currentCamera = this.cameras.get(id);
+if (!currentCamera) return { success: false, error: "Invalid camera id" };
+
+const distCheck = this.validateDistance(position, currentCamera.target);
+if (!distCheck.success) return distCheck;
+
+const updatedCamera: Camera = Object.freeze({
+  ...currentCamera,
+  position: Object.freeze({ ...position })
+});
+
+const nextCameras = new Map(this.cameras);
+nextCameras.set(id, updatedCamera);
+this.cameras = nextCameras;
+
+this.dispatch({ type: "CAMERA_MOVED", payload: { id, position: updatedCamera.position } });
+return { success: true, data: undefined };
+}
+
+public updateTarget(id: string, target: Vector3): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const currentCamera = this.cameras.get(id);
+if (!currentCamera) return { success: false, error: "Invalid camera id" };
+
+const distCheck = this.validateDistance(currentCamera.position, target);
+if (!distCheck.success) return distCheck;
+
+const updatedCamera: Camera = Object.freeze({
+  ...currentCamera,
+  target: Object.freeze({ ...target })
+});
+
+const nextCameras = new Map(this.cameras);
+nextCameras.set(id, updatedCamera);
+this.cameras = nextCameras;
+
+this.dispatch({ type: "CAMERA_TARGET_UPDATED", payload: { id, target: updatedCamera.target } });
+return { success: true, data: undefined };
+}
+
+public updateFov(id: string, fov: number): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const currentCamera = this.cameras.get(id);
+if (!currentCamera) return { success: false, error: "Invalid camera id" };
+
+const fovCheck = this.validateFov(fov);
+if (!fovCheck.success) return fovCheck;
+
+const updatedCamera: Camera = Object.freeze({
+  ...currentCamera,
+  fov
+});
+
+const nextCameras = new Map(this.cameras);
+nextCameras.set(id, updatedCamera);
+this.cameras = nextCameras;
+
+this.dispatch({ type: "CAMERA_FOV_CHANGED", payload: { id, fov: updatedCamera.fov } });
+return { success: true, data: undefined };
+}
+
+public getStateSnapshot(): Camera[] {
+if (!this.isInitialized) return [];
+
+return Object.freeze(
+  this.activeCameraIds.map(id => this.cameras.get(id) as Camera)
+) as unknown as Camera[];
+}
+
+private validateState(): Result<void> {
+if (!this.isInitialized || !this.config || !this.eventBus) {
+return { success: false, error: "Controller not initialized" };
+}
+return { success: true, data: undefined };
+}
+
+private validateDistance(p1: Vector3, p2: Vector3): Result<void> {
+const dx = p1.x - p2.x;
+const dy = p1.y - p2.y;
+const dz = p1.z - p2.z;
+const distSq = dx * dx + dy * dy + dz * dz;
+
+if (distSq < 0.0001) {
+  return { success: false, error: "Position and target overlap invariant violation" };
+}
+return { success: true, data: undefined };
+}
+
+private validateFov(fov: number): Result<void> {
+const cfg = this.config!;
+if (fov < cfg.fovLimits.min || fov > cfg.fovLimits.max) {
+return { success: false, error: "FOV out of bounds invariant violation" };
+}
+return { success: true, data: undefined };
+}
+
+private generateId(): string {
+return cam_${Date.now()}_${Math.random().toString(36).substring(2, 9)};
+}
+
+private dispatch(event: CameraEvent): void {
+if (this.isDebug) {
+console.log([CameraController] ${event.type}, event.payload);
+}
+this.eventBus!.emit(event);
+}
+}
+
+===== FILE: /module_150_1/tests/CameraController.test.ts =====
+
+import { CameraController } from "../core/CameraController";
+import { EventBusImpl } from "../systems/EventBusImpl";
+import { ViewportConfig } from "../types";
+
+export function runTests() {
+const controller = new CameraController();
+const eventBus = new EventBusImpl();
+
+const config: ViewportConfig = {
+maxCameras: 2,
+fovLimits: { min: 10, max: 120 }
+};
+
+const initRes = controller.initialize(config, eventBus);
+if (!initRes.success) throw new Error("Init failed");
+
+const createRes = controller.createCamera({
+id: "main_cam",
+position: { x: 0, y: 0, z: 10 },
+target: { x: 0, y: 0, z: 0 },
+fov: 60
+});
+if (!createRes.success) throw new Error("Create failed");
+
+const posRes = controller.updatePosition("main_cam", { x: 5, y: 5, z: 5 });
+if (!posRes.success) throw new Error("Position update failed");
+
+const targetFailRes = controller.updateTarget("main_cam", { x: 5, y: 5, z: 5 });
+if (targetFailRes.success) throw new Error("Distance invariant failure missed");
+
+const fovFailRes = controller.updateFov("main_cam", 150);
+if (fovFailRes.success) throw new Error("FOV limit invariant failure missed");
+
+const destroyRes = controller.destroyCamera("main_cam");
+if (!destroyRes.success) throw new Error("Destroy failed");
+
+const snapshot = controller.getStateSnapshot();
+if (snapshot.length !== 0) throw new Error("Snapshot invalid state");
+
+console.log("All invariant constraints & atomic tests passed.");
+}
+
+===== FILE: /module_020_1/index.ts =====
+
+TypeScript
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/SceneEventDispatcher";
+export * from "./core/SceneGraphManager";
+
+export const ModuleMetadata = {
+  module: "020.1",
+  version: "1.0.0"
+} as const;
+===== FILE: /module_020_1/types/index.ts =====
+
+TypeScript
+export type Vector3 = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+};
+
+export type Transform = {
+  readonly position: Vector3;
+  readonly rotation: Vector3;
+  readonly scale: Vector3;
+};
+
+export type NodeConfig = {
+  readonly id?: string;
+  readonly parentId?: string | null;
+  readonly transform?: Partial<Transform>;
+  readonly nodeType?: string;
+};
+
+export type SceneNode = {
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly children: readonly string[];
+  readonly transform: Transform;
+  readonly nodeType: string;
+};
+
+export type SceneConfig = {
+  readonly maxNodes: number;
+  readonly maxHierarchyDepth: number;
+};
+
+export type SceneEvent =
+  | { readonly type: "NODE_CREATED"; readonly payload: SceneNode }
+  | { readonly type: "NODE_REMOVED"; readonly payload: { readonly id: string } }
+  | { readonly type: "NODE_REPARENTED"; readonly payload: { readonly id: string; readonly oldParentId: string | null; readonly newParentId: string | null } }
+  | { readonly type: "TRANSFORM_UPDATED"; readonly payload: { readonly id: string; readonly transform: Transform } }
+  | { readonly type: "SCENE_DESERIALIZED"; readonly payload: { readonly count: number } };
+
+export interface EventBus {
+  emit(event: SceneEvent): void;
+  subscribe(handler: (event: SceneEvent) => void): void;
+}
+===== FILE: /module_020_1/utils/Result.ts =====
+
+TypeScript
+export type Result<T> = 
+  | { readonly success: true; readonly data: T } 
+  | { readonly success: false; readonly error: string };
+
+export const success = <T>(data: T): Result<T> => ({ success: true, data });
+export const failure = <T = never>(error: string): Result<T> => ({ success: false, error });
+===== FILE: /module_020_1/systems/SceneEventDispatcher.ts =====
+
+TypeScript
+import { EventBus, SceneEvent } from "../types";
+
+export class SceneEventDispatcher {
+  private bus: EventBus | null = null;
+  private debug: boolean = false;
+
+  public connect(bus: EventBus): void {
+    this.bus = bus;
+  }
+
+  public setDebug(enabled: boolean): void {
+    this.debug = enabled;
+  }
+
+  public dispatch(event: SceneEvent): void {
+    if (!this.bus) return;
+    if (this.debug) {
+      console.log(`[SceneEventDispatcher] ${event.type}`, event.payload);
+    }
+    this.bus.emit(event);
+  }
+}
+===== FILE: /module_020_1/core/SceneGraphManager.ts =====
+
+TypeScript
+import { SceneConfig, NodeConfig, SceneNode, Transform, EventBus } from "../types";
+import { Result, success, failure } from "../utils/Result";
+import { SceneEventDispatcher } from "../systems/SceneEventDispatcher";
+
+const DEFAULT_TRANSFORM: Transform = {
+  position: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: 0, z: 0 },
+  scale: { x: 1, y: 1, z: 1 }
+};
+
+export class SceneGraphManager {
+  private stateMap: Map<string, SceneNode> = new Map();
+  private config: SceneConfig | null = null;
+  private dispatcher: SceneEventDispatcher = new SceneEventDispatcher();
+  private isInitialized: boolean = false;
+
+  public initialize(config: SceneConfig, eventBus: EventBus): Result<void> {
+    if (this.isInitialized) return failure("Already initialized");
+    this.config = config;
+    this.dispatcher.connect(eventBus);
+    this.isInitialized = true;
+    return success(undefined);
+  }
+
+  public enableDebug(enabled: boolean): void {
+    this.dispatcher.setDebug(enabled);
+  }
+
+  public createNode(config: NodeConfig): Result<SceneNode> {
+    if (!this.isInitialized || !this.config) return failure("Not initialized");
+    if (this.stateMap.size >= this.config.maxNodes) return failure("Max nodes reached");
+
+    const id = config.id || this.generateId();
+    if (this.stateMap.has(id)) return failure("Duplicate ID");
+
+    const parentId = config.parentId || null;
+    if (parentId !== null && !this.stateMap.has(parentId)) return failure("Parent not found");
+    if (parentId !== null && this.calculateDepth(parentId) >= this.config.maxHierarchyDepth) {
+      return failure("Max hierarchy depth exceeded");
+    }
+
+    const newNode: SceneNode = {
+      id,
+      parentId,
+      children: [],
+      transform: this.mergeTransform(DEFAULT_TRANSFORM, config.transform),
+      nodeType: config.nodeType || "default"
+    };
+
+    const updates = new Map<string, SceneNode>();
+    updates.set(id, newNode);
+
+    if (parentId !== null) {
+      const parent = this.stateMap.get(parentId)!;
+      updates.set(parentId, { ...parent, children: [...parent.children, id] });
+    }
+
+    this.applyUpdates(updates);
+    this.dispatcher.dispatch({ type: "NODE_CREATED", payload: newNode });
+
+    return success(newNode);
+  }
+
+  public removeNode(id: string): Result<void> {
+    if (!this.isInitialized) return failure("Not initialized");
+    if (!this.stateMap.has(id)) return failure("Node not found");
+
+    const nodeToDelete = this.stateMap.get(id)!;
+    const updates = new Map<string, SceneNode>();
+    const removals = new Set<string>();
+
+    this.collectDescendants(id, removals);
+    removals.add(id);
+
+    if (nodeToDelete.parentId !== null) {
+      const parent = this.stateMap.get(nodeToDelete.parentId);
+      if (parent && !removals.has(parent.id)) {
+        updates.set(parent.id, {
+          ...parent,
+          children: parent.children.filter(c => c !== id)
+        });
+      }
+    }
+
+    this.applyDeletions(updates, removals);
+    
+    // Dispatch individual removal events to maintain contract
+    for (const removedId of removals) {
+      this.dispatcher.dispatch({ type: "NODE_REMOVED", payload: { id: removedId } });
+    }
+
+    return success(undefined);
+  }
+
+  public reparentNode(id: string, newParentId: string | null): Result<void> {
+    if (!this.isInitialized || !this.config) return failure("Not initialized");
+    if (!this.stateMap.has(id)) return failure("Node not found");
+    
+    const node = this.stateMap.get(id)!;
+    if (node.parentId === newParentId) return success(undefined);
+
+    if (newParentId !== null) {
+      if (!this.stateMap.has(newParentId)) return failure("New parent not found");
+      if (this.wouldCreateCycle(id, newParentId)) return failure("Cyclical reparenting detected");
+      
+      const newParentDepth = this.calculateDepth(newParentId);
+      const subtreeDepth = this.calculateSubtreeDepth(id);
+      if (newParentDepth + subtreeDepth >= this.config.maxHierarchyDepth) {
+        return failure("Max hierarchy depth exceeded");
+      }
+    }
+
+    const updates = new Map<string, SceneNode>();
+    updates.set(id, { ...node, parentId: newParentId });
+
+    if (node.parentId !== null) {
+      const oldParent = this.stateMap.get(node.parentId)!;
+      updates.set(oldParent.id, {
+        ...oldParent,
+        children: oldParent.children.filter(c => c !== id)
+      });
+    }
+
+    if (newParentId !== null) {
+      const newParent = updates.get(newParentId) || this.stateMap.get(newParentId)!;
+      updates.set(newParentId, {
+        ...newParent,
+        children: [...newParent.children, id]
+      });
+    }
+
+    this.applyUpdates(updates);
+    this.dispatcher.dispatch({
+      type: "NODE_REPARENTED",
+      payload: { id, oldParentId: node.parentId, newParentId }
+    });
+
+    return success(undefined);
+  }
+
+  public updateTransform(id: string, partialTransform: Partial<Transform>): Result<void> {
+    if (!this.isInitialized) return failure("Not initialized");
+    const node = this.stateMap.get(id);
+    if (!node) return failure("Node not found");
+
+    const newTransform = this.mergeTransform(node.transform, partialTransform);
+    const updatedNode: SceneNode = { ...node, transform: newTransform };
+    
+    this.stateMap.set(id, updatedNode);
+    this.dispatcher.dispatch({ type: "TRANSFORM_UPDATED", payload: { id, transform: newTransform } });
+
+    return success(undefined);
+  }
+
+  public serializeScene(): Result<string> {
+    if (!this.isInitialized) return failure("Not initialized");
+    try {
+      const nodes = Array.from(this.stateMap.values());
+      return success(JSON.stringify(nodes));
+    } catch (e) {
+      return failure("Serialization failed");
+    }
+  }
+
+  public deserializeScene(data: string): Result<void> {
+    if (!this.isInitialized || !this.config) return failure("Not initialized");
+    try {
+      const parsed: SceneNode[] = JSON.parse(data);
+      if (!Array.isArray(parsed) || parsed.length > this.config.maxNodes) {
+        return failure("Invalid data or exceeds max nodes");
+      }
+
+      const newMap = new Map<string, SceneNode>();
+      for (const node of parsed) {
+        if (!node.id || node.parentId === undefined || !Array.isArray(node.children)) {
+          return failure("Malformed node structure detected");
+        }
+        newMap.set(node.id, node);
+      }
+
+      this.stateMap = newMap;
+      this.dispatcher.dispatch({ type: "SCENE_DESERIALIZED", payload: { count: this.stateMap.size } });
+      return success(undefined);
+    } catch (e) {
+      return failure("Deserialization failed");
+    }
+  }
+
+  public getStateSnapshot(): SceneNode[] {
+    return Array.from(this.stateMap.values());
+  }
+
+  private mergeTransform(base: Transform, partial?: Partial<Transform>): Transform {
+    if (!partial) return base;
+    return {
+      position: { ...base.position, ...partial.position },
+      rotation: { ...base.rotation, ...partial.rotation },
+      scale: { ...base.scale, ...partial.scale }
+    };
+  }
+
+  private generateId(): string {
+    return `node_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  private wouldCreateCycle(nodeId: string, targetParentId: string): boolean {
+    let currentId: string | null = targetParentId;
+    while (currentId !== null) {
+      if (currentId === nodeId) return true;
+      const parent = this.stateMap.get(currentId);
+      currentId = parent ? parent.parentId : null;
+    }
+    return false;
+  }
+
+  private calculateDepth(nodeId: string): number {
+    let depth = 0;
+    let currentId: string | null = nodeId;
+    while (currentId !== null) {
+      depth++;
+      const node = this.stateMap.get(currentId);
+      currentId = node ? node.parentId : null;
+    }
+    return depth;
+  }
+
+  private calculateSubtreeDepth(nodeId: string): number {
+    const node = this.stateMap.get(nodeId);
+    if (!node || node.children.length === 0) return 1;
+    let maxChildDepth = 0;
+    for (const childId of node.children) {
+      maxChildDepth = Math.max(maxChildDepth, this.calculateSubtreeDepth(childId));
+    }
+    return 1 + maxChildDepth;
+  }
+
+  private collectDescendants(nodeId: string, removals: Set<string>): void {
+    const node = this.stateMap.get(nodeId);
+    if (!node) return;
+    for (const childId of node.children) {
+      removals.add(childId);
+      this.collectDescendants(childId, removals);
+    }
+  }
+
+  private applyUpdates(updates: Map<string, SceneNode>): void {
+    updates.forEach((node, id) => {
+      this.stateMap.set(id, node);
+    });
+  }
+
+  private applyDeletions(updates: Map<string, SceneNode>, removals: Set<string>): void {
+    removals.forEach(id => this.stateMap.delete(id));
+    this.applyUpdates(updates);
+  }
+}
+===== FILE: /module_020_1/tests/SceneGraphManager.test.ts =====
+
+TypeScript
+import { SceneGraphManager } from "../core/SceneGraphManager";
+import { SceneConfig, EventBus, SceneEvent } from "../types";
+
+export function runTests() {
+  const manager = new SceneGraphManager();
+  const mockBus: EventBus = {
+    emit: (e: SceneEvent) => {},
+    subscribe: () => {}
+  };
+
+  const config: SceneConfig = {
+    maxNodes: 1000,
+    maxHierarchyDepth: 10
+  };
+
+  manager.initialize(config, mockBus);
+}\
+
+===== FILE: /module_020_2/index.ts =====
+
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/EventBusImpl";
+export * from "./core/HistoryManager";
+
+===== FILE: /module_020_2/types/index.ts =====
+
+export type ModuleMetadata = {
+module: "020.2";
+version: "1.0.0";
+};
+
+export const METADATA: ModuleMetadata = {
+module: "020.2",
+version: "1.0.0",
+};
+
+export type Command = {
+readonly id: string;
+readonly type: string;
+readonly payload: Record<string, unknown>;
+readonly timestamp: number;
+};
+
+export type CommandConfig = {
+readonly id?: string;
+readonly type: string;
+readonly payload: Record<string, unknown>;
+};
+
+export type HistoryConfig = {
+readonly maxHistory: number;
+};
+
+export type HistoryEvent =
+| { type: "COMMAND_PUSHED"; payload: Command }
+| { type: "COMMAND_UNDONE"; payload: Command }
+| { type: "COMMAND_REDONE"; payload: Command }
+| { type: "HISTORY_CLEARED"; payload: null };
+
+export interface EventBus {
+emit(event: HistoryEvent): void;
+subscribe(handler: (event: HistoryEvent) => void): void;
+}
+
+===== FILE: /module_020_2/utils/Result.ts =====
+
+export type Result<T> =
+| { success: true; data: T }
+| { success: false; error: string };
+
+===== FILE: /module_020_2/systems/EventBusImpl.ts =====
+
+import { EventBus, HistoryEvent } from "../types";
+
+export class EventBusImpl implements EventBus {
+private handlers: Array<(event: HistoryEvent) => void> = [];
+
+public emit(event: HistoryEvent): void {
+const currentHandlers = [...this.handlers];
+for (const handler of currentHandlers) {
+try {
+handler(event);
+} catch (e) {
+console.error("Event handler failed", e);
+}
+}
+}
+
+public subscribe(handler: (event: HistoryEvent) => void): void {
+this.handlers.push(handler);
+}
+}
+
+===== FILE: /module_020_2/core/HistoryManager.ts =====
+
+import { Result } from "../utils/Result";
+import {
+Command,
+CommandConfig,
+HistoryConfig,
+EventBus,
+HistoryEvent
+} from "../types";
+
+export class HistoryManager {
+private isInitialized: boolean = false;
+private isDebug: boolean = false;
+private config: HistoryConfig | null = null;
+private eventBus: EventBus | null = null;
+
+private commands: Map<string, Command> = new Map();
+private timeline: string[] = [];
+private currentIndex: number = -1;
+
+public initialize(config: HistoryConfig, eventBus: EventBus): Result<void> {
+if (this.isInitialized) {
+return { success: false, error: "System already initialized" };
+}
+this.config = Object.freeze({ ...config });
+this.eventBus = eventBus;
+this.isInitialized = true;
+return { success: true, data: undefined };
+}
+
+public enableDebug(enabled: boolean): void {
+this.isDebug = enabled;
+}
+
+public pushCommand(config: CommandConfig): Result<string> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const id = config.id || this.generateId();
+
+if (this.commands.has(id)) {
+  return { success: false, error: "Duplicate command ID" };
+}
+
+const newCommand: Command = Object.freeze({
+  id,
+  type: config.type,
+  payload: Object.freeze({ ...config.payload }),
+  timestamp: Date.now()
+});
+
+const nextCommands = new Map(this.commands);
+let nextTimeline = [...this.timeline];
+
+// Drop future branching if pointer isn't at the end
+if (this.currentIndex < nextTimeline.length - 1) {
+  const droppedIds = nextTimeline.slice(this.currentIndex + 1);
+  for (const droppedId of droppedIds) {
+    nextCommands.delete(droppedId);
+  }
+  nextTimeline = nextTimeline.slice(0, this.currentIndex + 1);
+}
+
+// Append new command
+nextCommands.set(id, newCommand);
+nextTimeline = [...nextTimeline, id];
+
+// Prune max size
+if (nextTimeline.length > this.config!.maxHistory) {
+  const excess = nextTimeline.length - this.config!.maxHistory;
+  const prunedIds = nextTimeline.slice(0, excess);
+  for (const prunedId of prunedIds) {
+    nextCommands.delete(prunedId);
+  }
+  nextTimeline = nextTimeline.slice(excess);
+}
+
+// Atomic Apply
+this.commands = nextCommands;
+this.timeline = nextTimeline;
+this.currentIndex = this.timeline.length - 1;
+
+this.dispatch({ type: "COMMAND_PUSHED", payload: newCommand });
+return { success: true, data: id };
+}
+
+public undo(): Result<Command> {
+const check = this.validateState();
+if (!check.success) return check;
+
+if (this.currentIndex < 0) {
+  return { success: false, error: "Cannot undo: at beginning of history" };
+}
+
+const targetId = this.timeline[this.currentIndex];
+const targetCommand = this.commands.get(targetId);
+
+if (!targetCommand) {
+  return { success: false, error: "Critical Invariant Failure: Command missing in Map" };
+}
+
+// Atomic update
+this.currentIndex -= 1;
+
+this.dispatch({ type: "COMMAND_UNDONE", payload: targetCommand });
+return { success: true, data: targetCommand };
+}
+
+public redo(): Result<Command> {
+const check = this.validateState();
+if (!check.success) return check;
+
+if (this.currentIndex >= this.timeline.length - 1) {
+  return { success: false, error: "Cannot redo: at end of history" };
+}
+
+// Atomic update
+this.currentIndex += 1;
+
+const targetId = this.timeline[this.currentIndex];
+const targetCommand = this.commands.get(targetId);
+
+if (!targetCommand) {
+  // Revert pointer on failure (should never happen)
+  this.currentIndex -= 1;
+  return { success: false, error: "Critical Invariant Failure: Command missing in Map" };
+}
+
+this.dispatch({ type: "COMMAND_REDONE", payload: targetCommand });
+return { success: true, data: targetCommand };
+}
+
+public clear(): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+// Atomic flush
+this.commands = new Map();
+this.timeline = [];
+this.currentIndex = -1;
+
+this.dispatch({ type: "HISTORY_CLEARED", payload: null });
+return { success: true, data: undefined };
+}
+
+public getStateSnapshot(): Command[] {
+if (!this.isInitialized) return [];
+
+const activeTimeline = this.timeline.slice(0, this.currentIndex + 1);
+
+return Object.freeze(
+  activeTimeline.map(id => this.commands.get(id) as Command)
+) as unknown as Command[];
+}
+
+private validateState(): Result<void> {
+if (!this.isInitialized || !this.config || !this.eventBus) {
+return { success: false, error: "Manager not initialized" };
+}
+return { success: true, data: undefined };
+}
+
+private generateId(): string {
+return cmd_${Date.now()}_${Math.random().toString(36).substring(2, 9)};
+}
+
+private dispatch(event: HistoryEvent): void {
+if (this.isDebug) {
+console.log([HistoryManager] ${event.type}, event.payload);
+}
+this.eventBus!.emit(event);
+}
+}
+
+===== FILE: /module_020_2/tests/HistoryManager.test.ts =====
+
+import { HistoryManager } from "../core/HistoryManager";
+import { EventBusImpl } from "../systems/EventBusImpl";
+import { HistoryConfig } from "../types";
+
+export function runTests() {
+const manager = new HistoryManager();
+const eventBus = new EventBusImpl();
+
+const config: HistoryConfig = {
+maxHistory: 3
+};
+
+const initRes = manager.initialize(config, eventBus);
+if (!initRes.success) throw new Error("Init failed");
+
+// Push 1
+const push1 = manager.pushCommand({
+id: "cmd_1",
+type: "TEST_ACTION",
+payload: { val: 1 }
+});
+if (!push1.success) throw new Error("Push 1 failed");
+
+// Push 2
+manager.pushCommand({ id: "cmd_2", type: "TEST_ACTION", payload: { val: 2 } });
+
+// Push 3
+manager.pushCommand({ id: "cmd_3", type: "TEST_ACTION", payload: { val: 3 } });
+
+// Test Undo
+const undoRes = manager.undo();
+if (!undoRes.success || undoRes.data.id !== "cmd_3") throw new Error("Undo failed or wrong order");
+
+// Test Redo
+const redoRes = manager.redo();
+if (!redoRes.success || redoRes.data.id !== "cmd_3") throw new Error("Redo failed or wrong order");
+
+// Test Future Drop (Undo then Push)
+manager.undo(); // Pointer now at cmd_2
+manager.pushCommand({ id: "cmd_4", type: "BRANCH_ACTION", payload: {} }); // Drops cmd_3
+
+const snapshot = manager.getStateSnapshot();
+if (snapshot.length !== 3) throw new Error("Future drop snapshot count invalid");
+if (snapshot[snapshot.length - 1].id !== "cmd_4") throw new Error("Future branch invalid");
+
+// Test Max Limit Eviction
+manager.pushCommand({ id: "cmd_5", type: "OOM_TEST", payload: {} }); // Should evict cmd_1
+
+const clearRes = manager.clear();
+if (!clearRes.success) throw new Error("Clear failed");
+
+if (manager.getStateSnapshot().length !== 0) throw new Error("Clear did not reset snapshot");
+
+console.log("All invariant constraints, pointer shifts, and atomic tests passed.");
+}
+
+===== FILE: /module_110_4/index.ts =====
+
+TypeScript
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/TopologyEventDispatcher";
+export * from "./core/TopologyManager";
+
+export const ModuleMetadata = {
+  module: "110.4",
+  version: "1.0.0"
+} as const;
+===== FILE: /module_110_4/types/index.ts =====
+
+TypeScript
+export type Vector3 = { readonly x: number; readonly y: number; readonly z: number };
+
+export type TopoVertex = { readonly id: string; readonly type: "vertex"; readonly position: Vector3 };
+export type TopoEdge = { readonly id: string; readonly type: "edge"; readonly startVertexId: string; readonly endVertexId: string };
+export type TopoFace = { readonly id: string; readonly type: "face"; readonly edgeIds: readonly string[] };
+export type TopoSolid = { readonly id: string; readonly type: "solid"; readonly faceIds: readonly string[] };
+
+export type TopoEntity = TopoVertex | TopoEdge | TopoFace | TopoSolid;
+
+export type VertexConfig = { readonly id?: string; readonly position: Vector3 };
+export type EdgeConfig = { readonly id?: string; readonly startVertexId: string; readonly endVertexId: string };
+export type FaceConfig = { readonly id?: string; readonly edgeIds: string[] };
+export type SolidConfig = { readonly id?: string; readonly faceIds: string[] };
+
+export type TopologyConfig = {
+  readonly maxEntities: number;
+  readonly tolerance: number;
+};
+
+export type TopologyEvent =
+  | { readonly type: "ENTITY_CREATED"; readonly payload: TopoEntity }
+  | { readonly type: "ENTITY_REMOVED"; readonly payload: { readonly id: string; readonly entityType: string } }
+  | { readonly type: "TOPOLOGY_UPDATED"; readonly payload: { readonly timestamp: number } };
+
+export interface EventBus {
+  emit(event: TopologyEvent): void;
+  subscribe(handler: (event: TopologyEvent) => void): void;
+}
+===== FILE: /module_110_4/utils/Result.ts =====
+
+TypeScript
+export type Result<T> = 
+  | { readonly success: true; readonly data: T } 
+  | { readonly success: false; readonly error: string };
+
+export const success = <T>(data: T): Result<T> => ({ success: true, data });
+export const failure = <T = never>(error: string): Result<T> => ({ success: false, error });
+===== FILE: /module_110_4/systems/TopologyEventDispatcher.ts =====
+
+TypeScript
+import { EventBus, TopologyEvent } from "../types";
+
+export class TopologyEventDispatcher {
+  private bus: EventBus | null = null;
+  private debug: boolean = false;
+
+  public connect(bus: EventBus): void {
+    this.bus = bus;
+  }
+
+  public setDebug(enabled: boolean): void {
+    this.debug = enabled;
+  }
+
+  public dispatch(event: TopologyEvent): void {
+    if (!this.bus) return;
+    if (this.debug) {
+      console.log(`[TopologyEventDispatcher] Emitting: ${event.type}`, event.payload);
+    }
+    this.bus.emit(event);
+  }
+}
+===== FILE: /module_110_4/core/TopologyManager.ts =====
+
+TypeScript
+import { 
+  TopologyConfig, VertexConfig, EdgeConfig, FaceConfig, SolidConfig, 
+  TopoEntity, TopoVertex, TopoEdge, TopoFace, TopoSolid, EventBus 
+} from "../types";
+import { Result, success, failure } from "../utils/Result";
+import { TopologyEventDispatcher } from "../systems/TopologyEventDispatcher";
+
+export class TopologyManager {
+  private entityMap: Map<string, TopoEntity> = new Map();
+  private entityOrder: string[] = [];
+  private config: TopologyConfig | null = null;
+  private dispatcher: TopologyEventDispatcher = new TopologyEventDispatcher();
+  private isInitialized: boolean = false;
+
+  public initialize(config: TopologyConfig, eventBus: EventBus): Result<void> {
+    if (this.isInitialized) return failure("TopologyManager already initialized");
+    this.config = config;
+    this.dispatcher.connect(eventBus);
+    this.isInitialized = true;
+    return success(undefined);
+  }
+
+  public enableDebug(enabled: boolean): void {
+    this.dispatcher.setDebug(enabled);
+  }
+
+  public createVertex(config: VertexConfig): Result<TopoVertex> {
+    if (!this.canAddEntity()) return failure("Max entities reached or uninitialized");
+    const id = config.id || this.generateId("vertex");
+    if (this.entityMap.has(id)) return failure("ID already exists");
+
+    const vertex: TopoVertex = { id, type: "vertex", position: { ...config.position } };
+    this.insertEntity(vertex);
+    return success(vertex);
+  }
+
+  public createEdge(config: EdgeConfig): Result<TopoEdge> {
+    if (!this.canAddEntity()) return failure("Max entities reached or uninitialized");
+    const id = config.id || this.generateId("edge");
+    if (this.entityMap.has(id)) return failure("ID already exists");
+
+    if (!this.validateRef(config.startVertexId, "vertex") || !this.validateRef(config.endVertexId, "vertex")) {
+      return failure("Invalid vertex references for edge");
+    }
+
+    const edge: TopoEdge = { id, type: "edge", startVertexId: config.startVertexId, endVertexId: config.endVertexId };
+    this.insertEntity(edge);
+    return success(edge);
+  }
+
+  public createFace(config: FaceConfig): Result<TopoFace> {
+    if (!this.canAddEntity()) return failure("Max entities reached or uninitialized");
+    const id = config.id || this.generateId("face");
+    if (this.entityMap.has(id)) return failure("ID already exists");
+
+    if (config.edgeIds.length < 3) return failure("Face requires at least 3 edges");
+    for (const edgeId of config.edgeIds) {
+      if (!this.validateRef(edgeId, "edge")) return failure(`Invalid edge reference: ${edgeId}`);
+    }
+
+    const face: TopoFace = { id, type: "face", edgeIds: [...config.edgeIds] };
+    this.insertEntity(face);
+    return success(face);
+  }
+
+  public createSolid(config: SolidConfig): Result<TopoSolid> {
+    if (!this.canAddEntity()) return failure("Max entities reached or uninitialized");
+    const id = config.id || this.generateId("solid");
+    if (this.entityMap.has(id)) return failure("ID already exists");
+
+    if (config.faceIds.length < 4) return failure("Solid requires at least 4 faces");
+    for (const faceId of config.faceIds) {
+      if (!this.validateRef(faceId, "face")) return failure(`Invalid face reference: ${faceId}`);
+    }
+
+    const solid: TopoSolid = { id, type: "solid", faceIds: [...config.faceIds] };
+    this.insertEntity(solid);
+    return success(solid);
+  }
+
+  public removeEntity(id: string): Result<void> {
+    if (!this.isInitialized) return failure("System not initialized");
+    if (!this.entityMap.has(id)) return failure("Entity not found");
+
+    const removals = new Set<string>();
+    this.cascadeRemove(id, removals);
+
+    const updatedOrder: string[] = [];
+    for (const currentId of this.entityOrder) {
+      if (!removals.has(currentId)) {
+        updatedOrder.push(currentId);
+      } else {
+        const entity = this.entityMap.get(currentId)!;
+        this.dispatcher.dispatch({ type: "ENTITY_REMOVED", payload: { id: currentId, entityType: entity.type } });
+        this.entityMap.delete(currentId);
+      }
+    }
+    
+    this.entityOrder = updatedOrder;
+    this.dispatcher.dispatch({ type: "TOPOLOGY_UPDATED", payload: { timestamp: Date.now() } });
+
+    return success(undefined);
+  }
+
+  public getStateSnapshot(): TopoEntity[] {
+    const snapshot: TopoEntity[] = [];
+    for (let i = 0; i < this.entityOrder.length; i++) {
+      const entity = this.entityMap.get(this.entityOrder[i]);
+      if (entity) snapshot.push(entity);
+    }
+    return snapshot;
+  }
+
+  private insertEntity(entity: TopoEntity): void {
+    this.entityMap.set(entity.id, entity);
+    this.entityOrder.push(entity.id);
+    this.dispatcher.dispatch({ type: "ENTITY_CREATED", payload: entity });
+    this.dispatcher.dispatch({ type: "TOPOLOGY_UPDATED", payload: { timestamp: Date.now() } });
+  }
+
+  private cascadeRemove(targetId: string, removals: Set<string>): void {
+    if (removals.has(targetId)) return;
+    removals.add(targetId);
+
+    for (const [id, entity] of this.entityMap) {
+      if (removals.has(id)) continue;
+
+      if (entity.type === "edge" && (entity.startVertexId === targetId || entity.endVertexId === targetId)) {
+        this.cascadeRemove(id, removals);
+      } else if (entity.type === "face" && entity.edgeIds.includes(targetId)) {
+        this.cascadeRemove(id, removals);
+      } else if (entity.type === "solid" && entity.faceIds.includes(targetId)) {
+        this.cascadeRemove(id, removals);
+      }
+    }
+  }
+
+  private canAddEntity(): boolean {
+    return this.isInitialized && this.config !== null && this.entityMap.size < this.config.maxEntities;
+  }
+
+  private validateRef(id: string, expectedType: string): boolean {
+    const entity = this.entityMap.get(id);
+    return entity !== undefined && entity.type === expectedType;
+  }
+
+  private generateId(prefix: string): string {
+    return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+}
+===== FILE: /module_110_4/tests/TopologyManager.test.ts =====
+
+TypeScript
+import { TopologyManager } from "../core/TopologyManager";
+import { TopologyConfig, EventBus, TopologyEvent } from "../types";
+
+export function runTests() {
+  const manager = new TopologyManager();
+  const mockBus: EventBus = {
+    emit: (e: TopologyEvent) => {},
+    subscribe: () => {}
+  };
+
+  const config: TopologyConfig = {
+    maxEntities: 10000,
+    tolerance: 0.0001
+  };
+
+  manager.initialize(config, mockBus);
+}
+
+===== FILE: /module_130_1/index.ts =====
+
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/EventBusImpl";
+export * from "./core/SolverManager";
+
+===== FILE: /module_130_1/types/index.ts =====
+
+export type ModuleMetadata = {
+module: "130.1";
+version: "1.0.0";
+};
+
+export const METADATA: ModuleMetadata = {
+module: "130.1",
+version: "1.0.0",
+};
+
+export type Constraint = {
+readonly id: string;
+readonly type: "distance" | "angle" | "locked";
+readonly targetA: string;
+readonly targetB: string;
+readonly value: number;
+readonly state: "active" | "violated";
+};
+
+export type ConstraintConfig = {
+readonly id?: string;
+readonly type: "distance" | "angle" | "locked";
+readonly targetA: string;
+readonly targetB: string;
+readonly value: number;
+};
+
+export type SolverConfig = {
+readonly maxConstraints: number;
+readonly tolerance: number;
+};
+
+export type SolverEvent =
+| { type: "CONSTRAINT_CREATED"; payload: Constraint }
+| { type: "CONSTRAINT_UPDATED"; payload: { id: string; value: number } }
+| { type: "CONSTRAINT_DESTROYED"; payload: { id: string } }
+| { type: "CONSTRAINT_VIOLATED"; payload: { id: string } };
+
+export interface EventBus {
+emit(event: SolverEvent): void;
+subscribe(handler: (event: SolverEvent) => void): void;
+}
+
+===== FILE: /module_130_1/utils/Result.ts =====
+
+export type Result<T> =
+| { success: true; data: T }
+| { success: false; error: string };
+
+===== FILE: /module_130_1/systems/EventBusImpl.ts =====
+
+import { EventBus, SolverEvent } from "../types";
+
+export class EventBusImpl implements EventBus {
+private handlers: Array<(event: SolverEvent) => void> = [];
+
+public emit(event: SolverEvent): void {
+const currentHandlers = [...this.handlers];
+for (const handler of currentHandlers) {
+try {
+handler(event);
+} catch (e) {
+console.error("Event handler failed", e);
+}
+}
+}
+
+public subscribe(handler: (event: SolverEvent) => void): void {
+this.handlers.push(handler);
+}
+}
+
+===== FILE: /module_130_1/core/SolverManager.ts =====
+
+import { Result } from "../utils/Result";
+import {
+Constraint,
+ConstraintConfig,
+SolverConfig,
+EventBus,
+SolverEvent
+} from "../types";
+
+export class SolverManager {
+private isInitialized: boolean = false;
+private isDebug: boolean = false;
+private config: SolverConfig | null = null;
+private eventBus: EventBus | null = null;
+
+private constraints: Map<string, Constraint> = new Map();
+private executionOrder: string[] = [];
+
+public initialize(config: SolverConfig, eventBus: EventBus): Result<void> {
+if (this.isInitialized) {
+return { success: false, error: "System already initialized" };
+}
+this.config = Object.freeze({ ...config });
+this.eventBus = eventBus;
+this.isInitialized = true;
+return { success: true, data: undefined };
+}
+
+public enableDebug(enabled: boolean): void {
+this.isDebug = enabled;
+}
+
+public createConstraint(config: ConstraintConfig): Result<string> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const id = config.id || this.generateId();
+
+if (this.constraints.has(id)) {
+  return { success: false, error: "Duplicate constraint ID" };
+}
+
+if (this.constraints.size >= this.config!.maxConstraints) {
+  return { success: false, error: "Max constraints exceeded" };
+}
+
+const rulesCheck = this.validateRules(config.targetA, config.targetB, config.type, config.value);
+if (!rulesCheck.success) return rulesCheck;
+
+const newConstraint: Constraint = Object.freeze({
+  id,
+  type: config.type,
+  targetA: config.targetA,
+  targetB: config.targetB,
+  value: config.value,
+  state: "active"
+});
+
+const nextConstraints = new Map(this.constraints);
+nextConstraints.set(id, newConstraint);
+
+this.constraints = nextConstraints;
+this.executionOrder = [...this.executionOrder, id];
+
+this.dispatch({ type: "CONSTRAINT_CREATED", payload: newConstraint });
+return { success: true, data: id };
+}
+
+public destroyConstraint(id: string): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+if (!this.constraints.has(id)) {
+  return { success: false, error: "Invalid constraint id" };
+}
+
+const nextConstraints = new Map(this.constraints);
+nextConstraints.delete(id);
+this.constraints = nextConstraints;
+this.executionOrder = this.executionOrder.filter(cId => cId !== id);
+
+this.dispatch({ type: "CONSTRAINT_DESTROYED", payload: { id } });
+return { success: true, data: undefined };
+}
+
+public updateConstraintValue(id: string, value: number): Result<void> {
+const check = this.validateState();
+if (!check.success) return check;
+
+const currentConstraint = this.constraints.get(id);
+if (!currentConstraint) return { success: false, error: "Invalid constraint id" };
+
+const rulesCheck = this.validateRules(
+  currentConstraint.targetA, 
+  currentConstraint.targetB, 
+  currentConstraint.type, 
+  value
+);
+if (!rulesCheck.success) return rulesCheck;
+
+const updatedConstraint: Constraint = Object.freeze({
+  ...currentConstraint,
+  value
+});
+
+const nextConstraints = new Map(this.constraints);
+nextConstraints.set(id, updatedConstraint);
+this.constraints = nextConstraints;
+
+this.dispatch({ type: "CONSTRAINT_UPDATED", payload: { id, value: updatedConstraint.value } });
+return { success: true, data: undefined };
+}
+
+public getStateSnapshot(): Constraint[] {
+if (!this.isInitialized) return [];
+
+return Object.freeze(
+  this.executionOrder.map(id => this.constraints.get(id) as Constraint)
+) as unknown as Constraint[];
+}
+
+private validateState(): Result<void> {
+if (!this.isInitialized || !this.config || !this.eventBus) {
+return { success: false, error: "Manager not initialized" };
+}
+return { success: true, data: undefined };
+}
+
+private validateRules(targetA: string, targetB: string, type: string, value: number): Result<void> {
+if (targetA === targetB) {
+return { success: false, error: "Targets cannot be identical" };
+}
+if (type === "distance" && value < 0) {
+return { success: false, error: "Distance constraint value cannot be negative" };
+}
+return { success: true, data: undefined };
+}
+
+private generateId(): string {
+return cst_${Date.now()}_${Math.random().toString(36).substring(2, 9)};
+}
+
+private dispatch(event: SolverEvent): void {
+if (this.isDebug) {
+console.log([SolverManager] ${event.type}, event.payload);
+}
+this.eventBus!.emit(event);
+}
+}
+
+===== FILE: /module_130_1/tests/SolverManager.test.ts =====
+
+import { SolverManager } from "../core/SolverManager";
+import { EventBusImpl } from "../systems/EventBusImpl";
+import { SolverConfig } from "../types";
+
+export function runTests() {
+const manager = new SolverManager();
+const eventBus = new EventBusImpl();
+
+const config: SolverConfig = {
+maxConstraints: 10,
+tolerance: 0.001
+};
+
+const initRes = manager.initialize(config, eventBus);
+if (!initRes.success) throw new Error("Init failed");
+
+const createRes = manager.createConstraint({
+id: "test_dist_1",
+type: "distance",
+targetA: "node_1",
+targetB: "node_2",
+value: 10.5
+});
+if (!createRes.success) throw new Error("Create failed");
+
+const duplicateNodeRes = manager.createConstraint({
+id: "test_fail_1",
+type: "distance",
+targetA: "node_1",
+targetB: "node_1",
+value: 5.0
+});
+if (duplicateNodeRes.success) throw new Error("Self-reference invariant failure missed");
+
+const updateRes = manager.updateConstraintValue("test_dist_1", 15.0);
+if (!updateRes.success) throw new Error("Update failed");
+
+const negativeDistRes = manager.updateConstraintValue("test_dist_1", -5.0);
+if (negativeDistRes.success) throw new Error("Negative distance invariant failure missed");
+
+const destroyRes = manager.destroyConstraint("test_dist_1");
+if (!destroyRes.success) throw new Error("Destroy failed");
+
+const snapshot = manager.getStateSnapshot();
+if (snapshot.length !== 0) throw new Error("Snapshot invalid state");
+
+console.log("All invariant constraints & atomic tests passed.");
+}
+
+===== FILE: /module_120_1/index.ts =====
+
+TypeScript
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/ExtrusionEventDispatcher";
+export * from "./core/ExtrusionManager";
+
+export const ModuleMetadata = {
+  module: "120.1",
+  version: "1.0.0"
+} as const;
+===== FILE: /module_120_1/types/index.ts =====
+
+TypeScript
+export type Vector3 = { readonly x: number; readonly y: number; readonly z: number };
+
+export type ExtrusionCreateConfig = {
+  readonly id?: string;
+  readonly profileFaceId: string;
+  readonly direction: Vector3;
+  readonly distance: number;
+};
+
+export type ExtrusionOperation = {
+  readonly id: string;
+  readonly profileFaceId: string;
+  readonly direction: Vector3;
+  readonly distance: number;
+  readonly status: "active" | "error";
+};
+
+export type ExtrusionConfig = {
+  readonly maxOperations: number;
+  readonly minDistance: number;
+};
+
+export type ExtrusionEvent =
+  | { readonly type: "EXTRUSION_CREATED"; readonly payload: ExtrusionOperation }
+  | { readonly type: "EXTRUSION_UPDATED"; readonly payload: { readonly id: string; readonly distance: number } }
+  | { readonly type: "EXTRUSION_REMOVED"; readonly payload: { readonly id: string } };
+
+export interface EventBus {
+  emit(event: ExtrusionEvent): void;
+  subscribe(handler: (event: ExtrusionEvent) => void): void;
+}
+===== FILE: /module_120_1/utils/Result.ts =====
+
+TypeScript
+export type Result<T> = 
+  | { readonly success: true; readonly data: T } 
+  | { readonly success: false; readonly error: string };
+
+export const success = <T>(data: T): Result<T> => ({ success: true, data });
+export const failure = <T = never>(error: string): Result<T> => ({ success: false, error });
+===== FILE: /module_120_1/systems/ExtrusionEventDispatcher.ts =====
+
+TypeScript
+import { EventBus, ExtrusionEvent } from "../types";
+
+export class ExtrusionEventDispatcher {
+  private bus: EventBus | null = null;
+  private debug: boolean = false;
+
+  public connect(bus: EventBus): void {
+    this.bus = bus;
+  }
+
+  public setDebug(enabled: boolean): void {
+    this.debug = enabled;
+  }
+
+  public dispatch(event: ExtrusionEvent): void {
+    if (!this.bus) return;
+    if (this.debug) {
+      console.log(`[ExtrusionEventDispatcher] Emitting: ${event.type}`, event.payload);
+    }
+    this.bus.emit(event);
+  }
+}
+===== FILE: /module_120_1/core/ExtrusionManager.ts =====
+
+TypeScript
+import { ExtrusionConfig, ExtrusionCreateConfig, ExtrusionOperation, EventBus, Vector3 } from "../types";
+import { Result, success, failure } from "../utils/Result";
+import { ExtrusionEventDispatcher } from "../systems/ExtrusionEventDispatcher";
+
+export class ExtrusionManager {
+  private stateMap: Map<string, ExtrusionOperation> = new Map();
+  private executionOrder: string[] = [];
+  private config: ExtrusionConfig | null = null;
+  private dispatcher: ExtrusionEventDispatcher = new ExtrusionEventDispatcher();
+  private isInitialized: boolean = false;
+
+  public initialize(config: ExtrusionConfig, eventBus: EventBus): Result<void> {
+    if (this.isInitialized) return failure("Manager already initialized.");
+    this.config = config;
+    this.dispatcher.connect(eventBus);
+    this.isInitialized = true;
+    return success(undefined);
+  }
+
+  public enableDebug(enabled: boolean): void {
+    this.dispatcher.setDebug(enabled);
+  }
+
+  public createExtrusion(config: ExtrusionCreateConfig): Result<ExtrusionOperation> {
+    if (!this.isInitialized || !this.config) return failure("System not initialized");
+    if (this.stateMap.size >= this.config.maxOperations) return failure("Max operations limit reached");
+
+    const id = config.id || this.generateId();
+    if (this.stateMap.has(id)) return failure("Extrusion ID already exists");
+
+    if (config.distance < this.config.minDistance) return failure("Distance below minimum threshold");
+    if (!this.isValidDirection(config.direction)) return failure("Direction vector magnitude must be > 0");
+
+    const newExtrusion: ExtrusionOperation = {
+      id,
+      profileFaceId: config.profileFaceId,
+      direction: { ...config.direction },
+      distance: config.distance,
+      status: "active"
+    };
+
+    this.stateMap.set(id, newExtrusion);
+    this.executionOrder.push(id);
+    this.dispatcher.dispatch({ type: "EXTRUSION_CREATED", payload: newExtrusion });
+
+    return success(newExtrusion);
+  }
+
+  public updateExtrusion(id: string, distance: number): Result<void> {
+    if (!this.isInitialized || !this.config) return failure("System not initialized");
+    const op = this.stateMap.get(id);
+    if (!op) return failure("Extrusion ID not found");
+
+    if (distance < this.config.minDistance) return failure("Distance below minimum threshold");
+
+    const updatedExtrusion: ExtrusionOperation = { ...op, distance };
+    this.stateMap.set(id, updatedExtrusion);
+    
+    this.dispatcher.dispatch({ type: "EXTRUSION_UPDATED", payload: { id, distance } });
+    return success(undefined);
+  }
+
+  public removeExtrusion(id: string): Result<void> {
+    if (!this.isInitialized) return failure("System not initialized");
+    if (!this.stateMap.has(id)) return failure("Extrusion ID not found");
+
+    this.stateMap.delete(id);
+    this.executionOrder = this.executionOrder.filter(opId => opId !== id);
+    
+    this.dispatcher.dispatch({ type: "EXTRUSION_REMOVED", payload: { id } });
+    return success(undefined);
+  }
+
+  public getStateSnapshot(): ExtrusionOperation[] {
+    const snapshot: ExtrusionOperation[] = [];
+    for (let i = 0; i < this.executionOrder.length; i++) {
+      const op = this.stateMap.get(this.executionOrder[i]);
+      if (op) snapshot.push(op);
+    }
+    return snapshot;
+  }
+
+  private generateId(): string {
+    return `extrude_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  private isValidDirection(dir: Vector3): boolean {
+    const magSquared = dir.x * dir.x + dir.y * dir.y + dir.z * dir.z;
+    return magSquared > 0;
+  }
+}
+===== FILE: /module_120_1/tests/ExtrusionManager.test.ts =====
+
+TypeScript
+import { ExtrusionManager } from "../core/ExtrusionManager";
+import { ExtrusionConfig, EventBus, ExtrusionEvent } from "../types";
+
+export function runTests() {
+  const manager = new ExtrusionManager();
+  const mockBus: EventBus = {
+    emit: (e: ExtrusionEvent) => {},
+    subscribe: () => {}
+  };
+
+  const config: ExtrusionConfig = {
+    maxOperations: 100,
+    minDistance: 0.001
+  };
+
+  manager.initialize(config, mockBus);
+  // Extrusion testing logic goes here
+}
+
+===== FILE: /module_150_2/index.ts =====
+
+export * from "./types";
+export * from "./utils/Result";
+export * from "./systems/EventBusImpl";
+export * from "./core/TessellationManager";
+
+
+===== FILE: /module_150_2/types/index.ts =====
+
+export type ModuleMetadata = {
+  module: "150.2";
+  version: "1.0.0";
+};
+
+export const METADATA: ModuleMetadata = {
+  module: "150.2",
+  version: "1.0.0",
+};
+
+export type Vector3 = {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+};
+
+export type PBRMaterial = {
+  readonly albedo: number;
+  readonly metallic: number;
+  readonly roughness: number;
+};
+
+export type MeshNode = {
+  readonly id: string;
+  readonly sourceBodyId: string;
+  readonly vertexCount: number;
+  readonly indexCount: number;
+  readonly material: PBRMaterial;
+  readonly state: "active" | "hidden";
+};
+
+export type TessellationConfig = {
+  readonly id?: string;
+  readonly sourceBodyId: string;
+  readonly vertexCount: number;
+  readonly indexCount: number;
+  readonly material: PBRMaterial;
+};
+
+export type RenderConfig = {
+  readonly maxMeshes: number;
+  readonly maxVerticesPerMesh: number;
+};
+
+export type MeshEvent =
+  | { type: "MESH_GENERATED"; payload: MeshNode }
+  | { type: "MATERIAL_UPDATED"; payload: { id: string; material: PBRMaterial } }
+  | { type: "MESH_DESTROYED"; payload: { id: string } };
+
+export interface EventBus {
+  emit(event: MeshEvent): void;
+  subscribe(handler: (event: MeshEvent) => void): void;
+}
+
+
+===== FILE: /module_150_2/utils/Result.ts =====
+
+export type Result<T> = 
+  | { success: true; data: T } 
+  | { success: false; error: string };
+
+
+===== FILE: /module_150_2/systems/EventBusImpl.ts =====
+
+import { EventBus, MeshEvent } from "../types";
+
+export class EventBusImpl implements EventBus {
+  private handlers: Array<(event: MeshEvent) => void> = [];
+
+  public emit(event: MeshEvent): void {
+    const currentHandlers = [...this.handlers];
+    for (const handler of currentHandlers) {
+      try {
+        handler(event);
+      } catch (e) {
+        console.error("Event handler failed", e);
+      }
+    }
+  }
+
+  public subscribe(handler: (event: MeshEvent) => void): void {
+    this.handlers.push(handler);
+  }
+}
+
+
+===== FILE: /module_150_2/core/TessellationManager.ts =====
+
+import { Result } from "../utils/Result";
+import {
+  MeshNode,
+  TessellationConfig,
+  RenderConfig,
+  EventBus,
+  MeshEvent,
+  PBRMaterial
+} from "../types";
+
+export class TessellationManager {
+  private isInitialized: boolean = false;
+  private isDebug: boolean = false;
+  private config: RenderConfig | null = null;
+  private eventBus: EventBus | null = null;
+
+  private meshes: Map<string, MeshNode> = new Map();
+  private renderQueue: string[] = []; 
+
+  public initialize(config: RenderConfig, eventBus: EventBus): Result<void> {
+    if (this.isInitialized) {
+      return { success: false, error: "System already initialized" };
+    }
+    this.config = Object.freeze({ ...config });
+    this.eventBus = eventBus;
+    this.isInitialized = true;
+    return { success: true, data: undefined };
+  }
+
+  public enableDebug(enabled: boolean): void {
+    this.isDebug = enabled;
+  }
+
+  public tessellateBody(config: TessellationConfig): Result<string> {
+    const check = this.validateState();
+    if (!check.success) return check;
+
+    const id = config.id || this.generateId();
+
+    if (this.meshes.has(id)) {
+      return { success: false, error: "Duplicate mesh ID" };
+    }
+
+    if (this.meshes.size >= this.config!.maxMeshes) {
+      return { success: false, error: "Max meshes exceeded" };
+    }
+
+    const geometryCheck = this.validateGeometry(config.vertexCount, config.indexCount);
+    if (!geometryCheck.success) return geometryCheck;
+
+    const pbrCheck = this.validateMaterial(config.material);
+    if (!pbrCheck.success) return pbrCheck;
+
+    const newMesh: MeshNode = Object.freeze({
+      id,
+      sourceBodyId: config.sourceBodyId,
+      vertexCount: config.vertexCount,
+      indexCount: config.indexCount,
+      material: Object.freeze({ ...config.material }),
+      state: "active"
+    });
+
+    const nextMeshes = new Map(this.meshes);
+    nextMeshes.set(id, newMesh);
+    
+    this.meshes = nextMeshes;
+    this.recalculateRenderQueue();
+
+    this.dispatch({ type: "MESH_GENERATED", payload: newMesh });
+    return { success: true, data: id };
+  }
+
+  public destroyMesh(id: string): Result<void> {
+    const check = this.validateState();
+    if (!check.success) return check;
+
+    if (!this.meshes.has(id)) {
+      return { success: false, error: "Invalid mesh id" };
+    }
+
+    const nextMeshes = new Map(this.meshes);
+    nextMeshes.delete(id);
+    this.meshes = nextMeshes;
+    this.recalculateRenderQueue();
+
+    this.dispatch({ type: "MESH_DESTROYED", payload: { id } });
+    return { success: true, data: undefined };
+  }
+
+  public updateMaterial(id: string, material: PBRMaterial): Result<void> {
+    const check = this.validateState();
+    if (!check.success) return check;
+
+    const currentMesh = this.meshes.get(id);
+    if (!currentMesh) return { success: false, error: "Invalid mesh id" };
+
+    const pbrCheck = this.validateMaterial(material);
+    if (!pbrCheck.success) return pbrCheck;
+
+    const updatedMesh: MeshNode = Object.freeze({
+      ...currentMesh,
+      material: Object.freeze({ ...material })
+    });
+
+    const nextMeshes = new Map(this.meshes);
+    nextMeshes.set(id, updatedMesh);
+    this.meshes = nextMeshes;
+    this.recalculateRenderQueue();
+
+    this.dispatch({ type: "MATERIAL_UPDATED", payload: { id, material: updatedMesh.material } });
+    return { success: true, data: undefined };
+  }
+
+  public getStateSnapshot(): MeshNode[] {
+    if (!this.isInitialized) return [];
+    
+    return Object.freeze(
+      this.renderQueue.map(id => this.meshes.get(id) as MeshNode)
+    ) as unknown as MeshNode[];
+  }
+
+  private validateState(): Result<void> {
+    if (!this.isInitialized || !this.config || !this.eventBus) {
+      return { success: false, error: "Manager not initialized" };
+    }
+    return { success: true, data: undefined };
+  }
+
+  private validateGeometry(vertexCount: number, indexCount: number): Result<void> {
+    if (vertexCount <= 0 || indexCount <= 0) {
+      return { success: false, error: "Vertex and Index counts must be > 0 invariant violation" };
+    }
+    if (vertexCount > this.config!.maxVerticesPerMesh) {
+      return { success: false, error: "Mesh exceeds max vertex limit" };
+    }
+    return { success: true, data: undefined };
+  }
+
+  private validateMaterial(material: PBRMaterial): Result<void> {
+    if (material.metallic < 0.0 || material.metallic > 1.0) {
+      return { success: false, error: "PBR Metallic must be between 0.0 and 1.0" };
+    }
+    if (material.roughness < 0.0 || material.roughness > 1.0) {
+      return { success: false, error: "PBR Roughness must be between 0.0 and 1.0" };
+    }
+    return { success: true, data: undefined };
+  }
+
+  private recalculateRenderQueue(): void {
+    // Deterministic state derivation: Sort by material albedo as a simple batching mechanism
+    this.renderQueue = Array.from(this.meshes.values())
+      .sort((a, b) => a.material.albedo - b.material.albedo)
+      .map(mesh => mesh.id);
+  }
+
+  private generateId(): string {
+    return `mesh_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  }
+
+  private dispatch(event: MeshEvent): void {
+    if (this.isDebug) {
+      console.log(`[TessellationManager] ${event.type}`, event.payload);
+    }
+    this.eventBus!.emit(event);
+  }
+}
+
+
+===== FILE: /module_150_2/tests/TessellationManager.test.ts =====
+
+import { TessellationManager } from "../core/TessellationManager";
+import { EventBusImpl } from "../systems/EventBusImpl";
+import { RenderConfig } from "../types";
+
+export function runTests() {
+  const manager = new TessellationManager();
+  const eventBus = new EventBusImpl();
+  
+  const config: RenderConfig = {
+    maxMeshes: 10,
+    maxVerticesPerMesh: 100000
+  };
+
+  const initRes = manager.initialize(config, eventBus);
+  if (!initRes.success) throw new Error("Init failed");
+
+  const createRes = manager.tessellateBody({
+    id: "mesh_1",
+    sourceBodyId: "brep_55",
+    vertexCount: 1500,
+    indexCount: 4500,
+    material: { albedo: 0xFFFFFF, metallic: 0.5, roughness: 0.5 }
+  });
+  if (!createRes.success) throw new Error("Create failed");
+
+  const geometryFailRes = manager.tessellateBody({
+    id: "mesh_2",
+    sourceBodyId: "brep_56",
+    vertexCount: 0,
+    indexCount: 0,
+    material: { albedo: 0xFF0000, metallic: 0.5, roughness: 0.5 }
+  });
+  if (geometryFailRes.success) throw new Error("Geometry invariant failure missed");
+
+  const pbrFailRes = manager.updateMaterial("mesh_1", {
+    albedo: 0x00FF00,
+    metallic: 1.5,
+    roughness: 0.2
+  });
+  if (pbrFailRes.success) throw new Error("PBR bounds invariant failure missed");
+
+  const validMaterialRes = manager.updateMaterial("mesh_1", {
+    albedo: 0x000000,
+    metallic: 1.0,
+    roughness: 0.0
+  });
+  if (!validMaterialRes.success) throw new Error("Valid material update failed");
+
+  const destroyRes = manager.destroyMesh("mesh_1");
+  if (!destroyRes.success) throw new Error("Destroy failed");
+
+  const snapshot = manager.getStateSnapshot();
+  if (snapshot.length !== 0) throw new Error("Snapshot invalid state");
+
+  console.log("All invariant constraints & atomic tests passed.");
+}
+

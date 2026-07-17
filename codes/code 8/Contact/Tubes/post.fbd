@@ -1,0 +1,30 @@
+#wsize 1000 500
+font l 3
+# read
+
+read solve.inp
+read solve.frd
+# view
+view disp
+view sh
+
+rot -y
+# color plot of mises stress
+ds -2 e 7
+plot fv all
+frame
+#zoom 1.5
+hcpy png SE
+zoom 4
+hcpy png SE_zoom
+
+# color plots of contact pressure
+ds -1 e 4
+plot fv Sdep
+view sh off
+hcpy png cpress
+rot u 60
+hcpy png cpress_rot
+
+sys dat2txt.py
+sys gnuplot moment.plt

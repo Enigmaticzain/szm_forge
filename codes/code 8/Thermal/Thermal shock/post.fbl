@@ -1,0 +1,49 @@
+read solve.frd new
+read solve.inp nom
+#max 2.5 f
+rot -y
+rot c -90
+rot l 70
+rot u 10
+frame
+zoom 2
+min 0 f l
+max 2 f l
+
+# time history plots
+asgn graph off
+graph * amp
+graph Nhist time DISP D1
+sys gnuplot history.gnu
+
+# path plots at end of excitation
+ds 94 e 1
+graph Npath length
+ds 95 e 3
+graph Npath length
+sys gnuplot profile.gnu
+
+# create screen shots
+seta base se all
+copy all new mir y
+copy all new mir z
+view disp
+scal d 500
+
+ds 2 e 1
+plot fv base
+plus e new n
+hcpy png Refs/start
+
+ds 94 e 1
+plot fv base
+plus e new n
+hcpy png Refs/end_of_excitation
+
+ds 198 e 1
+plot fv base
+plus e new n
+hcpy png Refs/end
+
+min 0 f u
+max 1 f u

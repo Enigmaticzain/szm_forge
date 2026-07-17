@@ -1,0 +1,11 @@
+# CMake package configuration file for the SofaCUDA plugin
+
+@PACKAGE_GUARD@
+@PACKAGE_INIT@
+
+find_package(Sofa.Config QUIET REQUIRED)
+
+sofa_find_package(SofaCUDA.Core QUIET REQUIRED)
+sofa_find_package(SofaCUDA.Component QUIET REQUIRED)
+
+check_required_components(SofaCUDA)

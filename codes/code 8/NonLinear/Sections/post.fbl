@@ -1,0 +1,103 @@
+read Biegung.frd new
+
+view disp
+view elem
+view sh
+rot -y
+rot l 110
+rot u 20
+
+seta base all
+copy base new mir x
+comp new do
+ds 2 e 1
+plot fv base
+frame base
+hcpy png Refs/S11
+
+ds 1 e 3
+scal d 100000
+#rot -y
+#rot r 110
+#rot u 20
+
+plot fv base
+plus f new n
+frame
+zoom 1.2
+hcpy png Refs/D3
+# max stress and displacement
+read square.nam inp
+read circle.nam inp
+read hcircle.nam inp
+read Iprofile.nam inp
+
+# extract stress values
+ds 2 e 1
+stack on
+
+# get the nodes with highest value for each section and store the value
+enq Nsquare max rec 0 _ _  1 h
+valu s1 pop 2
+enq Ncircle max rec 0 _ _ 1 h
+valu s2 pop 2
+enq Nhcircle max rec 0 _ _ 1 h
+valu s3 pop 2
+enq NIprofile max rec 0 _ _ 1 h
+valu s4 pop 2
+
+plot fv base
+ulin Maximum Bending Stress
+#rot x
+#rot d 10
+frame
+view elem off
+view edge off
+txt max ne -0.15 -0.1
+plus nt max k
+frame
+hcpy png Refs/stress
+
+# extract displacement values
+ds 1 e 3
+stack on
+
+enq Nsquare maxd rec 0 _ _  1 h
+valu w1 pop 2
+enq Ncircle maxd rec 0 _ _ 1 h
+valu w2 pop 2
+enq Nhcircle maxd rec 0 _ _ 1 h
+valu w3 pop 2
+enq NIprofile maxd rec 0 _ _ 1 h
+valu w4 pop 2
+
+plot fv base
+ulin Maximum Displacement
+txt maxd ne -0.15 -0.1
+plus nt maxd k
+frame
+hcpy png Refs/disp
+
+# write absolute values to a file
+sys echo Square s1 w1 > s-w.txt
+sys echo Circle s2 w2 >> s-w.txt
+sys echo HCircle s3 w3 >> s-w.txt
+sys echo Iprofile s4 w4 >> s-w.txt
+
+
+# write relative values to a file
+valu sref 1
+valu s2 / s2 s1
+valu s3 / s3 s1
+valu s4 / s4 s1
+valu wref 1
+valu w2 / w2 w1
+valu w3 / w3 w1
+valu w4 / w4 w1
+sys echo Square sref wref > dat.txt
+sys echo Circle s2 w2 >> dat.txt
+sys echo HCircle s3 w3 >> dat.txt
+sys echo Iprofile s4 w4 >> dat.txt
+
+# make the barchart
+sys gnuplot barchart.gpl

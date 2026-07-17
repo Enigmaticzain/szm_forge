@@ -1,0 +1,46 @@
+{
+    "project": "SZM Forge",
+    "version": "0.2.0",
+    "description": "Desktop Engineering Suite — Mechanical, Electrical, Thermal, Control Logic",
+    "standard": "C++20",
+
+    "window": {
+        "title": "SZM Forge",
+        "width": 1280,
+        "height": 720,
+        "vsync": true,
+        "msaa_samples": 4
+    },
+
+    "graphics": {
+        "preferred_api": "OpenGL",
+        "depth_bits": 24,
+        "double_buffering": true,
+        "shaders_dir": "assets/shaders/"
+    },
+
+    "modules": {
+        "010_core":       { "status": "complete", "library": "SZM_Core",               "version": "0.1" },
+        "020_ui":         { "status": "complete", "library": "SZM_UI_Module",           "version": "0.1" },
+        "030_input":      { "status": "complete", "library": "AppCore_Input_Event_Bus", "version": "0.1" },
+        "040_graphics":   { "status": "complete", "library": "SZM_Graphics_Module",     "version": "0.2" },
+        "050_data":       { "status": "complete", "library": "DataCore_SceneGraph",     "version": "0.1" },
+        "060_math":       { "status": "complete", "library": "SZM_Constraint_Solver",   "version": "0.1" },
+        "070_geometry":   { "status": "partial",  "library": "SZM_Geometry_Module",     "version": "0.1" },
+        "110_materials":  { "status": "complete", "library": "SZM_Materials_Module",    "version": "0.2" },
+        "120_assembly":   { "status": "complete", "library": "SZM_Assembly_Module",     "version": "0.2" },
+        "130_physics":    { "status": "complete", "library": "SZM_Physics_Module",      "version": "0.2" },
+        "320_fea":        { "status": "complete", "library": "SZM_FEA_Module",          "version": "0.2" },
+        "300_thermal":    { "status": "pending",  "library": "SZM_Thermal_Module",      "version": "-"   },
+        "400_electrical": { "status": "pending",  "library": "SZM_Electrical_Module",   "version": "-"   },
+        "500_cea_ai":     { "status": "pending",  "library": "SZM_CEA_AI_Module",       "version": "-"   }
+    },
+
+    "external_dependencies": {
+        "glfw":  { "version": "3.3.8",  "fetch": "FetchContent" },
+        "eigen": { "version": ">=3.4",  "fetch": "find_package" },
+        "imgui": { "branch": "docking", "fetch": "manual-clone" },
+        "gmsh":  { "version": ">=4.11", "optional": true,
+                   "note": "Required for FEA meshing. Enable SZM_HAS_GMSH." }
+    }
+}

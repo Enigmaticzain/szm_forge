@@ -1,0 +1,26 @@
+read trfix.frd new
+# view setup
+view disp
+view elem
+view sh
+rot y
+rot r 50
+rot u 40
+
+# stress plots at the end positions
+ulin Nominal stress: 20 MPa
+ds 2 e 7
+frame
+zoom 1.5
+hcpy png Refs/trfix1
+ulin Nominal stress: 2400 MPa
+ds 5 e 7
+hcpy png Refs/trfix2
+ulin Nominal stress: 1200 MPa
+ds 8 e 7
+hcpy png Refs/trfix3
+
+# surface data plots
+sys dat2txt.py trfix
+sys gnuplot surface.plt
+sys mv surface*.png Refs/trfix

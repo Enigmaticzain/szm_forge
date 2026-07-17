@@ -1,0 +1,28 @@
+read trans.frd new
+# view setup
+view disp
+view elem
+view sh
+rot y
+rot r 50
+rot u 40
+
+# stress plots at the end positions
+text Nominal stress: 1200 MPa
+ds 2 e 7
+frame
+hcpy png Refs/trans1
+text Nominal stress: 1200 MPa
+ds 32 e 7
+hcpy png Refs/trans2
+text Nominal stress: 2400 MPa
+ds 62 e 7
+hcpy png Refs/trans3
+text Nominal stress: 20 MPa
+ds 92 e 7
+hcpy png Refs/trans4
+
+# surface data plots
+sys dat2txt.py trans
+sys gnuplot surface.plt
+sys mv surface*.png Refs/trans

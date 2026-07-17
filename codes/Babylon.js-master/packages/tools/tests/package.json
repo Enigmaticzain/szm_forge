@@ -1,0 +1,36 @@
+{
+    "name": "@tools/tests",
+    "private": true,
+    "version": "1.0.0",
+    "types": "dist/index",
+    "main": "dist/index",
+    "module": "dist/index",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "test": "vitest run",
+        "test:debug": "set DEBUG=true && npm run test",
+        "update": "vitest run -u",
+        "build": "node ./build.mjs",
+        "analyse": "webpack --profile --json > stats.json",
+        "generate-file-size-report": "node ./scripts/generateFileSizes.js",
+        "test:playwright": "playwright test --config ../../../playwright.config.ts"
+    },
+    "devDependencies": {
+        "@dev/core": "^1.0.0",
+        "@dev/gui": "^1.0.0",
+        "@dev/loaders": "^1.0.0",
+        "@dev/materials": "^1.0.0",
+        "@dev/serializers": "^1.0.0",
+        "@dev/shared-ui-components": "^1.0.0",
+        "@tools/snippet-loader": "^1.0.0",
+        "@tools/test-tools": "^1.0.0",
+        "@types/react": "^18.0.0",
+        "@types/react-dom": "^18.0.0",
+        "sass": "^1.62.1",
+        "browserstack-local": "^1.5.5"
+    },
+    "sideEffects": false
+}

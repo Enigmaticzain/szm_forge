@@ -1,0 +1,30 @@
+name: SZM Forge Integration Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify-stack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install backend dependencies
+        working-directory: webui/backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: webui
+        run: npm ci
+
+      - name: Run integrated checks
+        run: ./scripts/run_ci_checks.sh

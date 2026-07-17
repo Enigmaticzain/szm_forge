@@ -1,0 +1,23 @@
+read values.fbl
+read Naht.frd new
+#max 2.5 f
+rot y
+rot u 20
+rot l 10
+zoom 3
+steps 20
+min 0 f l
+max 2 f l
+
+# create screen shots
+ds 11 e 1
+plot fv all
+hcpy png Refs/end_of_excitation
+
+ds -0 e 1
+plot fv all
+hcpy png Refs/end
+
+# create animation
+movi frames auto
+ds 1 3 a 1

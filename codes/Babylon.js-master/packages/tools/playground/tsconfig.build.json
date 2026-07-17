@@ -1,0 +1,18 @@
+{
+    "extends": "../../../tsconfig.build.json",
+
+    "compilerOptions": {
+        "rootDir": "./src",
+        "moduleResolution": "node10",
+        "ignoreDeprecations": "6.0",
+        "paths": {
+            "core/*": ["../../dev/core/dist/*"],
+            "gui/*": ["../../dev/gui/dist/*"],
+            "shared-ui-components/*": ["../../dev/sharedUiComponents/dist/*"],
+            "inspector/*": ["../../dev/inspector-v2/dist/*"],
+            "playground/*": ["../../tools/playground/src/*"]
+        }
+    },
+
+    "include": ["./src/**/*"]
+}

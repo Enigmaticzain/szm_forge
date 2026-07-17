@@ -1,0 +1,92 @@
+import { type ServiceDefinition } from "shared-ui-components/modularTool/modularity/serviceDefinition";
+import { type ISelectionService, SelectionServiceIdentity } from "../../selectionService";
+import { type IPropertiesService, PropertiesServiceIdentity } from "./propertiesService";
+
+import { Sprite } from "core/Sprites/sprite";
+import { SpriteManager } from "core/Sprites/spriteManager";
+import {
+    SpriteManagerActionsProperties,
+    SpriteManagerCellProperties,
+    SpriteManagerFileProperties,
+    SpriteManagerGeneralProperties,
+    SpriteManagerOtherProperties,
+    SpriteManagerSnippetProperties,
+} from "../../../components/properties/sprites/spriteManagerProperties";
+import {
+    SpriteAnimationProperties,
+    SpriteCellProperties,
+    SpriteGeneralProperties,
+    SpriteOtherProperties,
+    SpriteTransformProperties,
+} from "../../../components/properties/sprites/spriteProperties";
+
+export const SpritePropertiesServiceDefinition: ServiceDefinition<[], [IPropertiesService, ISelectionService]> = {
+    friendlyName: "Sprite Properties",
+    consumes: [PropertiesServiceIdentity, SelectionServiceIdentity],
+    factory: (propertiesService, selectionService) => {
+        const spriteManagerSectionContentRegistration = propertiesService.addSectionContent({
+            key: "Sprite Manager Properties",
+            predicate: (entity: unknown) => entity instanceof SpriteManager,
+            content: [
+                {
+                    section: "General",
+                    component: ({ context }) => <SpriteManagerGeneralProperties spriteManager={context} selectionService={selectionService} />,
+                },
+                {
+                    section: "Actions",
+                    component: ({ context }) => <SpriteManagerActionsProperties spriteManager={context} selectionService={selectionService} />,
+                },
+                {
+                    section: "File",
+                    component: ({ context }) => <SpriteManagerFileProperties spriteManager={context} selectionService={selectionService} />,
+                },
+                {
+                    section: "Snippet",
+                    component: ({ context }) => <SpriteManagerSnippetProperties spriteManager={context} selectionService={selectionService} />,
+                },
+                {
+                    section: "Cells",
+                    component: ({ context }) => <SpriteManagerCellProperties spriteManager={context} />,
+                },
+                {
+                    section: "Other",
+                    component: ({ context }) => <SpriteManagerOtherProperties spriteManager={context} />,
+                },
+            ],
+        });
+
+        const spriteSectionContentRegistration = propertiesService.addSectionContent({
+            key: "Sprite Properties",
+            predicate: (entity: unknown) => entity instanceof Sprite,
+            content: [
+                {
+                    section: "General",
+                    component: ({ context }) => <SpriteGeneralProperties sprite={context} selectionService={selectionService} />,
+                },
+                {
+                    section: "Transform",
+                    component: ({ context }) => <SpriteTransformProperties sprite={context} />,
+                },
+                {
+                    section: "Cell",
+                    component: ({ context }) => <SpriteCellProperties sprite={context} />,
+                },
+                {
+                    section: "Animation",
+                    component: ({ context }) => <SpriteAnimationProperties sprite={context} />,
+                },
+                {
+                    section: "Other",
+                    component: ({ context }) => <SpriteOtherProperties sprite={context} />,
+                },
+            ],
+        });
+
+        return {
+            dispose: () => {
+                spriteManagerSectionContentRegistration.dispose();
+                spriteSectionContentRegistration.dispose();
+            },
+        };
+    },
+};

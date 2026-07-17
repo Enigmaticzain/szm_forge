@@ -1,0 +1,21 @@
+{
+    "extends": "../../../../tsconfig.build.json",
+    "compilerOptions": {
+        "outDir": "./",
+        "rootDir": "../../../dev/gui/src",
+        "declaration": true,
+        "target": "ES2020",
+        "importHelpers": true,
+        "paths": {
+            "core/*": [
+                "../../../dev/core/dist/*"
+            ],
+            "gui/*": [
+                "../../../dev/gui/src/*"
+            ]
+        }
+    },
+    "include": [
+        "../../../dev/gui/src/**/*"
+    ]
+}

@@ -1,0 +1,79 @@
+import { type FunctionComponent, type MouseEvent, type MouseEventHandler, useCallback } from "react";
+import { Body1Strong, InfoLabel as FluentInfoLabel, makeStyles, mergeClasses } from "@fluentui/react-components";
+import { useKeyState } from "../hooks/keyboardHooks";
+
+export type InfoLabelProps = {
+    htmlFor: string; // required ID of the element whose label we are applying
+    info?: JSX.Element;
+    label: string;
+    className?: string;
+    /**
+     * When true, applies flex layout styling to the label slot for proper truncation in flex containers
+     */
+    flexLabel?: boolean;
+    /**
+     * Handler for right-click context menu. Also triggers on Ctrl+click.
+     */
+    onContextMenu?: MouseEventHandler;
+};
+export type InfoLabelParentProps = Omit<InfoLabelProps, "htmlFor">;
+const useInfoLabelStyles = makeStyles({
+    infoPopup: {
+        whiteSpace: "normal",
+        wordBreak: "break-word",
+    },
+    labelSlot: {
+        display: "flex",
+        minWidth: 0,
+    },
+    labelText: {
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+    },
+    copyable: {
+        cursor: "pointer",
+    },
+});
+/**
+ * Renders a label with an optional popup containing more info
+ * @param props
+ * @returns
+ */
+export const InfoLabel: FunctionComponent<InfoLabelProps> = (props) => {
+    InfoLabel.displayName = "InfoLabel";
+    const classes = useInfoLabelStyles();
+
+    const ctrlPressed = useKeyState("Control");
+
+    const infoContent = props.info ? <div className={classes.infoPopup}>{props.info}</div> : undefined;
+
+    const showCopyCursor = ctrlPressed && props.onContextMenu;
+
+    // Handle Ctrl+click as context menu action
+    const handleClick = useCallback(
+        (e: MouseEvent) => {
+            if (e.ctrlKey && props.onContextMenu) {
+                props.onContextMenu(e);
+            }
+        },
+        [props.onContextMenu]
+    );
+
+    return infoContent ? (
+        <FluentInfoLabel
+            htmlFor={props.htmlFor}
+            info={infoContent}
+            className={mergeClasses(props.className, showCopyCursor ? classes.copyable : undefined)}
+            label={props.flexLabel ? { className: classes.labelSlot } : undefined}
+            onContextMenu={props.onContextMenu}
+            onClick={handleClick}
+        >
+            <Body1Strong className={classes.labelText}>{props.label}</Body1Strong>
+        </FluentInfoLabel>
+    ) : (
+        <div className={mergeClasses(props.className, showCopyCursor ? classes.copyable : undefined)} onContextMenu={props.onContextMenu} onClick={handleClick}>
+            <Body1Strong className={classes.labelText}>{props.label}</Body1Strong>
+        </div>
+    );
+};

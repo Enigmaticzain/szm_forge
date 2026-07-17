@@ -1,0 +1,84 @@
+cmake_minimum_required(VERSION 3.22)
+project(Sofa.Component.Collision.Geometry LANGUAGES CXX)
+
+set(SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR "src/sofa/component/collision/geometry")
+
+set(HEADER_FILES
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/config.h.in
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/init.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/fwd.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/CubeCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/CylinderCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/CylinderCollisionModel.inl
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/LineCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/LineCollisionModel.inl
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/PointCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/PointCollisionModel.inl
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/RayCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/SphereCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/SphereCollisionModel.inl
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TetrahedronCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TriangleCollisionModel.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TriangleCollisionModel.inl
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TriangleModelInRegularGrid.h
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TriangleOctreeCollisionModel.h
+)
+
+set(DEPRECATED_DIR "compat/sofa/component/collision/geometry")
+set(DEPRECATED_HEADER_FILES
+    ${DEPRECATED_DIR}/CubeModel.h
+    ${DEPRECATED_DIR}/CylinderModel.h
+    ${DEPRECATED_DIR}/CylinderModel.inl
+    ${DEPRECATED_DIR}/LineModel.h
+    ${DEPRECATED_DIR}/LineModel.inl
+    ${DEPRECATED_DIR}/PointModel.h
+    ${DEPRECATED_DIR}/PointModel.inl
+    ${DEPRECATED_DIR}/RayModel.h
+    ${DEPRECATED_DIR}/SphereModel.h
+    ${DEPRECATED_DIR}/SphereModel.inl
+    ${DEPRECATED_DIR}/TetrahedronModel.h
+    ${DEPRECATED_DIR}/TriangleModel.h
+    ${DEPRECATED_DIR}/TriangleModel.inl
+    ${DEPRECATED_DIR}/TriangleOctreeModel.h
+)
+
+set(SOURCE_FILES
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/init.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/CubeCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/CylinderCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/LineCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/PointCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/RayCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/SphereCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TetrahedronCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TriangleCollisionModel.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TriangleModelInRegularGrid.cpp
+    ${SOFACOMPONENTCOLLISIONGEOMETRY_SOURCE_DIR}/TriangleOctreeCollisionModel.cpp
+)
+
+sofa_find_package(Sofa.Simulation.Core REQUIRED)
+
+add_library(${PROJECT_NAME} SHARED ${HEADER_FILES} ${SOURCE_FILES})
+target_link_libraries(${PROJECT_NAME} PUBLIC Sofa.Simulation.Core)
+target_include_directories(${PROJECT_NAME} PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/compat>
+    $<INSTALL_INTERFACE:include/${PROJECT_NAME}_compat>
+)
+
+sofa_create_package_with_targets(
+    PACKAGE_NAME ${PROJECT_NAME}
+    PACKAGE_VERSION ${Sofa_VERSION}
+    TARGETS ${PROJECT_NAME} AUTO_SET_TARGET_PROPERTIES
+    INCLUDE_SOURCE_DIR "src"
+    INCLUDE_INSTALL_DIR "${PROJECT_NAME}"
+)
+
+install(DIRECTORY compat/ DESTINATION include/${PROJECT_NAME}_compat COMPONENT headers)
+
+# Tests
+# If SOFA_BUILD_TESTS exists and is OFF, then these tests will be auto-disabled
+cmake_dependent_option(SOFA_COMPONENT_COLLISION_GEOMETRY_BUILD_TESTS "Compile the automatic tests" ON "SOFA_BUILD_TESTS OR NOT DEFINED SOFA_BUILD_TESTS" OFF)
+if(SOFA_COMPONENT_COLLISION_GEOMETRY_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

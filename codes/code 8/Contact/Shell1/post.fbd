@@ -1,0 +1,28 @@
+# read
+read tie.frd
+read tie.inp nom
+read part.nam inp nom
+comp Eind do
+comp Epart do
+# view
+view disp
+view elem
+view sh
+rot y
+rot l 10
+rot u 5
+# color plot of worst ps
+ds -2 e 23
+plot fv Epart
+plus f Eind n
+hcpy png Refs/worstPS1
+
+rot d 30
+hcpy png Refs/worstPS2
+
+# shaded deformed plot
+rot y
+rot l 10
+rot u 5
+plus f all n
+hcpy png Refs/def1

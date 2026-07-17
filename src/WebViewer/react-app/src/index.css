@@ -1,0 +1,191 @@
+@import "tailwindcss";
+
+@theme {
+  --color-forge-black: #0a0a0f;
+  --color-forge-dark: #0d0d14;
+  --color-forge-panel: #111118;
+  --color-forge-surface: #16161f;
+  --color-forge-border: #1e1e2a;
+  --color-forge-border-light: #2a2a3a;
+  --color-forge-text: #e8e8f0;
+  --color-forge-text-dim: #8888a0;
+  --color-forge-text-muted: #555570;
+  --color-forge-accent: #00d4ff;
+  --color-forge-accent-dim: #0099bb;
+  --color-forge-cyan: #00e5ff;
+  --color-forge-blue: #3366ff;
+  --color-forge-purple: #8844ff;
+  --color-forge-green: #00ff88;
+  --color-forge-yellow: #ffcc00;
+  --color-forge-orange: #ff8800;
+  --color-forge-red: #ff3355;
+  --color-forge-magenta: #ff00aa;
+  --color-forge-teal: #00ccaa;
+  --color-forge-warm: #ff6633;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-forge-black);
+  color: var(--color-forge-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-forge-border-light);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-forge-accent-dim);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes data-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.glow-accent {
+  box-shadow: 0 0 20px rgba(0, 212, 255, 0.15), 0 0 40px rgba(0, 212, 255, 0.05);
+}
+
+.glow-green {
+  box-shadow: 0 0 20px rgba(0, 255, 136, 0.15), 0 0 40px rgba(0, 255, 136, 0.05);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px rgba(255, 51, 85, 0.15), 0 0 40px rgba(255, 51, 85, 0.05);
+}
+
+.text-glow-accent {
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+.text-glow-green {
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+}
+
+.grid-bg {
+  background-image: 
+    linear-gradient(rgba(30, 30, 42, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(30, 30, 42, 0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.gradient-border {
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.3), rgba(136, 68, 255, 0.1), rgba(0, 212, 255, 0.05));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.hex-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 5L55 17.5V42.5L30 55L5 42.5V17.5L30 5Z' fill='none' stroke='%231e1e2a' stroke-width='0.5'/%3E%3C/svg%3E");
+}
+
+/* Ensure dynamic Tailwind classes are available */
+.text-forge-green { color: var(--color-forge-green); }
+.text-forge-accent { color: var(--color-forge-accent); }
+.text-forge-blue { color: var(--color-forge-blue); }
+.text-forge-purple { color: var(--color-forge-purple); }
+.text-forge-yellow { color: var(--color-forge-yellow); }
+.text-forge-orange { color: var(--color-forge-orange); }
+.text-forge-red { color: var(--color-forge-red); }
+.text-forge-teal { color: var(--color-forge-teal); }
+.text-forge-cyan { color: var(--color-forge-cyan); }
+.text-forge-magenta { color: var(--color-forge-magenta); }
+
+.bg-forge-green { background-color: var(--color-forge-green); }
+.bg-forge-accent { background-color: var(--color-forge-accent); }
+.bg-forge-blue { background-color: var(--color-forge-blue); }
+.bg-forge-purple { background-color: var(--color-forge-purple); }
+.bg-forge-yellow { background-color: var(--color-forge-yellow); }
+.bg-forge-orange { background-color: var(--color-forge-orange); }
+.bg-forge-red { background-color: var(--color-forge-red); }
+.bg-forge-teal { background-color: var(--color-forge-teal); }
+
+.border-forge-green\/20 { border-color: rgba(0, 255, 136, 0.2); }
+.border-forge-accent\/20 { border-color: rgba(0, 212, 255, 0.2); }
+.border-forge-blue\/20 { border-color: rgba(51, 102, 255, 0.2); }
+.border-forge-purple\/20 { border-color: rgba(136, 68, 255, 0.2); }
+.border-forge-yellow\/20 { border-color: rgba(255, 204, 0, 0.2); }
+.border-forge-orange\/20 { border-color: rgba(255, 136, 0, 0.2); }
+.border-forge-red\/20 { border-color: rgba(255, 51, 85, 0.2); }
+.border-forge-teal\/20 { border-color: rgba(0, 204, 170, 0.2); }
+
+.bg-forge-green\/5 { background-color: rgba(0, 255, 136, 0.05); }
+.bg-forge-green\/10 { background-color: rgba(0, 255, 136, 0.1); }
+.bg-forge-accent\/5 { background-color: rgba(0, 212, 255, 0.05); }
+.bg-forge-accent\/10 { background-color: rgba(0, 212, 255, 0.1); }
+.bg-forge-blue\/5 { background-color: rgba(51, 102, 255, 0.05); }
+.bg-forge-blue\/10 { background-color: rgba(51, 102, 255, 0.1); }
+.bg-forge-purple\/5 { background-color: rgba(136, 68, 255, 0.05); }
+.bg-forge-purple\/10 { background-color: rgba(136, 68, 255, 0.1); }
+.bg-forge-yellow\/5 { background-color: rgba(255, 204, 0, 0.05); }
+.bg-forge-yellow\/10 { background-color: rgba(255, 204, 0, 0.1); }
+.bg-forge-orange\/5 { background-color: rgba(255, 136, 0, 0.05); }
+.bg-forge-orange\/10 { background-color: rgba(255, 136, 0, 0.1); }
+.bg-forge-red\/5 { background-color: rgba(255, 51, 85, 0.05); }
+.bg-forge-red\/10 { background-color: rgba(255, 51, 85, 0.1); }
+.bg-forge-teal\/5 { background-color: rgba(0, 204, 170, 0.05); }
+.bg-forge-teal\/10 { background-color: rgba(0, 204, 170, 0.1); }
+
+/* Line clamp */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

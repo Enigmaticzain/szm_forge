@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=SZM Forge
+Comment=Physics-Driven Engineering Platform — C++20
+Exec=/mnt/D/projects/szm_forge/launch-auto.sh
+Icon=/mnt/D/projects/szm_forge/assets/icon.png
+Terminal=false
+Categories=Engineering;Science;Development;
+StartupNotify=true
+Path=/mnt/D/projects/szm_forge

@@ -1,0 +1,19 @@
+
+************************************
+*         PluginSensable.txt        *
+************************************
+
+
+
+AUTHOR :
+ - C.Duriez
+
+
+
+
+LICENSE :
+ - None
+
+
+
+OTHER COMMENTS :

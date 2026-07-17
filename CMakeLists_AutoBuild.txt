@@ -1,0 +1,231 @@
+cmake_minimum_required(VERSION 3.21)
+project(SZM_Forge_AutoBuild VERSION 0.2.1 LANGUAGES CXX C)
+
+# ============================================================
+#  Auto-Discovery Build System
+#  Automatically detects and includes new modules
+# ============================================================
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# ============================================================
+#  Build Configuration
+# ============================================================
+set(SZM_BUILD_FULL_DESKTOP ON CACHE BOOL "Always build full desktop" FORCE)
+set(SZM_AUTO_DISCOVER_MODULES ON CACHE BOOL "Auto-discover modules" FORCE)
+
+# ============================================================
+#  Platform Definitions
+# ============================================================
+if(WIN32)
+    add_compile_definitions(SZM_PLATFORM_WINDOWS)
+elseif(UNIX AND NOT APPLE)
+    add_compile_definitions(SZM_PLATFORM_LINUX)
+elseif(APPLE)
+    add_compile_definitions(SZM_PLATFORM_MACOS)
+endif()
+
+# ============================================================
+#  Compiler Warnings
+# ============================================================
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    add_compile_options(-Wall -Wextra -Wpedantic)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    add_compile_options(/W4)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
+
+# ============================================================
+#  Auto-Discovery Function
+# ============================================================
+function(discover_modules)
+    set(SRC_DIR "${CMAKE_SOURCE_DIR}/src")
+    set(DISCOVERED_MODULES "")
+    set(MODULE_TARGETS "")
+    
+    # Scan src/ for subdirectories with CMakeLists.txt
+    file(GLOB SUBDIRS RELATIVE "${SRC_DIR}" "${SRC_DIR}/*")
+    
+    foreach(SUBDIR ${SUBDIRS})
+        set(MODULE_PATH "${SRC_DIR}/${SUBDIR}")
+        
+        if(IS_DIRECTORY "${MODULE_PATH}" AND EXISTS "${MODULE_PATH}/CMakeLists.txt")
+            # Skip hidden directories and known non-modules
+            if(NOT SUBDIR MATCHES "^\\..*")
+                list(APPEND DISCOVERED_MODULES "${SUBDIR}")
+                message(STATUS "[AUTO-DISCOVER] Found module: ${SUBDIR}")
+            endif()
+        endif()
+    endforeach()
+    
+    set(DISCOVERED_MODULES "${DISCOVERED_MODULES}" PARENT_SCOPE)
+endfunction()
+
+# ============================================================
+#  External Dependencies
+# ============================================================
+find_package(nlohmann_json QUIET)
+if(NOT nlohmann_json_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        nlohmann_json
+        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    )
+    FetchContent_MakeAvailable(nlohmann_json)
+endif()
+
+# GLFW
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/external/glfw EXCLUDE_FROM_ALL)
+
+# Eigen3
+find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+
+# OpenGL
+find_package(OpenGL REQUIRED)
+
+# GLAD
+set(GLAD_DIR ${CMAKE_SOURCE_DIR}/external/glad)
+add_library(glad STATIC ${GLAD_DIR}/src/gl.c)
+target_include_directories(glad PUBLIC ${GLAD_DIR}/include)
+
+# ImGui
+set(IMGUI_DIR ${CMAKE_SOURCE_DIR}/external/imgui)
+add_library(imgui STATIC
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_opengl3.cpp
+)
+target_include_directories(imgui PUBLIC
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+)
+target_compile_definitions(imgui PUBLIC IMGUI_IMPL_OPENGL_LOADER_GLAD)
+target_link_libraries(imgui PUBLIC glfw glad OpenGL::GL)
+
+# ============================================================
+#  Auto-Discover and Add Modules
+# ============================================================
+discover_modules()
+
+# Define module discovery order (dependencies first)
+set(MODULE_ORDER
+    Simulation
+    Data
+    Input
+    Materials
+    Math
+    Geometry
+    Physics
+    Assembly
+    FEA
+    Thermal
+    Electrical
+    Graphics
+    UI
+    Core
+    Workshop3D
+    WebViewer
+    CAD
+    AI
+    WebAPI
+)
+
+# Add modules in dependency order
+foreach(MODULE ${MODULE_ORDER})
+    set(MODULE_PATH "${CMAKE_SOURCE_DIR}/src/${MODULE}")
+    if(EXISTS "${MODULE_PATH}/CMakeLists.txt")
+        message(STATUS "[BUILD] Adding module: ${MODULE}")
+        add_subdirectory("${MODULE_PATH}")
+    endif()
+endforeach()
+
+# Add any remaining discovered modules not in the order list
+foreach(MODULE ${DISCOVERED_MODULES})
+    list(FIND MODULE_ORDER "${MODULE}" FOUND_INDEX)
+    if(FOUND_INDEX EQUAL -1)
+        set(MODULE_PATH "${CMAKE_SOURCE_DIR}/src/${MODULE}")
+        if(EXISTS "${MODULE_PATH}/CMakeLists.txt")
+            message(STATUS "[BUILD] Adding discovered module: ${MODULE}")
+            add_subdirectory("${MODULE_PATH}")
+        endif()
+    endif()
+endforeach()
+
+# ============================================================
+#  Collect All Module Targets
+# ============================================================
+set(ALL_MODULE_TARGETS
+    SZM_Simulation_Module
+    DataCore_SceneGraph
+    AppCore_Input_Event_Bus
+    SZM_Materials_Module
+    SZM_Constraint_Solver
+    SZM_Geometry_Module
+    SZM_Physics_Module
+    SZM_Assembly_Module
+    SZM_FEA_Module
+    SZM_Thermal_Module
+    SZM_Electrical_Module
+    SZM_Graphics_Module
+    SZM_UI_Module
+    SZM_Core
+    SZM_Workshop3D_Module
+    SZM_WebViewer_Module
+    SZM_CAD_Module
+    SZM_AI_Module
+    SZM_WebAPI_Module
+)
+
+# Filter to only existing targets
+set(AVAILABLE_TARGETS "")
+foreach(TARGET ${ALL_MODULE_TARGETS})
+    if(TARGET ${TARGET})
+        list(APPEND AVAILABLE_TARGETS ${TARGET})
+    endif()
+endforeach()
+
+# ============================================================
+#  Main Desktop Executable
+# ============================================================
+add_executable(SZM_Forge src/main_desktop.cpp)
+target_include_directories(SZM_Forge PRIVATE src)
+target_link_libraries(SZM_Forge PRIVATE
+    ${AVAILABLE_TARGETS}
+    glfw
+    glad
+    OpenGL::GL
+)
+
+message(STATUS "[BUILD] SZM_Forge linked with ${AVAILABLE_TARGETS}")
+
+# ============================================================
+#  Test Executable
+# ============================================================
+add_executable(SZM_TestRunner tests/main_test.cpp)
+target_include_directories(SZM_TestRunner PRIVATE src)
+target_link_libraries(SZM_TestRunner PRIVATE
+    ${AVAILABLE_TARGETS}
+)
+
+# ============================================================
+#  Build Summary
+# ============================================================
+message(STATUS "")
+message(STATUS "========================================")
+message(STATUS "SZM Forge Auto-Build Configuration")
+message(STATUS "========================================")
+message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "Discovered Modules: ${DISCOVERED_MODULES}")
+message(STATUS "Available Targets: ${AVAILABLE_TARGETS}")
+message(STATUS "========================================")
+message(STATUS "")

@@ -1,0 +1,35 @@
+.commandButton {
+    cursor: pointer;
+    width: 55px;
+    height: 55px;
+    background-color: #333333;
+
+    &:hover {
+        background-color: var(--selectionGrey);
+    }
+}
+
+.commandLabel {
+    display: none;
+}
+
+.active {
+    transform-origin: center;
+    background-color: var(--selectionGrey);
+    box-shadow: 0 2px 0 0 white;
+}
+
+.commandButtonIcon {
+    height: 100%;
+    width: 100%;
+    display: grid;
+    color: white;
+    align-content: center;
+    justify-content: center;
+}
+
+.disabled {
+    pointer-events: none;
+    color: black;
+    opacity: 0.35;
+}

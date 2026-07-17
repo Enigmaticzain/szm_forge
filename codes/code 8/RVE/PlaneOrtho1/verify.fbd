@@ -1,0 +1,23 @@
+read Zug.frd
+
+# verify constraints
+
+frame
+
+rot -x
+rot c -90
+rot r 30
+rot u 30
+plot fv all
+view disp
+view elem
+view sh
+ulin Displacement in x (normal to section)
+ds -3 e 1
+
+frame
+hcpy png dx
+ulin Displacement in y (lateral)
+ds -3 e 2
+frame
+hcpy png dy

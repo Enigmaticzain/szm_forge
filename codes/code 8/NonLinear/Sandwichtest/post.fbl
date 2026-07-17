@@ -1,0 +1,42 @@
+read values.fbl
+read Biegung.frd new
+read core.nam inp
+read f1.nam inp
+read f2.nam inp
+
+view disp
+view elem
+view sh
+rot y
+frame
+zoom 2.5
+rot l 70
+rot u 14
+tra u 10
+# plastic strain
+ds -2 e 1
+plot fv all
+min 0 f
+ulin Plastic strain
+hcpy png Refs/PE
+
+# equivalent stress
+ds -3 e 7
+min 0 f
+ulin Equivalent stress
+hcpy png Refs/SE
+
+ds -2 e 1
+copy all new mir y
+copy all new mir x
+comp new do
+plot f new n
+plus ev Ecore
+rot y
+rot r 100
+rot u -10
+frame
+zoom 4.2
+ulin Equivalent strain
+plus ev Ecore
+hcpy png Refs/PE-expanded

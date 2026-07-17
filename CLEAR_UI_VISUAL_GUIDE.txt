@@ -1,0 +1,266 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    CLEAR UI SYSTEM - VISUAL GUIDE                          ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SZM Forge - Physics-Driven Engineering Platform                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ [📊 Dashboard] [🔧 Modeling] [⚙️ Assembly] [▶️ Simulation] [🧠 Training]  │
+│ [📈 Results] [⚙️ Settings]                                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ▼ 📊 System Status                                                         │
+│   ├─ FPS: 60                                                               │
+│   ├─ Memory: 2.5GB / 8GB                                                   │
+│   └─ Status: Ready                                                         │
+│                                                                             │
+│ ▼ 🎯 Quick Actions                                                         │
+│   ├─ [New Project] [Open] [Save]                                           │
+│   └─ [Import] [Export]                                                     │
+│                                                                             │
+│ ▼ 📝 Recent Activity                                                       │
+│   ├─ Loaded project: Assembly_v2.szm                                       │
+│   ├─ Ran simulation: Stress Analysis                                       │
+│   └─ Trained AI: 2 hours ago                                               │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+TRAINING TAB EXAMPLE:
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SZM Forge - Physics-Driven Engineering Platform                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ [📊 Dashboard] [🔧 Modeling] [⚙️ Assembly] [▶️ Simulation] [🧠 Training]  │
+│ [📈 Results] [⚙️ Settings]                                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ▼ 📁 Data Import                                                           │
+│   ├─ Import Source: [Browse Files]                                         │
+│   ├─ Data Type: [GitHub ▼]                                                 │
+│   └─ [Import]                                                              │
+│                                                                             │
+│ ▼ ▶️ Training Control                                                      │
+│   ├─ Training Mode: [Passive Learning ▼]                                   │
+│   ├─ Status: IDLE                                                          │
+│   ├─ Progress: ████░░░░░░ 40%                                              │
+│   └─ [Start] [Pause] [Stop]                                                │
+│                                                                             │
+│ ▼ ⚙️ Configuration                                                         │
+│   ├─ Chunk Size: [512 ────────]                                            │
+│   ├─ Context Size: [2048 ────────]                                         │
+│   ├─ GPU Usage: [0.8 ────────]                                             │
+│   ├─ CPU Usage: [0.5 ────────]                                             │
+│   └─ [Save Configuration]                                                  │
+│                                                                             │
+│ ▼ 📊 Metrics                                                               │
+│   ├─ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐                      │
+│   │  │Accuracy │ │  Loss   │ │ Tokens  │ │Learning │                      │
+│   │  │  85.2%  │ │  0.152  │ │  1.2M   │ │  0.001  │                      │
+│   │  └─────────┘ └─────────┘ └─────────┘ └─────────┘                      │
+│   └─                                                                        │
+│                                                                             │
+│ ▼ 💾 Checkpoints                                                           │
+│   ├─ Name        │ Accuracy │ Date       │ Action                          │
+│   ├─ Checkpoint1 │  85.2%   │ 2024-01-15 │ [Load]                          │
+│   ├─ Checkpoint2 │  82.1%   │ 2024-01-14 │ [Load]                          │
+│   └─ [Save Checkpoint]                                                     │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+MODELING TAB EXAMPLE:
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SZM Forge - Physics-Driven Engineering Platform                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ [📊 Dashboard] [🔧 Modeling] [⚙️ Assembly] [▶️ Simulation] [🧠 Training]  │
+│ [📈 Results] [⚙️ Settings]                                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ▼ 📚 Part Library                                                          │
+│   ├─ [+ Add Part]                                                          │
+│   ├─ Beam (Steel)                                                          │
+│   ├─ Bracket (Aluminum)                                                    │
+│   ├─ Fastener (Titanium)                                                   │
+│   └─ [Search...]                                                           │
+│                                                                             │
+│ ▼ 🔧 Geometry Tools                                                        │
+│   ├─ [Extrude] [Revolve] [Sweep]                                           │
+│   ├─ [Boolean] [Fillet] [Chamfer]                                          │
+│   └─ [Mirror] [Pattern]                                                    │
+│                                                                             │
+│ ▼ 📋 Properties                                                            │
+│   ├─ Name: Steel Beam                                                      │
+│   ├─ Material: Steel (AISI 1020)                                           │
+│   ├─ Dimensions: 100 x 50 x 10 mm                                          │
+│   ├─ Mass: 3.92 kg                                                         │
+│   └─ [Edit] [Delete]                                                       │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+ASSEMBLY TAB EXAMPLE:
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SZM Forge - Physics-Driven Engineering Platform                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ [📊 Dashboard] [🔧 Modeling] [⚙️ Assembly] [▶️ Simulation] [🧠 Training]  │
+│ [📈 Results] [⚙️ Settings]                                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ▼ 🌳 Assembly Tree                                                         │
+│   ├─ ▼ Assembly_v2                                                         │
+│   │  ├─ ▼ Subassembly_1                                                    │
+│   │  │  ├─ Beam_1                                                          │
+│   │  │  └─ Bracket_1                                                       │
+│   │  ├─ ▼ Subassembly_2                                                    │
+│   │  │  ├─ Beam_2                                                          │
+│   │  │  └─ Bracket_2                                                       │
+│   │  └─ Fastener_1                                                         │
+│   └─ [Add Part] [Remove] [Expand All]                                      │
+│                                                                             │
+│ ▼ 🔗 Mates                                                                 │
+│   ├─ Coincident: Beam_1 - Bracket_1                                        │
+│   ├─ Parallel: Beam_1 - Beam_2                                             │
+│   ├─ Distance: 50mm                                                        │
+│   └─ [Add Mate] [Edit] [Delete]                                            │
+│                                                                             │
+│ ▼ 📐 Constraints                                                           │
+│   ├─ Fixed: Bracket_1                                                      │
+│   ├─ Angle: 90°                                                            │
+│   └─ [Add Constraint] [Edit]                                               │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+SIMULATION TAB EXAMPLE:
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SZM Forge - Physics-Driven Engineering Platform                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ [📊 Dashboard] [🔧 Modeling] [⚙️ Assembly] [▶️ Simulation] [🧠 Training]  │
+│ [📈 Results] [⚙️ Settings]                                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ▼ ▶️ Simulation Control                                                    │
+│   ├─ Simulation Type: [Stress Analysis ▼]                                  │
+│   ├─ Status: READY                                                         │
+│   ├─ [Start] [Pause] [Stop] [Reset]                                        │
+│   └─ Time: 0.00s / 10.00s                                                  │
+│                                                                             │
+│ ▼ 📊 Results                                                               │
+│   ├─ Max Stress: 250 MPa                                                   │
+│   ├─ Max Temperature: 85°C                                                 │
+│   ├─ Deformation: 0.5 mm                                                   │
+│   └─ Safety Factor: 2.5                                                    │
+│                                                                             │
+│ ▼ 🎨 Visualization                                                         │
+│   ├─ Display Mode: [Stress Heatmap ▼]                                      │
+│   ├─ Color Scale: [Auto ▼]                                                 │
+│   ├─ [Show Deformation] [Show Vectors]                                     │
+│   └─ Opacity: [████████░░] 80%                                             │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+RESULTS TAB EXAMPLE:
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SZM Forge - Physics-Driven Engineering Platform                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ [📊 Dashboard] [🔧 Modeling] [⚙️ Assembly] [▶️ Simulation] [🧠 Training]  │
+│ [📈 Results] [⚙️ Settings]                                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ▼ 📈 FEA Results                                                           │
+│   ├─ Max Stress: 250 MPa (Location: Node 1234)                             │
+│   ├─ Min Stress: 5 MPa                                                     │
+│   ├─ Average Stress: 125 MPa                                               │
+│   └─ [Export] [Print]                                                      │
+│                                                                             │
+│ ▼ 🌡️ Thermal Analysis                                                     │
+│   ├─ Max Temperature: 85°C                                                 │
+│   ├─ Min Temperature: 20°C                                                 │
+│   ├─ Heat Flux: 500 W/m²                                                   │
+│   └─ [Export] [Print]                                                      │
+│                                                                             │
+│ ▼ 📄 Reports                                                               │
+│   ├─ [Generate Report]                                                     │
+│   ├─ Report_001.pdf (2024-01-15)                                           │
+│   ├─ Report_002.pdf (2024-01-14)                                           │
+│   └─ [View] [Delete]                                                       │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+SETTINGS TAB EXAMPLE:
+
+┌────────────────────────────────────────────────────────────────────────────┐
+│ SZM Forge - Physics-Driven Engineering Platform                            │
+├────────────────────────────────────────────────────────────────────────────┤
+│ [📊 Dashboard] [🔧 Modeling] [⚙️ Assembly] [▶️ Simulation] [🧠 Training]  │
+│ [📈 Results] [⚙️ Settings]                                                 │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│ ▼ 🎨 Preferences                                                           │
+│   ├─ ☑ Dark Mode                                                           │
+│   ├─ ☑ Auto-save                                                           │
+│   ├─ ☐ Show Tooltips                                                       │
+│   └─ Language: [English ▼]                                                 │
+│                                                                             │
+│ ▼ 🎨 Themes                                                                │
+│   ├─ ● Dark (Current)                                                      │
+│   ├─ ○ Light                                                               │
+│   ├─ ○ High Contrast                                                       │
+│   └─ ○ Engineering                                                         │
+│                                                                             │
+│ ▼ ⚙️ Advanced                                                              │
+│   ├─ GPU Acceleration: [Enabled ▼]                                         │
+│   ├─ Max Threads: [8 ────────]                                             │
+│   ├─ Cache Size: [512 MB ────────]                                         │
+│   └─ [Reset to Defaults]                                                   │
+│                                                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+KEY DESIGN ELEMENTS:
+
+Tab Bar:
+  • Located at top of window
+  • Shows all available tabs
+  • Active tab highlighted in blue
+  • Inactive tabs in dark gray
+  • Icons for quick recognition
+
+Sections:
+  • Collapsible headers with icons
+  • Clear, descriptive titles
+  • Organized content
+  • Consistent spacing
+  • Professional appearance
+
+Colors:
+  • Active Tab:     #4080FF (Blue)
+  • Inactive Tab:   #1F1F28 (Dark Gray)
+  • Background:     #0F0F12 (Very Dark)
+  • Text:           #FFFFFF (White)
+  • Accent:         #64B6FF (Light Blue)
+  • Success:        #50FF96 (Green)
+  • Warning:        #FFD400 (Yellow)
+  • Error:          #FF5050 (Red)
+
+Spacing:
+  • Window Padding:  12px
+  • Frame Padding:   8px, 6px
+  • Item Spacing:    8px
+  • Section Gap:     12px
+
+Typography:
+  • Headers:        Bold, larger font
+  • Labels:         Regular, medium font
+  • Values:         Regular, medium font
+  • Descriptions:   Smaller, lighter color
+
+Layout:
+  • Responsive:     Adapts to window size
+  • Organized:      Logical grouping
+  • Consistent:     Uniform appearance
+  • Professional:   Clean, modern design
+
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    STATUS: ✅ READY FOR INTEGRATION                        ║
+╚════════════════════════════════════════════════════════════════════════════╝

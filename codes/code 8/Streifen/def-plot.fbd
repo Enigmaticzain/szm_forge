@@ -1,0 +1,8 @@
+frame
+tra u 20
+zoom 1.5
+view disp
+view elem
+plot fv all n
+plus l all
+hcpy png

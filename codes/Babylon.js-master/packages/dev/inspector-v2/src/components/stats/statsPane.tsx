@@ -1,0 +1,37 @@
+import { type Scene } from "core/index";
+
+import { makeStyles, tokens } from "@fluentui/react-components";
+
+import { AbstractEngine } from "core/Engines/abstractEngine";
+import { StringifiedPropertyLine } from "shared-ui-components/fluent/hoc/propertyLines/stringifiedPropertyLine";
+import { TextPropertyLine } from "shared-ui-components/fluent/hoc/propertyLines/textPropertyLine";
+import { useObservableState } from "shared-ui-components/modularTool/hooks/observableHooks";
+import { usePollingObservable } from "../../hooks/pollingHooks";
+import { ExtensibleAccordion } from "shared-ui-components/modularTool/components/extensibleAccordion";
+import { SidePaneContainer } from "shared-ui-components/modularTool/components/pane";
+
+const useStyles = makeStyles({
+    pinnedStatsPane: {
+        flex: "0 1 auto",
+        paddingBottom: tokens.spacingHorizontalM,
+    },
+});
+
+export const StatsPane: typeof ExtensibleAccordion<Scene> = (props) => {
+    const classes = useStyles();
+
+    const scene = props.context;
+    const engine = scene.getEngine();
+    const pollingObservable = usePollingObservable(250);
+    const fps = useObservableState(() => Math.round(engine.getFps()), pollingObservable);
+
+    return (
+        <>
+            <SidePaneContainer className={classes.pinnedStatsPane}>
+                <TextPropertyLine key="EngineVersion" label="Version" description="The Babylon.js engine version." value={AbstractEngine.Version} />
+                <StringifiedPropertyLine key="FPS" label="FPS:" description="The current framerate" value={fps} />
+            </SidePaneContainer>
+            <ExtensibleAccordion {...props} />
+        </>
+    );
+};

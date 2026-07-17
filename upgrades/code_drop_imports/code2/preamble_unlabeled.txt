@@ -1,0 +1,1949 @@
+#pragma once
+#include <vector>
+#include <cstdint>
+#include <cmath>
+#include <stdexcept>
+#include <iostream>
+
+namespace SZM::Geometry {
+
+    // ------------------------------------------------------------------------
+    // Math Primitives (Assuming integration with a larger math library later)
+    // ------------------------------------------------------------------------
+    struct Vector3 {
+        double x, y, z;
+        Vector3(double x = 0, double y = 0, double z = 0) : x(x), y(y), z(z) {}
+        
+        Vector3 operator-(const Vector3& v) const { return {x - v.x, y - v.y, z - v.z}; }
+        Vector3 operator+(const Vector3& v) const { return {x + v.x, y + v.y, z + v.z}; }
+        Vector3 operator*(double s) const { return {x * s, y * s, z * s}; }
+        
+        double Dot(const Vector3& v) const { return x * v.x + y * v.y + z * v.z; }
+        Vector3 Cross(const Vector3& v) const {
+            return {y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x};
+        }
+    };
+
+    // ------------------------------------------------------------------------
+    // Half-Edge Data Structure (Index-based for cache coherency & speed)
+    // ------------------------------------------------------------------------
+    constexpr uint32_t NullHandle = 0xFFFFFFFF;
+
+    struct Vertex {
+        Vector3 position;
+        uint32_t halfEdge = NullHandle; // Pointer to one incident half-edge
+    };
+
+    struct Face {
+        uint32_t halfEdge = NullHandle; // Pointer to one bounding half-edge
+        Vector3 normal;                 // Cached face normal
+    };
+
+    struct HalfEdge {
+        uint32_t twin = NullHandle;     // The opposite half-edge
+        uint32_t next = NullHandle;     // Next half-edge in the face loop
+        uint32_t prev = NullHandle;     // Previous half-edge in the face loop
+        uint32_t vertex = NullHandle;   // Vertex this half-edge points TO
+        uint32_t face = NullHandle;     // Face this half-edge belongs to
+    };
+
+    // ------------------------------------------------------------------------
+    // B-Rep Solid Manager
+    // ------------------------------------------------------------------------
+    class SolidBody {
+    public:
+        SolidBody() = default;
+
+        // Core API
+        void AddFace(const std::vector<Vector3>& vertices);
+        bool Stitch(double tolerance = 1e-6); // Fuses edges to form a solid shell
+        
+        // Integrity & Mass Properties
+        bool VerifyManifold() const;
+        double CalculateVolume() const;
+        Vector3 CalculateCenterOfMass() const;
+
+        // Accessors for Euler Check
+        size_t GetVertexCount() const { return m_Vertices.size(); }
+        size_t GetFaceCount() const { return m_Faces.size(); }
+        size_t GetEdgeCount() const { return m_HalfEdges.size() / 2; } // 2 Half-Edges per true Edge
+
+    private:
+        std::vector<Vertex> m_Vertices;
+        std::vector<Face> m_Faces;
+        std::vector<HalfEdge> m_HalfEdges;
+
+        bool m_IsClosed = false;
+
+        // Helper to find existing vertex within tolerance, or add new
+        uint32_t GetOrAddVertex(const Vector3& pos, double tolerance);
+    };
+
+} // namespace SZM::Geometry
+
+#include "SolidBody.hpp"
+
+namespace SZM::Geometry {
+
+    uint32_t SolidBody::GetOrAddVertex(const Vector3& pos, double tolerance) {
+        for (size_t i = 0; i < m_Vertices.size(); ++i) {
+            Vector3 diff = m_Vertices[i].position - pos;
+            if ((diff.x*diff.x + diff.y*diff.y + diff.z*diff.z) <= (tolerance * tolerance)) {
+                return static_cast<uint32_t>(i);
+            }
+        }
+        m_Vertices.push_back({pos, NullHandle});
+        return static_cast<uint32_t>(m_Vertices.size() - 1);
+    }
+
+    void SolidBody::AddFace(const std::vector<Vector3>& vertices) {
+        if (vertices.size() < 3) return; // Degenerate face
+
+        uint32_t faceIdx = static_cast<uint32_t>(m_Faces.size());
+        m_Faces.push_back({NullHandle, Vector3(0,0,0)}); // Normal calculated later
+
+        std::vector<uint32_t> faceHeIndices;
+
+        // Create half-edges for this face
+        for (size_t i = 0; i < vertices.size(); ++i) {
+            uint32_t vIdx = GetOrAddVertex(vertices[i], 1e-6);
+            
+            uint32_t heIdx = static_cast<uint32_t>(m_HalfEdges.size());
+            m_HalfEdges.push_back({NullHandle, NullHandle, NullHandle, vIdx, faceIdx});
+            faceHeIndices.push_back(heIdx);
+
+            if (m_Vertices[vIdx].halfEdge == NullHandle) {
+                m_Vertices[vIdx].halfEdge = heIdx;
+            }
+        }
+
+        // Link next/prev for the newly created half-edges
+        for (size_t i = 0; i < faceHeIndices.size(); ++i) {
+            uint32_t curr = faceHeIndices[i];
+            uint32_t next = faceHeIndices[(i + 1) % faceHeIndices.size()];
+            uint32_t prev = faceHeIndices[(i + faceHeIndices.size() - 1) % faceHeIndices.size()];
+
+            m_HalfEdges[curr].next = next;
+            m_HalfEdges[curr].prev = prev;
+        }
+
+        m_Faces[faceIdx].halfEdge = faceHeIndices[0];
+    }
+
+    bool SolidBody::Stitch(double tolerance) {
+        // Find twins for all half-edges
+        // A twin goes from Vertex B to Vertex A, while the half-edge goes from A to B
+        for (size_t i = 0; i < m_HalfEdges.size(); ++i) {
+            if (m_HalfEdges[i].twin != NullHandle) continue;
+
+            uint32_t vTo = m_HalfEdges[i].vertex;
+            uint32_t vFrom = m_HalfEdges[m_HalfEdges[i].prev].vertex;
+
+            // Search for the matching twin
+            for (size_t j = i + 1; j < m_HalfEdges.size(); ++j) {
+                if (m_HalfEdges[j].twin != NullHandle) continue;
+
+                uint32_t twinVTo = m_HalfEdges[j].vertex;
+                uint32_t twinVFrom = m_HalfEdges[m_HalfEdges[j].prev].vertex;
+
+                if (vTo == twinVFrom && vFrom == twinVTo) {
+                    m_HalfEdges[i].twin = static_cast<uint32_t>(j);
+                    m_HalfEdges[j].twin = static_cast<uint32_t>(i);
+                    break;
+                }
+            }
+        }
+
+        m_IsClosed = VerifyManifold();
+        return m_IsClosed;
+    }
+
+    bool SolidBody::VerifyManifold() const {
+        // 1. Water-tight check: Every half-edge must have a twin
+        for (const auto& he : m_HalfEdges) {
+            if (he.twin == NullHandle) return false;
+        }
+
+        // 2. Euler-Poincaré Characteristic: V - E + F = 2 (Assuming Genus 0)
+        int64_t V = m_Vertices.size();
+        int64_t F = m_Faces.size();
+        int64_t E = m_HalfEdges.size() / 2; 
+
+        if (V - E + F != 2) {
+            return false;
+        }
+
+        return true;
+    }
+
+    double SolidBody::CalculateVolume() const {
+        if (!m_IsClosed) {
+            throw std::runtime_error("Cannot calculate volume of an open shell (non-manifold).");
+        }
+
+        double volume = 0.0;
+
+        // Applying the discrete Divergence Theorem
+        for (const auto& face : m_Faces) {
+            uint32_t startHe = face.halfEdge;
+            uint32_t currHe = m_HalfEdges[startHe].next;
+
+            // Triangulate face using a triangle fan from the first vertex
+            Vector3 v0 = m_Vertices[m_HalfEdges[m_HalfEdges[startHe].prev].vertex].position;
+
+            while (currHe != startHe && m_HalfEdges[currHe].next != startHe) {
+                Vector3 v1 = m_Vertices[m_HalfEdges[m_HalfEdges[currHe].prev].vertex].position;
+                Vector3 v2 = m_Vertices[m_HalfEdges[currHe].vertex].position;
+
+                // Signed volume of tetrahedron
+                volume += v0.Dot(v1.Cross(v2)) / 6.0;
+
+                currHe = m_HalfEdges[currHe].next;
+            }
+        }
+
+        return std::abs(volume);
+    }
+
+    Vector3 SolidBody::CalculateCenterOfMass() const {
+        // Implementation of volume-weighted centroid summation goes here.
+        // Left as an extension following a similar surface integral pattern.
+        return Vector3(0, 0, 0); 
+    }
+
+} // namespace SZM::Geometry
+
+#pragma once
+
+#include <vector>
+#include <cmath>
+#include <glm/glm.hpp> // Assuming GLM for standard vector math
+
+namespace SZM::Graphics {
+
+    // 32-byte aligned vertex for optimal GPU memory streaming
+    struct RenderVertex {
+        glm::vec3 Position;
+        glm::vec3 Normal;
+        glm::vec2 TexCoords;
+    };
+
+    struct RenderMesh {
+        std::vector<RenderVertex> Vertices;
+        std::vector<uint32_t> Indices;
+        
+        // VRAM Handles (Set by the Graphics Context later)
+        uint32_t VBO = 0;
+        uint32_t IBO = 0;
+        uint32_t VAO = 0;
+    };
+
+    struct TessellationConfig {
+        double MaxChordalError = 0.01; // ϵ (meters)
+        bool EnableDynamicLOD = true;
+        double CameraDistance = 1.0;   // Used to scale ϵ dynamically
+    };
+
+    class MeshGenerator {
+    public:
+        // Converts a mathematical SolidBody into a GPU-ready triangle mesh
+        // Forward declaring SolidBody from Module 110.4
+        static RenderMesh TessellateSolid(const class Geometry::SolidBody& body, const TessellationConfig& config);
+        
+        // Calculates required segments for a curve based on error tolerance
+        static uint32_t CalculateSegmentCount(double radius, double chordalError);
+    };
+
+} // namespace SZM::Graphics
+
+#include "MeshGenerator.hpp"
+#include <numbers>
+#include <algorithm>
+
+namespace SZM::Graphics {
+
+    uint32_t MeshGenerator::CalculateSegmentCount(double radius, double chordalError) {
+        if (radius <= 0.0 || chordalError <= 0.0) return 3; // Minimum triangle count
+        
+        // Prevent domain errors if chordal error exceeds radius
+        if (chordalError >= radius) return 3; 
+
+        // Formula: N ≈ π / arccos(1 - ϵ/R)
+        double ratio = 1.0 - (chordalError / radius);
+        double angle = std::acos(ratio);
+        
+        // N represents half a cylinder (π), multiply by 2 for full 360 degrees (2π)
+        double segments = std::numbers::pi / angle; 
+        
+        // Ensure at least a minimal resolution, clamp at a safe maximum to prevent VRAM overflow
+        return std::clamp(static_cast<uint32_t>(std::ceil(segments * 2.0)), 3u, 1024u);
+    }
+
+    RenderMesh MeshGenerator::TessellateSolid(const class Geometry::SolidBody& body, const TessellationConfig& config) {
+        RenderMesh mesh;
+        
+        // Edge Case Handling: Dynamic LOD
+        // If the camera is far away, we mathematically increase the allowed chordal error.
+        double effectiveError = config.MaxChordalError;
+        if (config.EnableDynamicLOD) {
+            // Scale error by distance (simplified linear scale for the implementation)
+            effectiveError *= std::max(1.0, config.CameraDistance * 0.1);
+        }
+
+        // Implementation Note for Engineering Team:
+        // 1. Iterate through B-Rep Faces.
+        // 2. If Planar -> Delaunay Triangulation or Ear-Clipping (for simple polygons).
+        // 3. If Cylindrical/Spherical -> Use CalculateSegmentCount(Radius, effectiveError)
+        //    to generate the parameterized UV grid, then construct triangles.
+        // 4. Calculate proper Vertex Normals (not face normals) for smooth PBR lighting.
+        
+        // (Placeholder for the extensive geometry-to-mesh iteration loop)
+        
+        return mesh;
+    }
+
+} // namespace SZM::Graphics
+
+#version 460 core
+
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoords;
+
+// Camera and Model Matrices
+layout (std140, binding = 0) uniform CameraMatrices {
+    mat4 view;
+    mat4 projection;
+    vec3 camPos;
+};
+
+uniform mat4 model;
+
+// Outputs to Fragment Shader
+out vec3 WorldPos;
+out vec3 Normal;
+out vec2 TexCoords;
+
+void main() {
+    // Transform vertex position to world space
+    vec4 worldPosition = model * vec4(aPos, 1.0);
+    WorldPos = worldPosition.xyz; 
+    
+    // Transform normal to world space (using Normal Matrix to handle non-uniform scaling)
+    Normal = mat3(transpose(inverse(model))) * aNormal;  
+    
+    TexCoords = aTexCoords;
+
+    // Final screen space position
+    gl_Position = projection * view * worldPosition;
+}
+
+#version 460 core
+
+out vec4 FragColor;
+
+in vec3 WorldPos;
+in vec3 Normal;
+in vec2 TexCoords;
+
+// Material System (300-Series)
+uniform vec3  albedo;
+uniform float metallic;
+uniform float roughness;
+uniform float ao;
+
+// Lighting Context
+uniform vec3 lightPositions[4];
+uniform vec3 lightColors[4];
+
+// Camera Context
+layout (std140, binding = 0) uniform CameraMatrices {
+    mat4 view;
+    mat4 projection;
+    vec3 camPos;
+};
+
+const float PI = 3.14159265359;
+
+// 1. Normal Distribution Function (Trowbridge-Reitz GGX) -> The 'D' in DFG
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float num = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return num / max(denom, 0.0000001); // Prevent divide by zero
+}
+
+// 2. Geometry Function (Schlick-GGX) -> The 'G' in DFG
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float num = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    return num / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+    return ggx1 * ggx2;
+}
+
+// 3. Fresnel Equation (Fresnel-Schlick) -> The 'F' in DFG
+vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+void main() {
+    vec3 N = normalize(Normal);
+    vec3 V = normalize(camPos - WorldPos);
+
+    // F0 is the base reflectivity. 0.04 is standard for dielectrics (plastic).
+    // If metallic, we use the albedo color as the base reflectivity.
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    vec3 Lo = vec3(0.0); // Total outgoing radiance
+
+    for(int i = 0; i < 4; ++i) {
+        // Calculate per-light radiance
+        vec3 L = normalize(lightPositions[i] - WorldPos);
+        vec3 H = normalize(V + L); // Halfway vector
+        
+        float distance    = length(lightPositions[i] - WorldPos);
+        float attenuation = 1.0 / (distance * distance); // Inverse square law
+        vec3 radiance     = lightColors[i] * attenuation;
+
+        // Cook-Torrance BRDF
+        float NDF = DistributionGGX(N, H, roughness);       
+        float G   = GeometrySmith(N, V, L, roughness);      
+        vec3 F    = FresnelSchlick(max(dot(H, V), 0.0), F0);       
+
+        vec3 kS = F; // Specular contribution
+        vec3 kD = vec3(1.0) - kS; // Diffuse contribution
+        kD *= 1.0 - metallic; // Pure metals have no diffuse light
+
+        // Specular Equation: (D * F * G) / (4 * (N.V) * (N.L))
+        vec3 numerator    = NDF * G * F;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        vec3 specular     = numerator / denominator;  
+
+        // Add to outgoing radiance equation
+        float NdotL = max(dot(N, L), 0.0);                
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL; 
+    }
+
+    // Ambient lighting approximation (Will be replaced by IBL / Irradiance Maps for full scene reflections)
+    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 color = ambient + Lo;
+
+    // HDR Tonemapping (Reinhard) and Gamma Correction
+    color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0/2.2));  
+
+    FragColor = vec4(color, 1.0);
+}
+
+#pragma once
+
+#include "../../Graphics/SceneGraph.h" // Inherits Entity and UUID from Module 020.1
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <memory>
+#include <numeric>
+
+namespace SZM::Assembly {
+
+// Basic 3D Vector for CG calculations
+struct Vector3 {
+    float x, y, z;
+    Vector3 operator+(const Vector3& o) const { return {x + o.x, y + o.y, z + o.z}; }
+    Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
+    Vector3 operator/(float s) const { return {x / s, y / s, z / s}; }
+};
+
+// Represents a Material Override for an instance (e.g., Paint Color)
+struct MaterialOverride {
+    bool isActive = false;
+    float rgba[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    float roughness = 0.5f;
+    float metallic = 0.0f;
+};
+
+// Represents the heavy, in-memory CAD Part (loaded only once)
+struct BasePart {
+    UUID partID;
+    std::string partName;
+    float mass = 0.0f;
+    Vector3 localCG = {0.0f, 0.0f, 0.0f};
+    
+    // In a full implementation, this holds the actual Mesh/VBO/IBO pointers
+    // std::shared_ptr<Geometry::SolidBody> geometry; 
+};
+
+// The lightweight Reference Node inserted into the Scene Graph
+class InstanceNode : public SZM::Entity {
+private:
+    UUID basePartUUID;
+    MaterialOverride material;
+
+public:
+    InstanceNode(std::string nodeName, UUID partRef, Transform initialTransform)
+        : SZM::Entity(std::move(nodeName)), basePartUUID(partRef) {
+        // Assume Entity has a setLocalTransform method added to Module 020.1
+        // this->setLocalTransform(initialTransform); 
+    }
+
+    UUID getBasePartUUID() const { return basePartUUID; }
+    MaterialOverride getMaterial() const { return material; }
+    void setMaterialOverride(const MaterialOverride& mat) { material = mat; }
+};
+
+// Bill of Materials Entry
+struct BOMEntry {
+    std::string partName;
+    UUID partID;
+    uint32_t quantity = 0;
+    float totalMass = 0.0f;
+};
+
+class AssemblyGraphManager {
+private:
+    std::unordered_map<UUID, std::shared_ptr<BasePart>> partRegistry;
+    std::shared_ptr<SZM::Entity> activeAssemblyRoot;
+
+    void traverseForBOM(const std::shared_ptr<SZM::Entity>& node, std::unordered_map<UUID, BOMEntry>& bomMap) const;
+    void traverseForMassCG(const std::shared_ptr<SZM::Entity>& node, float& outTotalMass, Vector3& outMassMoments) const;
+
+public:
+    AssemblyGraphManager(std::shared_ptr<SZM::Entity> root) : activeAssemblyRoot(root) {}
+
+    // Registers a heavy part into memory once
+    void registerBasePart(const std::shared_ptr<BasePart>& part);
+
+    // Creates a lightweight instance in the assembly
+    std::shared_ptr<InstanceNode> instantiatePart(
+        std::shared_ptr<SZM::Entity> parentNode, 
+        UUID partUUID, 
+        const Transform& transform,
+        const std::string& instanceName = "Instance"
+    );
+
+    // Generates the Bill of Materials
+    std::vector<BOMEntry> generateBOM() const;
+
+    // Calculates Assembly Mass and Center of Gravity
+    void calculateMassProperties(float& outTotalMass, Vector3& outCG) const;
+
+    // Extracts flat array of matrices for glDrawElementsInstanced / vkCmdDrawIndexed
+    std::vector<Transform> getInstancedDrawData(UUID partUUID) const;
+};
+
+} // namespace SZM::Assembly
+
+#include "AssemblyGraph.hpp"
+#include <stdexcept>
+#include <iostream>
+
+namespace SZM::Assembly {
+
+void AssemblyGraphManager::registerBasePart(const std::shared_ptr<BasePart>& part) {
+    if (!part) return;
+    partRegistry[part->partID] = part;
+}
+
+std::shared_ptr<InstanceNode> AssemblyGraphManager::instantiatePart(
+    std::shared_ptr<SZM::Entity> parentNode, 
+    UUID partUUID, 
+    const Transform& transform,
+    const std::string& instanceName) 
+{
+    if (partRegistry.find(partUUID) == partRegistry.end()) {
+        throw std::runtime_error("SZM Fatal: Attempted to instantiate an unregistered Part UUID.");
+    }
+
+    auto instance = std::make_shared<InstanceNode>(instanceName, partUUID, transform);
+    
+    // Cycle detection is inherently handled by Module 020.1's addChild() method.
+    // If the user attempts to instance an assembly into itself, addChild will throw.
+    parentNode->addChild(instance);
+
+    return instance;
+}
+
+void AssemblyGraphManager::traverseForBOM(const std::shared_ptr<SZM::Entity>& node, std::unordered_map<UUID, BOMEntry>& bomMap) const {
+    if (!node) return;
+
+    // RTTI check to see if the Entity is an InstanceNode
+    if (auto instanceNode = std::dynamic_pointer_cast<InstanceNode>(node)) {
+        UUID partID = instanceNode->getBasePartUUID();
+        
+        if (partRegistry.count(partID)) {
+            auto basePart = partRegistry.at(partID);
+            
+            if (bomMap.find(partID) == bomMap.end()) {
+                bomMap[partID] = BOMEntry{basePart->partName, partID, 0, 0.0f};
+            }
+            
+            bomMap[partID].quantity += 1;
+            bomMap[partID].totalMass += basePart->mass;
+        }
+    }
+
+    for (const auto& child : node->getChildren()) {
+        traverseForBOM(child, bomMap);
+    }
+}
+
+std::vector<BOMEntry> AssemblyGraphManager::generateBOM() const {
+    std::unordered_map<UUID, BOMEntry> bomMap;
+    traverseForBOM(activeAssemblyRoot, bomMap);
+
+    std::vector<BOMEntry> bomList;
+    bomList.reserve(bomMap.size());
+    for (const auto& [id, entry] : bomMap) {
+        bomList.push_back(entry);
+    }
+    return bomList;
+}
+
+void AssemblyGraphManager::traverseForMassCG(const std::shared_ptr<SZM::Entity>& node, float& outTotalMass, Vector3& outMassMoments) const {
+    if (!node) return;
+
+    if (auto instanceNode = std::dynamic_pointer_cast<InstanceNode>(node)) {
+        UUID partID = instanceNode->getBasePartUUID();
+        
+        if (partRegistry.count(partID)) {
+            auto basePart = partRegistry.at(partID);
+            
+            float m = basePart->mass;
+            outTotalMass += m;
+
+            // In a full implementation, we multiply the basePart->localCG by the instanceNode's 
+            // getWorldTransform() to get the global CG position.
+            // For this abstraction, we assume a simplified extraction of the position from the matrix.
+            Transform worldTx = instanceNode->getLocalTransform(); // Placeholder for getWorldTransform()
+            
+            Vector3 globalPos = {
+                worldTx.matrix[12] + basePart->localCG.x, 
+                worldTx.matrix[13] + basePart->localCG.y, 
+                worldTx.matrix[14] + basePart->localCG.z
+            };
+
+            // Summing (m_i * r_i)
+            outMassMoments = outMassMoments + (globalPos * m);
+        }
+    }
+
+    for (const auto& child : node->getChildren()) {
+        traverseForMassCG(child, outTotalMass, outMassMoments);
+    }
+}
+
+void AssemblyGraphManager::calculateMassProperties(float& outTotalMass, Vector3& outCG) const {
+    outTotalMass = 0.0f;
+    Vector3 massMoments = {0.0f, 0.0f, 0.0f};
+
+    traverseForMassCG(activeAssemblyRoot, outTotalMass, massMoments);
+
+    if (outTotalMass > 0.0f) {
+        outCG = massMoments / outTotalMass;
+    } else {
+        outCG = {0.0f, 0.0f, 0.0f};
+    }
+}
+
+std::vector<Transform> AssemblyGraphManager::getInstancedDrawData(UUID partUUID) const {
+    std::vector<Transform> instanceTransforms;
+
+    // DFS Traversal to collect all transforms for a specific base part.
+    // This array is passed directly to the Graphics Hardware Context (Module 010.4)
+    auto traverseAndCollect = [&](auto& self, const std::shared_ptr<SZM::Entity>& node) -> void {
+        if (!node) return;
+
+        if (auto instanceNode = std::dynamic_pointer_cast<InstanceNode>(node)) {
+            if (instanceNode->getBasePartUUID() == partUUID) {
+                // In production, this must be the computed World Transform
+                instanceTransforms.push_back(instanceNode->getLocalTransform()); 
+            }
+        }
+
+        for (const auto& child : node->getChildren()) {
+            self(self, child);
+        }
+    };
+
+    traverseAndCollect(traverseAndCollect, activeAssemblyRoot);
+    return instanceTransforms;
+}
+
+} // namespace SZM::Assembly
+
+#pragma once
+
+#include <vector>
+#include <memory>
+#include <stdexcept>
+#include <cmath>
+#include <iostream>
+
+namespace SZM::Physics {
+
+// Core Math Structures (Expandable to SIMD later)
+struct Vector3 {
+    float x, y, z;
+    Vector3 operator+(const Vector3& o) const { return {x + o.x, y + o.y, z + o.z}; }
+    Vector3 operator-(const Vector3& o) const { return {x - o.x, y - o.y, z - o.z}; }
+    Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
+    Vector3 operator/(float s) const { return {x / s, y / s, z / s}; }
+    float dot(const Vector3& o) const { return x * o.x + y * o.y + z * o.z; }
+    Vector3 cross(const Vector3& o) const {
+        return {y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x};
+    }
+};
+
+struct Matrix3x3 {
+    float m[3][3] = {{1,0,0}, {0,1,0}, {0,0,1}};
+
+    Matrix3x3 operator*(const Matrix3x3& o) const {
+        Matrix3x3 res = {0};
+        for(int i=0; i<3; ++i)
+            for(int j=0; j<3; ++j)
+                for(int k=0; k<3; ++k)
+                    res.m[i][j] += m[i][k] * o.m[k][j];
+        return res;
+    }
+
+    Matrix3x3 transpose() const {
+        return {{ {m[0][0], m[1][0], m[2][0]}, 
+                  {m[0][1], m[1][1], m[2][1]}, 
+                  {m[0][2], m[1][2], m[2][2]} }};
+    }
+
+    // Fast 3x3 Inverse using Cofactors
+    Matrix3x3 inverse() const {
+        float det = m[0][0] * (m[1][1] * m[2][2] - m[2][1] * m[1][2]) -
+                    m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                    m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+
+        if (std::abs(det) < 1e-6f) return Matrix3x3{0}; // Degenerate case handled by caller
+
+        float invDet = 1.0f / det;
+        Matrix3x3 res;
+        res.m[0][0] = (m[1][1] * m[2][2] - m[2][1] * m[1][2]) * invDet;
+        res.m[0][1] = (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * invDet;
+        res.m[0][2] = (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * invDet;
+        res.m[1][0] = (m[1][2] * m[2][0] - m[1][0] * m[2][2]) * invDet;
+        res.m[1][1] = (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * invDet;
+        res.m[1][2] = (m[1][0] * m[0][2] - m[0][0] * m[1][2]) * invDet;
+        res.m[2][0] = (m[1][0] * m[2][1] - m[2][0] * m[1][1]) * invDet;
+        res.m[2][1] = (m[2][0] * m[0][1] - m[0][0] * m[2][1]) * invDet;
+        res.m[2][2] = (m[0][0] * m[1][1] - m[1][0] * m[0][1]) * invDet;
+        return res;
+    }
+};
+
+enum class KinematicState {
+    Dynamic,
+    Kinematic, // Motor-driven, infinite mass logic to other objects
+    Static     // Grounded, infinite mass
+};
+
+// Abstracted SolidBody/Triangle structure from Geometry Module
+struct Triangle {
+    Vector3 v0, v1, v2;
+};
+
+class RigidBody {
+private:
+    KinematicState state;
+
+    float mass;
+    float invMass;
+
+    Vector3 centerOfMassLocal;
+    Vector3 centerOfMassWorld;
+
+    Matrix3x3 inertiaTensorLocal;
+    Matrix3x3 invInertiaTensorLocal;
+    Matrix3x3 invInertiaTensorWorld; // Recomputed dynamically
+
+    Vector3 linearVelocity;
+    Vector3 angularVelocity;
+
+public:
+    RigidBody(KinematicState initialState = KinematicState::Dynamic)
+        : state(initialState), mass(0), invMass(0), linearVelocity({0,0,0}), angularVelocity({0,0,0}) {}
+
+    // Factory method allocating mass properties based on B-Rep mesh
+    static std::shared_ptr<RigidBody> createFromMesh(
+        const std::vector<Triangle>& mesh, 
+        float density_kg_m3, 
+        KinematicState state = KinematicState::Dynamic
+    );
+
+    // Dynamic Physics Update: I_world^-1 = R * I_local^-1 * R^T
+    void updateWorldInertia(const Matrix3x3& rotationMatrix);
+
+    // Getters
+    float getMass() const { return mass; }
+    Vector3 getCenterOfMass() const { return centerOfMassLocal; }
+    Matrix3x3 getInertiaTensor() const { return inertiaTensorLocal; }
+    KinematicState getState() const { return state; }
+};
+
+} // namespace SZM::Physics
+
+#include "RigidBody.hpp"
+
+namespace SZM::Physics {
+
+// Helper to accumulate integrals over a tetrahedron formed by the origin and a triangle
+static void computeTetrahedronIntegrals(
+    const Vector3& p1, const Vector3& p2, const Vector3& p3,
+    float& volumeOut, Vector3& cgOut, 
+    float& ixx, float& iyy, float& izz,
+    float& ixy, float& iyz, float& izx) 
+{
+    // Signed volume of the tetrahedron: 1/6 * (p1 dot (p2 cross p3))
+    float det = p1.dot(p2.cross(p3));
+    float vol = det / 6.0f;
+    volumeOut = vol;
+
+    // Center of mass of the tetrahedron (origin is 0,0,0 so it's just average of 4 points)
+    cgOut = (p1 + p2 + p3) / 4.0f;
+
+    // Inertia sub-terms (Mirtich/Eberly polynomial accumulation)
+    // Formula simplifies the integration of x^2, y^2, z^2 over the simplex
+    auto termSq = [](float x1, float x2, float x3) {
+        return x1*x1 + x1*x2 + x2*x2 + x1*x3 + x2*x3 + x3*x3;
+    };
+    auto termProd = [](float x1, float x2, float x3, float y1, float y2, float y3) {
+        return 2.0f*x1*y1 + x2*y1 + x3*y1 + x1*y2 + 2.0f*x2*y2 + x3*y2 + x1*y3 + x2*y3 + 2.0f*x3*y3;
+    };
+
+    // Sub-integrals for moments
+    float intX2 = (det / 60.0f) * termSq(p1.x, p2.x, p3.x);
+    float intY2 = (det / 60.0f) * termSq(p1.y, p2.y, p3.y);
+    float intZ2 = (det / 60.0f) * termSq(p1.z, p2.z, p3.z);
+    
+    float intXY = (det / 120.0f) * termProd(p1.x, p2.x, p3.x, p1.y, p2.y, p3.y);
+    float intYZ = (det / 120.0f) * termProd(p1.y, p2.y, p3.y, p1.z, p2.z, p3.z);
+    float intZX = (det / 120.0f) * termProd(p1.z, p2.z, p3.z, p1.x, p2.x, p3.x);
+
+    // Apply to inertia tensor components
+    ixx = intY2 + intZ2;
+    iyy = intX2 + intZ2;
+    izz = intX2 + intY2;
+    ixy = -intXY;
+    iyz = -intYZ;
+    izx = -intZX;
+}
+
+std::shared_ptr<RigidBody> RigidBody::createFromMesh(const std::vector<Triangle>& mesh, float density, KinematicState state) {
+    auto body = std::make_shared<RigidBody>(state);
+
+    float totalVolume = 0.0f;
+    Vector3 totalCG = {0,0,0};
+    
+    float Ixx = 0, Iyy = 0, Izz = 0;
+    float Ixy = 0, Iyz = 0, Izx = 0;
+
+    // Accumulate integrals across all triangles
+    for (const auto& tri : mesh) {
+        float vol;
+        Vector3 cg;
+        float ixx, iyy, izz, ixy, iyz, izx;
+        
+        computeTetrahedronIntegrals(tri.v0, tri.v1, tri.v2, vol, cg, ixx, iyy, izz, ixy, iyz, izx);
+
+        totalVolume += vol;
+        totalCG = totalCG + (cg * vol);
+
+        Ixx += ixx; Iyy += iyy; Izz += izz;
+        Ixy += ixy; Iyz += iyz; Izx += izx;
+    }
+
+    // Failure Condition Handling
+    if (totalVolume <= 1e-6f) {
+        std::cerr << "SZM Physics Warning: Geometry has zero or negative volume. Defaulting to Static infinite mass." << std::endl;
+        body->state = KinematicState::Static;
+        body->mass = 0.0f;
+        body->invMass = 0.0f;
+        body->inertiaTensorLocal = {0};
+        body->invInertiaTensorLocal = {0};
+        return body;
+    }
+
+    // Resolve final CoM
+    body->centerOfMassLocal = totalCG / totalVolume;
+    
+    // Apply Material Density to get actual Mass
+    body->mass = totalVolume * density;
+    
+    // If Kinematic or Static, inverse mass and inverse inertia are zeroed out (infinite resistance)
+    if (state == KinematicState::Static || state == KinematicState::Kinematic) {
+        body->invMass = 0.0f;
+        body->inertiaTensorLocal = {0};
+        body->invInertiaTensorLocal = {0};
+        return body;
+    }
+
+    body->invMass = 1.0f / body->mass;
+
+    // Apply Material Density to Inertia Tensor
+    Ixx *= density; Iyy *= density; Izz *= density;
+    Ixy *= density; Iyz *= density; Izx *= density;
+
+    // Shift Inertia Tensor from Origin to Center of Mass (Parallel Axis Theorem)
+    float m = body->mass;
+    float cx = body->centerOfMassLocal.x;
+    float cy = body->centerOfMassLocal.y;
+    float cz = body->centerOfMassLocal.z;
+
+    Ixx -= m * (cy*cy + cz*cz);
+    Iyy -= m * (cx*cx + cz*cz);
+    Izz -= m * (cx*cx + cy*cy);
+    Ixy -= m * (-cx*cy);
+    Iyz -= m * (-cy*cz);
+    Izx -= m * (-cx*cz);
+
+    // Assemble the Symmetric Matrix
+    body->inertiaTensorLocal.m[0][0] = Ixx; body->inertiaTensorLocal.m[0][1] = Ixy; body->inertiaTensorLocal.m[0][2] = Izx;
+    body->inertiaTensorLocal.m[1][0] = Ixy; body->inertiaTensorLocal.m[1][1] = Iyy; body->inertiaTensorLocal.m[1][2] = Iyz;
+    body->inertiaTensorLocal.m[2][0] = Izx; body->inertiaTensorLocal.m[2][1] = Iyz; body->inertiaTensorLocal.m[2][2] = Izz;
+
+    body->invInertiaTensorLocal = body->inertiaTensorLocal.inverse();
+
+    return body;
+}
+
+void RigidBody::updateWorldInertia(const Matrix3x3& rotationMatrix) {
+    if (state == KinematicState::Static || state == KinematicState::Kinematic) return;
+
+    // I_world^-1 = R * I_local^-1 * R^T
+    Matrix3x3 R_T = rotationMatrix.transpose();
+    Matrix3x3 temp = rotationMatrix * invInertiaTensorLocal;
+    invInertiaTensorWorld = temp * R_T;
+}
+
+} // namespace SZM::Physics
+
+cmake_minimum_required(VERSION 3.20)
+project(SZM_Forge_InterferenceChecker VERSION 1.0.0 LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enforce strict performance and warning flags
+if(MSVC)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX /O2 /fp:fast /Zc:__cplusplus")
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -O3 -ffast-math -pthread")
+endif()
+
+# Find Threading Library (Required for multi-core Broad Phase)
+find_package(Threads REQUIRED)
+
+add_library(Assembly_Interference_Checker STATIC
+    ../../src/core/assembly/InterferenceCheck.cpp
+)
+
+target_include_directories(Assembly_Interference_Checker PUBLIC 
+    ../../src/core/assembly
+    ../../src/core/geometry # Assuming dependency on Module 110.4 for SolidBody
+)
+
+target_link_libraries(Assembly_Interference_Checker PRIVATE Threads::Threads)
+
+#pragma once
+#include <vector>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+
+// Forward declarations for external modules
+namespace SZM::Geometry { class SolidBody; }
+
+namespace SZM::Assembly {
+
+    // ------------------------------------------------------------------------
+    // Core Data Structures
+    // ------------------------------------------------------------------------
+    struct Vector3 {
+        double x, y, z;
+    };
+
+    struct AABB {
+        Vector3 min;
+        Vector3 max;
+
+        [[nodiscard]] bool Intersects(const AABB& other, double tolerance) const {
+            return (min.x <= other.max.x + tolerance && max.x >= other.min.x - tolerance) &&
+                   (min.y <= other.max.y + tolerance && max.y >= other.min.y - tolerance) &&
+                   (min.z <= other.max.z + tolerance && max.z >= other.min.z - tolerance);
+        }
+    };
+
+    enum class MaterialType : uint8_t {
+        Metal,
+        Plastic,
+        Rubber_Compressible,
+        Fluid_Volume
+    };
+
+    struct PartInstance {
+        uint32_t InstanceID;
+        AABB BoundingBox;
+        MaterialType Material;
+        std::shared_ptr<SZM::Geometry::SolidBody> Geometry; // Pointer to B-Rep Solid
+    };
+
+    struct ClashVolume {
+        uint32_t PartA_ID;
+        uint32_t PartB_ID;
+        double InterferenceVolume; // In m^3
+        std::shared_ptr<SZM::Geometry::SolidBody> IntersectionMesh; // The glowing red geometry
+    };
+
+    // ------------------------------------------------------------------------
+    // Interference Checker Engine
+    // ------------------------------------------------------------------------
+    class InterferenceChecker {
+    public:
+        InterferenceChecker() = default;
+
+        // Main Execution Hook
+        [[nodiscard]] std::vector<ClashVolume> RunStaticCheck(
+            const std::vector<PartInstance>& assemblyNodes, 
+            double toleranceEpsilon = 0.00001 // 0.01 mm default
+        );
+
+    private:
+        // Material Interaction Rules
+        [[nodiscard]] bool IsOverlapAllowed(MaterialType a, MaterialType b) const;
+
+        // The Narrow Phase delegate (Hooks into Module 120.2 Boolean Operations)
+        [[nodiscard]] std::optional<ClashVolume> PerformNarrowPhaseBoolean(
+            const PartInstance& partA, 
+            const PartInstance& partB
+        );
+    };
+
+} // namespace SZM::Assembly
+
+#include "InterferenceCheck.hpp"
+#include <thread>
+#include <cmath>
+#include <iostream>
+
+namespace SZM::Assembly {
+
+    bool InterferenceChecker::IsOverlapAllowed(MaterialType a, MaterialType b) const {
+        // Engineering Intent: A rubber gasket (compressible) is allowed to slightly 
+        // intersect with metal to simulate real-world compression.
+        if ((a == MaterialType::Rubber_Compressible && b == MaterialType::Metal) ||
+            (b == MaterialType::Rubber_Compressible && a == MaterialType::Metal)) {
+            return true; 
+        }
+        // Fluids conform to their containers, overlaps are expected in CAD representation
+        if (a == MaterialType::Fluid_Volume || b == MaterialType::Fluid_Volume) {
+            return true;
+        }
+        return false;
+    }
+
+    std::optional<ClashVolume> InterferenceChecker::PerformNarrowPhaseBoolean(
+        const PartInstance& partA, const PartInstance& partB) {
+        
+        // [MODULE 120.2 INTEGRATION POINT]
+        // This is where we call the exact Boolean Intersection algorithm.
+        // For the sake of this module's scope, we simulate a boolean result.
+        
+        // Mocking the result of a Boolean Intersection
+        double mockVolume = 0.000001; // 1 cubic mm interference
+        
+        if (mockVolume > 0.0) {
+            return ClashVolume{
+                partA.InstanceID,
+                partB.InstanceID,
+                mockVolume,
+                nullptr // In production, this receives the resulting mesh from Mod 120.2
+            };
+        }
+        return std::nullopt;
+    }
+
+    std::vector<ClashVolume> InterferenceChecker::RunStaticCheck(
+        const std::vector<PartInstance>& assemblyNodes, double toleranceEpsilon) {
+        
+        std::vector<ClashVolume> globalClashes;
+        std::mutex clashMutex;
+
+        const size_t numParts = assemblyNodes.size();
+        if (numParts < 2) return globalClashes;
+
+        // Determine optimal thread count based on hardware
+        unsigned int hwThreads = std::thread::hardware_concurrency();
+        unsigned int numThreads = (hwThreads == 0) ? 4 : hwThreads;
+        
+        std::vector<std::jthread> workers;
+        
+        // We are processing combinations: N*(N-1)/2
+        // To divide the workload evenly among threads, we chunk the outer loop.
+        auto workerTask = [&](size_t startIdx, size_t endIdx) {
+            std::vector<ClashVolume> localClashes;
+
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                const auto& partA = assemblyNodes[i];
+
+                for (size_t j = i + 1; j < numParts; ++j) {
+                    const auto& partB = assemblyNodes[j];
+
+                    // 1. Material Interaction Check (Fastest escape)
+                    if (IsOverlapAllowed(partA.Material, partB.Material)) {
+                        continue;
+                    }
+
+                    // 2. Broad Phase: AABB Intersection (Cheap Math)
+                    if (partA.BoundingBox.Intersects(partB.BoundingBox, toleranceEpsilon)) {
+                        
+                        // 3. Narrow Phase: Boolean Intersection (Heavy Math)
+                        auto clashOpt = PerformNarrowPhaseBoolean(partA, partB);
+                        if (clashOpt.has_value()) {
+                            localClashes.push_back(std::move(clashOpt.value()));
+                        }
+                    }
+                }
+            }
+
+            // Safely merge local thread results into the global array
+            if (!localClashes.empty()) {
+                std::scoped_lock lock(clashMutex);
+                globalClashes.insert(globalClashes.end(), 
+                                     std::make_move_iterator(localClashes.begin()), 
+                                     std::make_move_iterator(localClashes.end()));
+            }
+        };
+
+        // Dispatch threads
+        size_t chunkSize = std::ceil(static_cast<double>(numParts) / numThreads);
+        for (unsigned int t = 0; t < numThreads; ++t) {
+            size_t startIdx = t * chunkSize;
+            size_t endIdx = std::min(startIdx + chunkSize, numParts);
+            
+            if (startIdx >= numParts) break;
+
+            workers.emplace_back(workerTask, startIdx, endIdx);
+        }
+
+        // C++20 std::jthread automatically joins on destruction, but waiting explicitly 
+        // here is good practice to ensure the function blocks until the calculation is done.
+        for (auto& worker : workers) {
+            if (worker.joinable()) worker.join();
+        }
+
+        return globalClashes;
+    }
+
+} // namespace SZM::Assembly
+
+#pragma once
+
+#include <vector>
+#include <memory>
+#include <array>
+#include <cmath>
+#include <cstdint>
+
+namespace SZM::Physics {
+
+// Forward declarations from Module 210.1 & 020.1
+struct Vector3 {
+    float x, y, z;
+    Vector3 operator+(const Vector3& o) const { return {x + o.x, y + o.y, z + o.z}; }
+    Vector3 operator-(const Vector3& o) const { return {x - o.x, y - o.y, z - o.z}; }
+    Vector3 operator-() const { return {-x, -y, -z}; }
+    Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
+    float dot(const Vector3& o) const { return x * o.x + y * o.y + z * o.z; }
+    Vector3 cross(const Vector3& o) const { return {y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x}; }
+    float lengthSquared() const { return x*x + y*y + z*z; }
+    Vector3 normalized() const { float l = std::sqrt(lengthSquared()); return l > 0 ? *this * (1.0f/l) : *this; }
+};
+
+class RigidBody; // Inherits from Entity, contains Transform and Convex Hull vertices
+
+// A single point of contact between two bodies
+struct ContactPoint {
+    Vector3 localPointA;    // Point on A in A's local space
+    Vector3 localPointB;    // Point on B in B's local space
+    Vector3 worldPoint;     // Point in world space
+    Vector3 normal;         // Normal vector pointing from B to A (n-hat)
+    float penetration;      // Penetration depth (d)
+
+    // WARM STARTING DATA: Caches from previous frames to stabilize the solver
+    float normalImpulseAccumulator = 0.0f;
+    float tangentImpulseAccumulator[2] = {0.0f, 0.0f}; 
+    uint32_t featureIdA = 0; // ID of the face/edge on A
+    uint32_t featureIdB = 0; // ID of the face/edge on B
+
+    // Helper for Contact Caching matching
+    bool matches(const ContactPoint& oldPoint, float distanceThreshold = 0.01f) const {
+        return (worldPoint - oldPoint.worldPoint).lengthSquared() < (distanceThreshold * distanceThreshold);
+    }
+};
+
+// The Manifold holding up to 4 contact points for stable face-to-face resting
+struct ContactManifold {
+    std::shared_ptr<RigidBody> bodyA;
+    std::shared_ptr<RigidBody> bodyB;
+    std::vector<ContactPoint> contacts; // Max 4 points usually
+    bool isPersistant = false;
+};
+
+// GJK Simplex structure (max 4 points for a tetrahedron)
+struct Simplex {
+    std::array<Vector3, 4> points;
+    int size = 0;
+
+    void push_front(Vector3 point) {
+        points = {point, points[0], points[1], points[2]};
+        size = std::min(size + 1, 4);
+    }
+};
+
+class CollisionDetection {
+public:
+    // Primary Entry Point for Narrow Phase
+    static bool generateManifold(
+        std::shared_ptr<RigidBody> bodyA, 
+        std::shared_ptr<RigidBody> bodyB, 
+        ContactManifold& outManifold
+    );
+
+    // Continuous Collision Detection (CCD) via Ray-Casting/Swept Volumes to prevent Tunneling
+    static bool sweepTestCCD(
+        std::shared_ptr<RigidBody> bodyA, std::shared_ptr<RigidBody> bodyB, 
+        Vector3 velA, Vector3 velB, float dt, 
+        float& outTimeOfImpact, Vector3& outHitNormal
+    );
+
+    // Warm Starting Cache Manager
+    static void mergeManifolds(std::vector<ContactManifold>& activeCache, ContactManifold& newManifold);
+
+private:
+    // Minkowski Difference Support Function: S(D) = Support_A(D) - Support_B(-D)
+    static Vector3 support(const RigidBody& a, const RigidBody& b, Vector3 direction);
+    static Vector3 getFurthestPointInDirection(const RigidBody& body, Vector3 direction);
+
+    // GJK Boolean Intersection
+    static bool executeGJK(const RigidBody& a, const RigidBody& b, Simplex& outSimplex);
+    static bool handleSimplex(Simplex& simplex, Vector3& direction);
+
+    // EPA Penetration Resolution
+    static ContactPoint executeEPA(const RigidBody& a, const RigidBody& b, const Simplex& initialSimplex);
+};
+
+} // namespace SZM::Physics
+
+#include "CollisionDetection.hpp"
+#include <cfloat>
+
+namespace SZM::Physics {
+
+// Abstracted getter for furthest vertex (Requires B-Rep vertex list from Module 150.2)
+Vector3 CollisionDetection::getFurthestPointInDirection(const RigidBody& body, Vector3 direction) {
+    // In production: Iterate through convex hull vertices, transform to world space, 
+    // and return the vertex `v` that maximizes `v.dot(direction)`.
+    // Returning a stub for compilation completeness.
+    return {0, 0, 0}; 
+}
+
+Vector3 CollisionDetection::support(const RigidBody& a, const RigidBody& b, Vector3 direction) {
+    Vector3 pA = getFurthestPointInDirection(a, direction);
+    Vector3 pB = getFurthestPointInDirection(b, -direction);
+    return pA - pB; // Minkowski difference point
+}
+
+bool CollisionDetection::executeGJK(const RigidBody& a, const RigidBody& b, Simplex& outSimplex) {
+    // Initial search direction
+    Vector3 searchDir = {1.0f, 0.0f, 0.0f}; 
+    
+    // Get first Minkowski Difference point
+    Vector3 supportNode = support(a, b, searchDir);
+    outSimplex.push_front(supportNode);
+    
+    // New direction is towards the origin
+    searchDir = -supportNode;
+
+    const int MAX_ITERATIONS = 64; // Prevent infinite loops in degenerate cases
+    for (int i = 0; i < MAX_ITERATIONS; ++i) {
+        supportNode = support(a, b, searchDir);
+        
+        // If the new point is not past the origin along the search direction,
+        // the Minkowski sum cannot contain the origin. No collision.
+        if (supportNode.dot(searchDir) < 0) {
+            return false; 
+        }
+
+        outSimplex.push_front(supportNode);
+
+        // Update simplex and search direction. If it encloses origin, return true.
+        if (handleSimplex(outSimplex, searchDir)) {
+            return true;
+        }
+    }
+    return false; // Iteration limit hit
+}
+
+// Simplification of Simplex resolution (Line, Triangle, Tetrahedron checks)
+bool CollisionDetection::handleSimplex(Simplex& simplex, Vector3& direction) {
+    if (simplex.size == 2) {
+        // Line case
+        Vector3 a = simplex.points[0];
+        Vector3 b = simplex.points[1];
+        Vector3 ab = b - a;
+        Vector3 ao = -a;
+
+        if (ab.dot(ao) > 0) {
+            direction = ab.cross(ao).cross(ab);
+        } else {
+            simplex.size = 1;
+            direction = ao;
+        }
+    } else if (simplex.size == 3) {
+        // Triangle case (A, B, C)
+        Vector3 a = simplex.points[0];
+        Vector3 b = simplex.points[1];
+        Vector3 c = simplex.points[2];
+        Vector3 ab = b - a;
+        Vector3 ac = c - a;
+        Vector3 ao = -a;
+        Vector3 abc = ab.cross(ac);
+
+        if (abc.cross(ac).dot(ao) > 0) {
+            if (ac.dot(ao) > 0) {
+                simplex.points[1] = c;
+                simplex.size = 2;
+                direction = ac.cross(ao).cross(ac);
+            } else {
+                simplex.size = 2;
+                return handleSimplex(simplex, direction); // Re-eval as line AB
+            }
+        } else {
+            if (ab.cross(abc).dot(ao) > 0) {
+                simplex.size = 2;
+                return handleSimplex(simplex, direction); // Re-eval as line AB
+            } else {
+                if (abc.dot(ao) > 0) {
+                    direction = abc;
+                } else {
+                    // Triangle is upside down
+                    simplex.points[1] = c;
+                    simplex.points[2] = b;
+                    direction = -abc;
+                }
+            }
+        }
+    } else if (simplex.size == 4) {
+        // Tetrahedron case. If origin is inside all 4 faces, return true.
+        // Otherwise, discard the vertex furthest from the origin and project out.
+        // (Detailed math omitted for brevity, assumes true if origin is enclosed)
+        return true; 
+    }
+    return false;
+}
+
+ContactPoint CollisionDetection::executeEPA(const RigidBody& a, const RigidBody& b, const Simplex& initialSimplex) {
+    // EPA logic: Expand the GJK tetrahedron outward until we find the closest face of the 
+    // Minkowski difference to the origin. That face's normal is the Contact Normal, 
+    // and its distance from origin is the Penetration Depth.
+    
+    ContactPoint cp;
+    cp.penetration = 0.0f;
+    cp.normal = {0, 1, 0}; // Default stub
+    
+    /* * PRODUCTION EPA PIPELINE:
+     * 1. Initialize a polytope (list of faces) from the initial 4 GJK points.
+     * 2. Loop (Max 64 times):
+     * a. Find the face on the polytope closest to the origin.
+     * b. Get the normal of that face.
+     * c. Calculate support point p = support(a, b, face_normal).
+     * d. Calculate distance d = p.dot(face_normal).
+     * e. If (d - face_distance) < 0.001f (Tolerance):
+     * WE FOUND THE EDGE. 
+     * cp.normal = face_normal;
+     * cp.penetration = d;
+     * Calculate local/world contact points via Barycentric Coordinates.
+     * break;
+     * f. Else: Subdivide the face using point `p` and add new faces to the polytope.
+     */
+
+    // Stubbing the result for compilation. In a real scenario, Barycentric coordinates 
+    // mapped back to the original bodies yield localPointA and localPointB.
+    cp.worldPoint = {0,0,0}; 
+    return cp;
+}
+
+bool CollisionDetection::generateManifold(std::shared_ptr<RigidBody> bodyA, std::shared_ptr<RigidBody> bodyB, ContactManifold& outManifold) {
+    Simplex simplex;
+    
+    // 1. Broad-Phase AABB check would occur before this function is called.
+    
+    // 2. Narrow-Phase Boolean Intersection (GJK)
+    if (executeGJK(*bodyA, *bodyB, simplex)) {
+        
+        // 3. Exact Penetration Resolution (EPA)
+        ContactPoint cp = executeEPA(*bodyA, *bodyB, simplex);
+        
+        outManifold.bodyA = bodyA;
+        outManifold.bodyB = bodyB;
+        outManifold.contacts.push_back(cp);
+
+        // Note: For Face-to-Face contacts, a technique like "Sutherland-Hodgman Clipping" 
+        // or "Contact Reduction" is run here to expand a single EPA point into a 4-point manifold.
+        
+        return true;
+    }
+    return false;
+}
+
+void CollisionDetection::mergeManifolds(std::vector<ContactManifold>& activeCache, ContactManifold& newManifold) {
+    // 4. Contact Caching / Warm Starting
+    // Iterates through last frame's manifolds. If the objects match, compare contact points.
+    for (auto& cachedManifold : activeCache) {
+        if ((cachedManifold.bodyA == newManifold.bodyA && cachedManifold.bodyB == newManifold.bodyB) ||
+            (cachedManifold.bodyA == newManifold.bodyB && cachedManifold.bodyB == newManifold.bodyA)) {
+            
+            for (auto& newContact : newManifold.contacts) {
+                for (const auto& oldContact : cachedManifold.contacts) {
+                    if (newContact.matches(oldContact, 0.02f)) { // 2cm threshold
+                        // Transfer the accumulated solver impulses to the new frame
+                        // This prevents resting objects from jittering
+                        newContact.normalImpulseAccumulator = oldContact.normalImpulseAccumulator;
+                        newContact.tangentImpulseAccumulator[0] = oldContact.tangentImpulseAccumulator[0];
+                        newContact.tangentImpulseAccumulator[1] = oldContact.tangentImpulseAccumulator[1];
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 5. CCD implementation for Edge Case 9 ("Tunneling")
+bool CollisionDetection::sweepTestCCD(
+    std::shared_ptr<RigidBody> bodyA, std::shared_ptr<RigidBody> bodyB, 
+    Vector3 velA, Vector3 velB, float dt, 
+    float& outTimeOfImpact, Vector3& outHitNormal) 
+{
+    // Implementation uses Ray-Cast against swept AABBs, then falls back to a 
+    // Time-Stepped GJK (Conservative Advancement) if broad-sweep intersects.
+    // If Time of Impact (TOI) < dt, a tunneling event was prevented.
+    return false; 
+}
+
+} // namespace SZM::Physics
+
+#pragma once
+
+#include <vector>
+#include <cmath>
+#include <glm/glm.hpp> // Assuming GLM for standard vector math
+
+namespace SZM::Graphics {
+
+    // 32-byte aligned vertex for optimal GPU memory streaming
+    struct RenderVertex {
+        glm::vec3 Position;
+        glm::vec3 Normal;
+        glm::vec2 TexCoords;
+    };
+
+    struct RenderMesh {
+        std::vector<RenderVertex> Vertices;
+        std::vector<uint32_t> Indices;
+        
+        // VRAM Handles (Set by the Graphics Context later)
+        uint32_t VBO = 0;
+        uint32_t IBO = 0;
+        uint32_t VAO = 0;
+    };
+
+    struct TessellationConfig {
+        double MaxChordalError = 0.01; // ϵ (meters)
+        bool EnableDynamicLOD = true;
+        double CameraDistance = 1.0;   // Used to scale ϵ dynamically
+    };
+
+    class MeshGenerator {
+    public:
+        // Converts a mathematical SolidBody into a GPU-ready triangle mesh
+        // Forward declaring SolidBody from Module 110.4
+        static RenderMesh TessellateSolid(const class Geometry::SolidBody& body, const TessellationConfig& config);
+        
+        // Calculates required segments for a curve based on error tolerance
+        static uint32_t CalculateSegmentCount(double radius, double chordalError);
+    };
+
+} // namespace SZM::Graphics
+
+#include "MeshGenerator.hpp"
+#include <numbers>
+#include <algorithm>
+
+namespace SZM::Graphics {
+
+    uint32_t MeshGenerator::CalculateSegmentCount(double radius, double chordalError) {
+        if (radius <= 0.0 || chordalError <= 0.0) return 3; // Minimum triangle count
+        
+        // Prevent domain errors if chordal error exceeds radius
+        if (chordalError >= radius) return 3; 
+
+        // Formula: N ≈ π / arccos(1 - ϵ/R)
+        double ratio = 1.0 - (chordalError / radius);
+        double angle = std::acos(ratio);
+        
+        // N represents half a cylinder (π), multiply by 2 for full 360 degrees (2π)
+        double segments = std::numbers::pi / angle; 
+        
+        // Ensure at least a minimal resolution, clamp at a safe maximum to prevent VRAM overflow
+        return std::clamp(static_cast<uint32_t>(std::ceil(segments * 2.0)), 3u, 1024u);
+    }
+
+    RenderMesh MeshGenerator::TessellateSolid(const class Geometry::SolidBody& body, const TessellationConfig& config) {
+        RenderMesh mesh;
+        
+        // Edge Case Handling: Dynamic LOD
+        // If the camera is far away, we mathematically increase the allowed chordal error.
+        double effectiveError = config.MaxChordalError;
+        if (config.EnableDynamicLOD) {
+            // Scale error by distance (simplified linear scale for the implementation)
+            effectiveError *= std::max(1.0, config.CameraDistance * 0.1);
+        }
+
+        // Implementation Note for Engineering Team:
+        // 1. Iterate through B-Rep Faces.
+        // 2. If Planar -> Delaunay Triangulation or Ear-Clipping (for simple polygons).
+        // 3. If Cylindrical/Spherical -> Use CalculateSegmentCount(Radius, effectiveError)
+        //    to generate the parameterized UV grid, then construct triangles.
+        // 4. Calculate proper Vertex Normals (not face normals) for smooth PBR lighting.
+        
+        // (Placeholder for the extensive geometry-to-mesh iteration loop)
+        
+        return mesh;
+    }
+
+} // namespace SZM::Graphics
+
+#version 460 core
+
+layout (location = 0) in vec3 aPos;
+layout (location = 1) in vec3 aNormal;
+layout (location = 2) in vec2 aTexCoords;
+
+// Camera and Model Matrices
+layout (std140, binding = 0) uniform CameraMatrices {
+    mat4 view;
+    mat4 projection;
+    vec3 camPos;
+};
+
+uniform mat4 model;
+
+// Outputs to Fragment Shader
+out vec3 WorldPos;
+out vec3 Normal;
+out vec2 TexCoords;
+
+void main() {
+    // Transform vertex position to world space
+    vec4 worldPosition = model * vec4(aPos, 1.0);
+    WorldPos = worldPosition.xyz; 
+    
+    // Transform normal to world space (using Normal Matrix to handle non-uniform scaling)
+    Normal = mat3(transpose(inverse(model))) * aNormal;  
+    
+    TexCoords = aTexCoords;
+
+    // Final screen space position
+    gl_Position = projection * view * worldPosition;
+}
+
+#version 460 core
+
+out vec4 FragColor;
+
+in vec3 WorldPos;
+in vec3 Normal;
+in vec2 TexCoords;
+
+// Material System (300-Series)
+uniform vec3  albedo;
+uniform float metallic;
+uniform float roughness;
+uniform float ao;
+
+// Lighting Context
+uniform vec3 lightPositions[4];
+uniform vec3 lightColors[4];
+
+// Camera Context
+layout (std140, binding = 0) uniform CameraMatrices {
+    mat4 view;
+    mat4 projection;
+    vec3 camPos;
+};
+
+const float PI = 3.14159265359;
+
+// 1. Normal Distribution Function (Trowbridge-Reitz GGX) -> The 'D' in DFG
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+
+    float num = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return num / max(denom, 0.0000001); // Prevent divide by zero
+}
+
+// 2. Geometry Function (Schlick-GGX) -> The 'G' in DFG
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float num = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    return num / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+    return ggx1 * ggx2;
+}
+
+// 3. Fresnel Equation (Fresnel-Schlick) -> The 'F' in DFG
+vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+void main() {
+    vec3 N = normalize(Normal);
+    vec3 V = normalize(camPos - WorldPos);
+
+    // F0 is the base reflectivity. 0.04 is standard for dielectrics (plastic).
+    // If metallic, we use the albedo color as the base reflectivity.
+    vec3 F0 = vec3(0.04); 
+    F0 = mix(F0, albedo, metallic);
+
+    vec3 Lo = vec3(0.0); // Total outgoing radiance
+
+    for(int i = 0; i < 4; ++i) {
+        // Calculate per-light radiance
+        vec3 L = normalize(lightPositions[i] - WorldPos);
+        vec3 H = normalize(V + L); // Halfway vector
+        
+        float distance    = length(lightPositions[i] - WorldPos);
+        float attenuation = 1.0 / (distance * distance); // Inverse square law
+        vec3 radiance     = lightColors[i] * attenuation;
+
+        // Cook-Torrance BRDF
+        float NDF = DistributionGGX(N, H, roughness);       
+        float G   = GeometrySmith(N, V, L, roughness);      
+        vec3 F    = FresnelSchlick(max(dot(H, V), 0.0), F0);       
+
+        vec3 kS = F; // Specular contribution
+        vec3 kD = vec3(1.0) - kS; // Diffuse contribution
+        kD *= 1.0 - metallic; // Pure metals have no diffuse light
+
+        // Specular Equation: (D * F * G) / (4 * (N.V) * (N.L))
+        vec3 numerator    = NDF * G * F;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        vec3 specular     = numerator / denominator;  
+
+        // Add to outgoing radiance equation
+        float NdotL = max(dot(N, L), 0.0);                
+        Lo += (kD * albedo / PI + specular) * radiance * NdotL; 
+    }
+
+    // Ambient lighting approximation (Will be replaced by IBL / Irradiance Maps for full scene reflections)
+    vec3 ambient = vec3(0.03) * albedo * ao;
+    vec3 color = ambient + Lo;
+
+    // HDR Tonemapping (Reinhard) and Gamma Correction
+    color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0/2.2));  
+
+    FragColor = vec4(color, 1.0);
+}
+
+#pragma once
+
+#include <cmath>
+#include <algorithm>
+#include <numbers>
+
+namespace SZM::Graphics {
+
+// Core Math Structures (Expandable for SIMD integration)
+struct Vector3 {
+    float x, y, z;
+    Vector3 operator+(const Vector3& o) const { return {x + o.x, y + o.y, z + o.z}; }
+    Vector3 operator-(const Vector3& o) const { return {x - o.x, y - o.y, z - o.z}; }
+    Vector3 operator*(float s) const { return {x * s, y * s, z * s}; }
+    Vector3 operator/(float s) const { return {x / s, y / s, z / s}; }
+    
+    float dot(const Vector3& o) const { return x * o.x + y * o.y + z * o.z; }
+    Vector3 cross(const Vector3& o) const { return {y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x}; }
+    float length() const { return std::sqrt(x*x + y*y + z*z); }
+    Vector3 normalized() const { float l = length(); return l > 0.0f ? *this / l : *this; }
+};
+
+struct Matrix4x4 {
+    float m[16] = {
+        1,0,0,0, 
+        0,1,0,0, 
+        0,0,1,0, 
+        0,0,0,1
+    };
+};
+
+struct Quaternion {
+    float w, x, y, z;
+
+    // Create a rotation quaternion from an axis and an angle (in radians)
+    static Quaternion fromAxisAngle(const Vector3& axis, float angle) {
+        float halfAngle = angle * 0.5f;
+        float s = std::sin(halfAngle);
+        return { std::cos(halfAngle), axis.x * s, axis.y * s, axis.z * s };
+    }
+
+    // Multiply two quaternions
+    Quaternion operator*(const Quaternion& q) const {
+        return {
+            w * q.w - x * q.x - y * q.y - z * q.z,
+            w * q.x + x * q.w + y * q.z - z * q.y,
+            w * q.y - x * q.z + y * q.w + z * q.x,
+            w * q.z + x * q.y - y * q.x + z * q.w
+        };
+    }
+
+    // Rotate a vector using this quaternion (v' = q * v * q^-1)
+    Vector3 rotate(const Vector3& v) const {
+        Vector3 qVec = {x, y, z};
+        Vector3 t = qVec.cross(v) * 2.0f;
+        return v + (t * w) + qVec.cross(t);
+    }
+};
+
+enum class ProjectionMode {
+    Perspective,
+    Orthographic
+};
+
+class Camera {
+private:
+    Vector3 position;
+    Vector3 target;
+    Vector3 up;
+
+    ProjectionMode mode;
+    
+    float fovDegrees;
+    float aspectRatio;
+    float nearClip;
+    float farClip;
+
+    float orbitRadius;
+    float orthoScale; // Used exclusively for zooming in Orthographic mode
+
+    // Helper to calculate the Right vector based on current view
+    Vector3 getRightVector() const {
+        return (target - position).normalized().cross(up).normalized();
+    }
+
+    // Helper to enforce the minimum radius edge case
+    void enforceMinimumRadius();
+
+public:
+    Camera(Vector3 pos = {10.0f, 10.0f, 10.0f}, Vector3 tgt = {0.0f, 0.0f, 0.0f});
+
+    // Configuration
+    void setProjectionMode(ProjectionMode newMode);
+    void setAspectRatio(float width, float height);
+    
+    // Viewport Inputs (Triggered by Module 010.3 Event Bus)
+    void orbit(float deltaX, float deltaY, float sensitivity = 0.005f);
+    void pan(float deltaX, float deltaY, float sensitivity = 0.01f);
+    void zoom(float deltaScroll, float sensitivity = 0.5f);
+
+    // Matrix Outputs for the Hardware Context (Module 010.4)
+    Matrix4x4 getViewMatrix() const;
+    Matrix4x4 getProjectionMatrix() const;
+
+    // Getters
+    Vector3 getPosition() const { return position; }
+    Vector3 getTarget() const { return target; }
+    ProjectionMode getMode() const { return mode; }
+};
+
+} // namespace SZM::Graphics
+
+#include "Camera.hpp"
+#include <stdexcept>
+
+namespace SZM::Graphics {
+
+Camera::Camera(Vector3 pos, Vector3 tgt)
+    : position(pos), target(tgt), up({0.0f, 1.0f, 0.0f}), mode(ProjectionMode::Perspective),
+      fovDegrees(45.0f), aspectRatio(16.0f / 9.0f), nearClip(0.1f), farClip(1000.0f) 
+{
+    orbitRadius = (position - target).length();
+    orthoScale = orbitRadius * 0.5f; // Initialize ortho scale to match perspective view distance
+    enforceMinimumRadius();
+}
+
+void Camera::enforceMinimumRadius() {
+    constexpr float MIN_RADIUS = 0.01f;
+    if (orbitRadius < MIN_RADIUS) {
+        orbitRadius = MIN_RADIUS;
+        Vector3 direction = (position - target).normalized();
+        if (direction.length() == 0.0f) direction = {0.0f, 0.0f, 1.0f}; // Fallback
+        position = target + (direction * orbitRadius);
+    }
+}
+
+void Camera::setProjectionMode(ProjectionMode newMode) {
+    // Sync ortho scale with current perspective distance to ensure seamless transition
+    if (mode == ProjectionMode::Perspective && newMode == ProjectionMode::Orthographic) {
+        orthoScale = orbitRadius * std::tan((fovDegrees * 0.5f) * (std::numbers::pi_v<float> / 180.0f));
+    }
+    mode = newMode;
+}
+
+void Camera::setAspectRatio(float width, float height) {
+    if (height > 0.0f) {
+        aspectRatio = width / height;
+    }
+}
+
+void Camera::orbit(float deltaX, float deltaY, float sensitivity) {
+    // 1. Calculate the offset vector
+    Vector3 offset = position - target;
+
+    // 2. Horizontal rotation around the global or local UP vector
+    Quaternion qYaw = Quaternion::fromAxisAngle(up, -deltaX * sensitivity);
+    
+    // 3. Vertical rotation around the camera's local RIGHT vector
+    Vector3 right = getRightVector();
+    Quaternion qPitch = Quaternion::fromAxisAngle(right, -deltaY * sensitivity);
+
+    // 4. Combine rotations (Quaternion multiplication)
+    Quaternion qCombined = qYaw * qPitch;
+
+    // 5. Apply rotation to the offset to prevent Gimbal Lock entirely
+    offset = qCombined.rotate(offset);
+
+    // 6. Recalculate Up vector to allow full trackball 360-degree rotation
+    up = qCombined.rotate(up).normalized();
+
+    // 7. Update final position
+    position = target + offset;
+}
+
+void Camera::pan(float deltaX, float deltaY, float sensitivity) {
+    Vector3 right = getRightVector();
+    
+    // Invert deltaY because standard mouse Y is screen-space down
+    Vector3 translation = (right * -deltaX * sensitivity) + (up * deltaY * sensitivity);
+
+    // Scale panning speed based on distance/orthoScale to keep it intuitive
+    float scaleFactor = (mode == ProjectionMode::Perspective) ? orbitRadius : orthoScale * 2.0f;
+    translation = translation * scaleFactor * 0.1f;
+
+    position = position + translation;
+    target = target + translation;
+}
+
+void Camera::zoom(float deltaScroll, float sensitivity) {
+    if (mode == ProjectionMode::Perspective) {
+        // Move P closer to T
+        Vector3 direction = (target - position).normalized();
+        float zoomAmount = deltaScroll * sensitivity * (orbitRadius * 0.1f); // Logarithmic feel
+        
+        position = position + (direction * zoomAmount);
+        orbitRadius = (position - target).length();
+        
+        enforceMinimumRadius(); // Prevents Division by Zero Edge Case
+    } 
+    else if (mode == ProjectionMode::Orthographic) {
+        // Scale the projection matrix bounds without moving P
+        orthoScale -= deltaScroll * sensitivity * (orthoScale * 0.1f);
+        if (orthoScale < 0.1f) orthoScale = 0.1f; // Prevent inverting or zeroing bounds
+    }
+}
+
+Matrix4x4 Camera::getViewMatrix() const {
+    Vector3 f = (target - position).normalized();
+    Vector3 r = f.cross(up).normalized();
+    Vector3 u = r.cross(f);
+
+    Matrix4x4 view;
+    view.m[0] = r.x;  view.m[4] = r.y;  view.m[8] = r.z;   view.m[12] = -r.dot(position);
+    view.m[1] = u.x;  view.m[5] = u.y;  view.m[9] = u.z;   view.m[13] = -u.dot(position);
+    view.m[2] = -f.x; view.m[6] = -f.y; view.m[10] = -f.z; view.m[14] = f.dot(position);
+    view.m[3] = 0.0f; view.m[7] = 0.0f; view.m[11] = 0.0f; view.m[15] = 1.0f;
+
+    return view;
+}
+
+Matrix4x4 Camera::getProjectionMatrix() const {
+    Matrix4x4 proj = {0}; // Initialize to zero
+
+    if (mode == ProjectionMode::Perspective) {
+        float fovRad = fovDegrees * (std::numbers::pi_v<float> / 180.0f);
+        float tanHalfFov = std::tan(fovRad * 0.5f);
+
+        proj.m[0] = 1.0f / (aspectRatio * tanHalfFov);
+        proj.m[5] = 1.0f / tanHalfFov;
+        proj.m[10] = -(farClip + nearClip) / (farClip - nearClip);
+        proj.m[11] = -1.0f;
+        proj.m[14] = -(2.0f * farClip * nearClip) / (farClip - nearClip);
+    } 
+    else if (mode == ProjectionMode::Orthographic) {
+        float right = orthoScale * aspectRatio;
+        float left = -right;
+        float top = orthoScale;
+        float bottom = -top;
+
+        proj.m[0] = 2.0f / (right - left);
+        proj.m[5] = 2.0f / (top - bottom);
+        proj.m[10] = -2.0f / (farClip - nearClip);
+        proj.m[12] = -(right + left) / (right - left);
+        proj.m[13] = -(top + bottom) / (top - bottom);
+        proj.m[14] = -(farClip + nearClip) / (farClip - nearClip);
+        proj.m[15] = 1.0f;
+    }
+
+    return proj;
+}
+
+} // namespace SZM::Graphics
+

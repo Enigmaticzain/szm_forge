@@ -1,0 +1,190 @@
+import { type BaseTexture, type Texture } from "core/index";
+import { Constants } from "core/Engines/constants";
+import { GetTextureDataAsync } from "core/Misc/textureTools";
+
+/**
+ * Defines which channels of the texture to retrieve with {@link TextureHelper.GetTextureDataAsync}.
+ */
+export type TextureChannelsToDisplay = {
+    /**
+     * True if the red channel should be included.
+     */
+    R: boolean;
+    /**
+     * True if the green channel should be included.
+     */
+    G: boolean;
+    /**
+     * True if the blue channel should be included.
+     */
+    B: boolean;
+    /**
+     * True if the alpha channel should be included.
+     */
+    A: boolean;
+};
+
+/**
+ * Gets the data of the specified texture by rendering it to an intermediate RGBA texture and retrieving the bytes from it.
+ * This is convenient to get 8-bit RGBA values for a texture in a GPU compressed format.
+ * @param texture the source texture
+ * @param width the width of the result, which does not have to match the source texture width
+ * @param height the height of the result, which does not have to match the source texture height
+ * @param faceOrLayer if the texture has multiple faces, the face index to use for the source. For 2D array textures, this is the layer index.
+ * @param channels a filter for which of the RGBA channels to return in the result
+ * @param lod if the texture has multiple LODs, the lod index to use for the source
+ * @param slice if the texture is 3D, the depth slice index to use for the source
+ * @returns the 8-bit texture data
+ */
+export async function ApplyChannelsToTextureDataAsync(
+    texture: BaseTexture,
+    width: number,
+    height: number,
+    faceOrLayer: number,
+    channels: TextureChannelsToDisplay,
+    lod: number = 0,
+    slice: number = 0
+): Promise<Uint8Array> {
+    const internalTexture = texture.getInternalTexture();
+    const is3DTexture = texture.is3D || !!internalTexture?.is3D;
+    const textureFormat = internalTexture?.format ?? texture.textureFormat;
+
+    // For cube maps, force RTT path to ensure correct face orientation and gamma correction
+    // For 2D array textures, face is reinterpreted as the layer index for direct pixel readback
+    const data = await GetTextureDataAsync(texture, width, height, faceOrLayer, lod, texture.isCube || is3DTexture, slice);
+
+    const forceOpaqueAlpha = is3DTexture || _TextureFormatHasNoAlpha(textureFormat);
+    if (forceOpaqueAlpha) {
+        for (let i = 3; i < width * height * 4; i += 4) {
+            data[i] = 255;
+        }
+    } else if (texture.getScene()?.getEngine().isWebGPU) {
+        let alphaAllZero = true;
+        let hasNonZeroColor = false;
+
+        for (let i = 0; i < width * height * 4; i += 4) {
+            if (data[i] !== 0 || data[i + 1] !== 0 || data[i + 2] !== 0) {
+                hasNonZeroColor = true;
+            }
+
+            if (data[i + 3] !== 0) {
+                alphaAllZero = false;
+                break;
+            }
+        }
+
+        // Some WebGPU RTT readback paths can return zeroed alpha for textures that
+        // are effectively opaque in source data. In that case, force opaque preview.
+        if (alphaAllZero && hasNonZeroColor) {
+            for (let i = 3; i < width * height * 4; i += 4) {
+                data[i] = 255;
+            }
+        }
+    }
+
+    if (!channels.R || !channels.G || !channels.B || !channels.A) {
+        for (let i = 0; i < width * height * 4; i += 4) {
+            // If alpha is the only channel, just display alpha across all channels
+            if (channels.A && !channels.R && !channels.G && !channels.B) {
+                data[i] = data[i + 3];
+                data[i + 1] = data[i + 3];
+                data[i + 2] = data[i + 3];
+                data[i + 3] = 255;
+                continue;
+            }
+            let r = data[i],
+                g = data[i + 1],
+                b = data[i + 2],
+                a = data[i + 3];
+            // If alpha is not visible, make everything 100% alpha
+            if (!channels.A) {
+                a = 255;
+            }
+            // If only one color channel is selected, map both colors to it. If two are selected, the unused one gets set to 0
+            if (!channels.R) {
+                if (channels.G && !channels.B) {
+                    r = g;
+                } else if (channels.B && !channels.G) {
+                    r = b;
+                } else {
+                    r = 0;
+                }
+            }
+            if (!channels.G) {
+                if (channels.R && !channels.B) {
+                    g = r;
+                } else if (channels.B && !channels.R) {
+                    g = b;
+                } else {
+                    g = 0;
+                }
+            }
+            if (!channels.B) {
+                if (channels.R && !channels.G) {
+                    b = r;
+                } else if (channels.G && !channels.R) {
+                    b = g;
+                } else {
+                    b = 0;
+                }
+            }
+            data[i] = r;
+            data[i + 1] = g;
+            data[i + 2] = b;
+            data[i + 3] = a;
+        }
+    }
+
+    //To flip image on Y axis.
+    if ((texture as Texture).invertY || texture.isCube) {
+        const numberOfChannelsByLine = width * 4;
+        const halfHeight = height / 2;
+        for (let i = 0; i < halfHeight; i++) {
+            for (let j = 0; j < numberOfChannelsByLine; j++) {
+                const currentCell = j + i * numberOfChannelsByLine;
+                const targetLine = height - i - 1;
+                const targetCell = j + targetLine * numberOfChannelsByLine;
+
+                const temp = data[currentCell];
+                data[currentCell] = data[targetCell];
+                data[targetCell] = temp;
+            }
+        }
+    }
+    return data;
+}
+
+function _TextureFormatHasNoAlpha(format: number): boolean {
+    switch (format) {
+        case Constants.TEXTUREFORMAT_LUMINANCE:
+        case Constants.TEXTUREFORMAT_R:
+        case Constants.TEXTUREFORMAT_R16_UNORM:
+        case Constants.TEXTUREFORMAT_R16_SNORM:
+        case Constants.TEXTUREFORMAT_RG:
+        case Constants.TEXTUREFORMAT_RG16_UNORM:
+        case Constants.TEXTUREFORMAT_RG16_SNORM:
+        case Constants.TEXTUREFORMAT_RGB:
+        case Constants.TEXTUREFORMAT_RGB16_UNORM:
+        case Constants.TEXTUREFORMAT_RGB16_SNORM:
+        case Constants.TEXTUREFORMAT_DEPTH16:
+        case Constants.TEXTUREFORMAT_DEPTH24:
+        case Constants.TEXTUREFORMAT_DEPTH24_STENCIL8:
+        case Constants.TEXTUREFORMAT_DEPTH24UNORM_STENCIL8:
+        case Constants.TEXTUREFORMAT_DEPTH32_FLOAT:
+        case Constants.TEXTUREFORMAT_DEPTH32FLOAT_STENCIL8:
+        case Constants.TEXTUREFORMAT_STENCIL8:
+        case Constants.TEXTUREFORMAT_RED_INTEGER:
+        case Constants.TEXTUREFORMAT_RG_INTEGER:
+        case Constants.TEXTUREFORMAT_RGB_INTEGER:
+        case Constants.TEXTUREFORMAT_COMPRESSED_RGB_S3TC_DXT1:
+        case Constants.TEXTUREFORMAT_COMPRESSED_SRGB_S3TC_DXT1_EXT:
+        case Constants.TEXTUREFORMAT_COMPRESSED_RGB_ETC1_WEBGL:
+        case Constants.TEXTUREFORMAT_COMPRESSED_RGB8_ETC2:
+        case Constants.TEXTUREFORMAT_COMPRESSED_SRGB8_ETC2:
+        case Constants.TEXTUREFORMAT_COMPRESSED_RGB_BPTC_UNSIGNED_FLOAT:
+        case Constants.TEXTUREFORMAT_COMPRESSED_RGB_BPTC_SIGNED_FLOAT:
+            return true;
+        default:
+            return false;
+    }
+}

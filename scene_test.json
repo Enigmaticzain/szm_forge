@@ -1,0 +1,132 @@
+{
+  "geometries": [
+    {
+      "depth": 0.5,
+      "height": 0.5,
+      "type": "BoxGeometry",
+      "uuid": "08dfee72-3d6a-4860-a898-a8d217cdbe30",
+      "width": 0.5
+    },
+    {
+      "depth": 0.5,
+      "height": 0.5,
+      "type": "BoxGeometry",
+      "uuid": "fbae4852-d95e-4ca1-b5b3-29c9939cd806",
+      "width": 0.5
+    }
+  ],
+  "materials": [
+    {
+      "color": 8947848,
+      "metalness": 0.5,
+      "name": "DefaultMaterial",
+      "opacity": 1.0,
+      "roughness": 0.5,
+      "transparent": false,
+      "type": "MeshStandardMaterial",
+      "uuid": "e11b16d4-056d-4a44-884b-37a185636603"
+    },
+    {
+      "color": 16711680,
+      "metalness": 0.5,
+      "name": "DangerMaterial",
+      "opacity": 1.0,
+      "roughness": 0.5,
+      "transparent": false,
+      "type": "MeshStandardMaterial",
+      "uuid": "e35e2ea5-ca96-45aa-a891-14255bd5ccf8"
+    }
+  ],
+  "metadata": {
+    "generator": "SZM Forge Three.js Exporter",
+    "type": "Object",
+    "version": 4.5
+  },
+  "object": {
+    "children": [
+      {
+        "geometry": "08dfee72-3d6a-4860-a898-a8d217cdbe30",
+        "material": "e11b16d4-056d-4a44-884b-37a185636603",
+        "matrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "name": "Steel Beam",
+        "type": "Mesh",
+        "userData": {
+          "stress": 3000000.0,
+          "stressRatio": 0.012000000104308128,
+          "tempRatio": 0.0,
+          "temperature": 293.1499938964844
+        },
+        "uuid": "e7c14eb9-4497-4d2c-a34d-5328f068365e"
+      },
+      {
+        "geometry": "fbae4852-d95e-4ca1-b5b3-29c9939cd806",
+        "material": "e35e2ea5-ca96-45aa-a891-14255bd5ccf8",
+        "matrix": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "name": "Al Bracket",
+        "type": "Mesh",
+        "userData": {
+          "stress": 2500000.0,
+          "stressRatio": 0.02631578966975212,
+          "tempRatio": 1.0,
+          "temperature": 1579.158203125
+        },
+        "uuid": "1ce0af97-6b32-4b7c-8c06-ca403cfe0653"
+      }
+    ],
+    "matrix": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      1
+    ],
+    "name": "SZM Simulation Scene",
+    "type": "Scene",
+    "uuid": "cebb23c2-23ba-4bcf-bb99-384a23d5d3de"
+  }
+}
