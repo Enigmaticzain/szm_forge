@@ -4,6 +4,28 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { Evaluator, Brush, SUBTRACTION } from 'three-bvh-csg';
 
+const disposeObjectTree = (obj: THREE.Object3D) => {
+  if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments || obj instanceof THREE.Line) {
+    (obj as any).geometry?.dispose();
+    const mat = (obj as any).material;
+    if (Array.isArray(mat)) {
+      mat.forEach(m => m.dispose());
+    } else {
+      mat?.dispose();
+    }
+  }
+  obj.children.forEach(disposeObjectTree);
+};
+
+const getGeometrySize = (geo: THREE.BufferGeometry): GeometrySize => {
+  geo.computeBoundingBox();
+  const box = geo.boundingBox;
+  if (!box) return { x: 1, y: 1, z: 1 };
+  const size = new THREE.Vector3();
+  box.getSize(size);
+  return { x: size.x, y: size.y, z: size.z };
+};
+
 export type ShapeType = 'box' | 'cylinder' | 'plate' | 'custom';
 export type DeformSelectionMode = 'object' | 'point' | 'line' | 'plane';
 
@@ -525,7 +547,8 @@ export const InteractivePartEditor: React.FC<Props> = ({
         disposeObjectTree(mesh);
       });
       meshMapRef.current.clear();
-      clearDeformHandles();
+      handleGroupRef.current.children.forEach(disposeObjectTree);
+      handleGroupRef.current.clear();
       
       renderer.dispose();
       el.removeChild(renderer.domElement);

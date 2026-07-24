@@ -2,19 +2,20 @@ import React, { useState } from 'react';
 import { ComponentDesignView } from './ComponentDesignView';
 import { AssemblyView } from './AssemblyView';
 import { MaterialSelectionView } from './MaterialSelectionView';
-import { Box, Puzzle, Layers } from 'lucide-react';
+import { ChainSprocketLab } from './ChainSprocketLab';
+import { Box, Puzzle, Layers, FlaskConical } from 'lucide-react';
 import { useProject } from '../../store/ProjectContext';
 
 export interface Joint {
   id: string;
   partAId: string;
   partBId: string;
-  type: string; // 'bolt' | 'glue' | 'weld_tig' | 'weld_mig'
+  type: string; // 'bolt' | 'glue' | 'weld_tig' | 'weld_mig' | 'hinge' | 'motor'
   position: { x: number; y: number; z: number };
   size: number;
 }
 
-type BodyTab = 'component' | 'assembly' | 'materials';
+type BodyTab = 'component' | 'assembly' | 'materials' | 'experiment';
 
 export const BodyDesignLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<BodyTab>('component');
@@ -63,6 +64,20 @@ export const BodyDesignLayout: React.FC = () => {
           <Layers size={10} />
           FULL BODY & MATERIALS
         </button>
+
+        <div className="w-px h-4 bg-forge-border mx-1" />
+
+        <button
+          onClick={() => setActiveTab('experiment')}
+          className={`flex items-center gap-1.5 px-3 py-1 rounded text-[9px] font-semibold tracking-wider transition-all duration-200
+            ${activeTab === 'experiment'
+              ? 'bg-forge-accent/20 text-forge-accent border border-forge-accent/40'
+              : 'text-forge-text-muted hover:text-forge-text hover:bg-forge-surface border border-transparent'
+            }`}
+        >
+          <FlaskConical size={10} />
+          EXPERIMENTS LAB
+        </button>
       </div>
 
       {/* Render active sub-view */}
@@ -70,6 +85,7 @@ export const BodyDesignLayout: React.FC = () => {
         {activeTab === 'component' && <ComponentDesignView parts={parts} setParts={setParts} />}
         {activeTab === 'assembly' && <AssemblyView parts={parts} joints={joints} setJoints={setJoints} />}
         {activeTab === 'materials' && <MaterialSelectionView />}
+        {activeTab === 'experiment' && <ChainSprocketLab />}
       </div>
     </div>
   );

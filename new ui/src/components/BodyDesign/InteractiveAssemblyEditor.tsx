@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -13,6 +13,7 @@ interface Props {
   setSelectedForJoint: React.Dispatch<React.SetStateAction<string[]>>;
   proposedJointSize: number;
   onProposedPositionChange: (pos: {x:number, y:number, z:number} | null) => void;
+  isSimulating: boolean;
 }
 
 export const InteractiveAssemblyEditor: React.FC<Props> = ({ 
@@ -22,7 +23,8 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
   selectedForJoint,
   setSelectedForJoint,
   proposedJointSize,
-  onProposedPositionChange
+  onProposedPositionChange,
+  isSimulating
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -38,6 +40,22 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
   const meshMapRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const jointsGroupRef = useRef<THREE.Group>(new THREE.Group());
   const proposedJointMeshRef = useRef<THREE.Mesh | null>(null);
+
+  const isSimulatingRef = useRef(isSimulating);
+  const jointsRef = useRef(joints);
+  const partsRef = useRef(parts);
+
+  useEffect(() => {
+    isSimulatingRef.current = isSimulating;
+  }, [isSimulating]);
+
+  useEffect(() => {
+    jointsRef.current = joints;
+  }, [joints]);
+  
+  useEffect(() => {
+    partsRef.current = parts;
+  }, [parts]);
 
   // Initialization
   useEffect(() => {
@@ -131,8 +149,50 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
     
     el.addEventListener('pointerdown', onPointerDown);
 
+    const clock = new THREE.Clock();
+
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
+      
+      const time = clock.getElapsedTime();
+
+      if (isSimulatingRef.current) {
+        jointsRef.current.forEach(joint => {
+          if (joint.type === 'motor' || joint.type === 'hinge') {
+            const meshB = meshMapRef.current.get(joint.partBId);
+            const partB = partsRef.current.find(p => p.id === joint.partBId);
+            
+            if (meshB && partB) {
+              const initialPos = new THREE.Vector3(partB.position.x, partB.position.y, partB.position.z);
+              const jointPos = new THREE.Vector3(joint.position.x, joint.position.y, joint.position.z);
+              const offset = initialPos.clone().sub(jointPos);
+              
+              if (joint.type === 'motor') {
+                offset.applyAxisAngle(new THREE.Vector3(0, 1, 0), time * 2.0);
+                meshB.position.copy(jointPos).add(offset);
+                meshB.rotation.y = time * 2.0;
+              } else if (joint.type === 'hinge') {
+                const angle = Math.sin(time * 3.0) * 0.5;
+                offset.applyAxisAngle(new THREE.Vector3(0, 0, 1), angle);
+                meshB.position.copy(jointPos).add(offset);
+                meshB.rotation.z = angle;
+              }
+            }
+          }
+        });
+      } else {
+        jointsRef.current.forEach(joint => {
+          if (joint.type === 'motor' || joint.type === 'hinge') {
+            const meshB = meshMapRef.current.get(joint.partBId);
+            const partB = partsRef.current.find(p => p.id === joint.partBId);
+            if (meshB && partB) {
+                meshB.position.set(partB.position.x, partB.position.y, partB.position.z);
+                meshB.rotation.set(0, 0, 0);
+            }
+          }
+        });
+      }
+
       controls.update();
       renderer.render(scene, camera);
     };
@@ -304,6 +364,8 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
       if (joint.type === 'bolt') color = 0xffcc00;
       else if (joint.type === 'glue') color = 0xff00ff;
       else if (joint.type.includes('weld')) color = 0x00d4ff;
+      else if (joint.type === 'motor') color = 0xff3300;
+      else if (joint.type === 'hinge') color = 0x00ff00;
 
       const sphereGeo = new THREE.SphereGeometry(joint.size, 16, 16);
       const sphereMat = new THREE.MeshStandardMaterial({ color, metalness: 0.8, roughness: 0.2 });
@@ -330,6 +392,8 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
         if (activeFastener === 'bolt') color = 0xffcc00;
         else if (activeFastener === 'glue') color = 0xff00ff;
         else if (activeFastener.includes('weld')) color = 0x00d4ff;
+        else if (activeFastener === 'motor') color = 0xff3300;
+        else if (activeFastener === 'hinge') color = 0x00ff00;
 
         const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
         const lineMat = new THREE.LineBasicMaterial({ color, linewidth: 2, transparent: true, opacity: 0.3 });

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   MousePointer2, Move, Crosshair, 
   Link, Combine, Wrench, Shield, CheckCircle2, Box, Cylinder,
-  Plus
+  Plus, Settings, RotateCw, Play, Square
 } from 'lucide-react';
 import { SceneObject } from './InteractivePartEditor';
 import { InteractiveAssemblyEditor } from './InteractiveAssemblyEditor';
@@ -13,6 +13,8 @@ const fasteningMethods = [
   { id: 'glue', label: 'Adhesive / Glue', icon: <Link size={12} /> },
   { id: 'weld_tig', label: 'TIG Weld', icon: <Combine size={12} /> },
   { id: 'weld_mig', label: 'MIG Weld', icon: <Combine size={12} /> },
+  { id: 'hinge', label: 'Hinge Joint', icon: <Settings size={12} /> },
+  { id: 'motor', label: 'Rotary Motor', icon: <RotateCw size={12} /> },
 ];
 
 interface Props {
@@ -27,6 +29,7 @@ export const AssemblyView: React.FC<Props> = ({ parts, joints, setJoints }) => {
   const [selectedForJoint, setSelectedForJoint] = useState<string[]>([]);
   // Store the proposed joint position from the 3D view
   const [proposedPosition, setProposedPosition] = useState<{x:number, y:number, z:number} | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   const handleCreateJoint = () => {
     if (selectedForJoint.length !== 2 || !proposedPosition) return;
@@ -50,6 +53,20 @@ export const AssemblyView: React.FC<Props> = ({ parts, joints, setJoints }) => {
       {/* Assembly Sidebar */}
       <div className="w-[240px] border-r border-forge-border bg-forge-dark/80 flex flex-col flex-shrink-0 z-10 p-3">
         <h3 className="text-[10px] font-bold tracking-widest text-forge-text-dim mb-4 px-2">ASSEMBLY & FASTENING</h3>
+
+        <div className="px-2 mb-4">
+          <button 
+            onClick={() => setIsSimulating(!isSimulating)}
+            className={`w-full flex items-center justify-center gap-2 py-2 rounded border transition-colors ${
+              isSimulating 
+                ? 'bg-forge-accent/20 text-forge-accent border-forge-accent/40' 
+                : 'bg-forge-surface text-forge-text-muted hover:bg-forge-surface/50 hover:text-forge-text border-forge-border'
+            }`}
+          >
+            {isSimulating ? <Square size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+            <span className="text-[10px] font-bold tracking-wider">{isSimulating ? 'STOP SIMULATION' : 'PLAY SIMULATION'}</span>
+          </button>
+        </div>
 
         <div className="space-y-4 mb-6">
           {/* Tools */}
@@ -169,6 +186,7 @@ export const AssemblyView: React.FC<Props> = ({ parts, joints, setJoints }) => {
             setSelectedForJoint={setSelectedForJoint}
             proposedJointSize={proposedJointSize}
             onProposedPositionChange={setProposedPosition}
+            isSimulating={isSimulating}
           />
         </div>
 
