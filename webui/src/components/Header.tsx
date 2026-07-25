@@ -14,6 +14,7 @@ const views = [
   { id: 'stress', label: 'FEA ANALYSIS', icon: '◆' },
   { id: 'thermal', label: 'THERMAL', icon: '◈' },
   { id: 'electrical', label: 'ELECTRICAL', icon: '⚡' },
+  { id: 'circuit-designer', label: 'CIRCUIT CAD', icon: '🔲' },
   { id: 'digital-twin', label: 'DIGITAL TWIN', icon: '◎' },
   { id: 'manufacturing', label: 'MANUFACTURING', icon: '⚙' },
   { id: 'chemistry-lab', label: 'CHEMISTRY LAB', icon: '🧪' },

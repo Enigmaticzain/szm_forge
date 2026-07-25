@@ -10,6 +10,7 @@ import OverviewDashboard from './components/OverviewDashboard';
 import DigitalTwinView from './components/DigitalTwinView';
 import ManufacturingView from './components/ManufacturingView';
 import ElectricalView from './components/ElectricalView';
+import CircuitDesigner from './components/CircuitDesigner';
 import ChemistryLabView from './components/ChemistryLabView';
 import LoadingScreen from './components/LoadingScreen';
 import { useSimulationData } from './hooks/useSimulationData';
@@ -102,6 +103,9 @@ export default function App() {
       
       case 'electrical':
         return <ElectricalView />;
+      
+      case 'circuit-designer':
+        return <CircuitDesigner />;
       
       case 'digital-twin':
         return <DigitalTwinView sensors={sensors} simulationTime={simulationTime} />;
