@@ -1,0 +1,10 @@
+const r1 = 20;
+const r2 = 60;
+const C = 200;
+const alpha = Math.asin((r2 - r1) / C);
+console.log("Alpha (deg):", alpha * 180 / Math.PI);
+const arc2 = (Math.PI + 2 * alpha) * r2;
+const span = C * Math.cos(alpha);
+const arc1 = (Math.PI - 2 * alpha) * r1;
+const L = arc2 + span + arc1 + span;
+console.log("Lengths:", {arc2, span, arc1, L});

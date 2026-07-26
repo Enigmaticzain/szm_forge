@@ -200,6 +200,27 @@ export const AIWorkspace: React.FC = () => {
 
         {/* Center - Insights & Optimization */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 min-w-0">
+          <div className="p-4 rounded-lg border border-forge-border bg-forge-panel">
+            <div className="flex items-center gap-2 mb-3">
+              <Brain size={12} className="text-forge-accent" />
+              <span className="text-[10px] font-semibold tracking-widest text-forge-text-dim">SZM AI ASSISTANCE</span>
+            </div>
+            <p className="text-[10px] text-forge-text-dim leading-relaxed mb-3">
+              Use this workspace as the front door for design reviews, reusable engineering prompts, and optimization guidance while you build out the next feature set.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button className="px-2.5 py-1 rounded text-[8px] font-mono bg-forge-accent/10 text-forge-accent border border-forge-accent/20 hover:bg-forge-accent/20 transition-all">
+                REVIEW CURRENT MODEL
+              </button>
+              <button className="px-2.5 py-1 rounded text-[8px] font-mono text-forge-text-muted border border-forge-border/50 hover:text-forge-text hover:bg-forge-surface transition-all">
+                SUGGEST OPTIMIZATION
+              </button>
+              <button className="px-2.5 py-1 rounded text-[8px] font-mono text-forge-text-muted border border-forge-border/50 hover:text-forge-text hover:bg-forge-surface transition-all">
+                CHECK SAFETY RISKS
+              </button>
+            </div>
+          </div>
+
           {/* Optimization Targets */}
           <div className="p-4 rounded-lg border border-forge-border bg-forge-panel">
             <div className="flex items-center gap-2 mb-4">

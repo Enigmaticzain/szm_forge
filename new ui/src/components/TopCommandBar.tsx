@@ -35,7 +35,7 @@ const workspaceTabs: { id: WorkspaceMode; label: string; icon: React.ReactNode; 
   { id: 'physics', label: 'REAL PHYSICS', icon: <Zap size={13} />, tipKey: 'simulation' },
   { id: 'digital-twin', label: 'DIGITAL TWIN', icon: <Layers size={13} />, tipKey: 'digitalTwin' },
   { id: 'manufacturing', label: 'MANUFACTURING', icon: <Factory size={13} />, tipKey: 'manufacturing' },
-  { id: 'ai-assistant', label: 'AI ENGINE', icon: <Brain size={13} />, tipKey: 'aiAssistant' },
+  { id: 'ai-assistant', label: 'SZM AI ASSISTANCE', icon: <Brain size={13} />, tipKey: 'aiAssistant' },
   { id: 'fleet-command', label: 'FLEET CMD', icon: <Radio size={13} />, tipKey: 'fleetCommand' },
 ];
 
