@@ -1,0 +1,47 @@
+{
+    "id": "cnc_mill_001",
+    "name": "Standard CNC Mill",
+    "manufacturer": "Generic",
+    "model": "CNC-1000",
+    "type": "cnc_mill",
+    "components": [
+        {
+            "id": "spindle_001",
+            "name": "Main Spindle",
+            "type": "spindle",
+            "parameters": [
+                {"name": "power", "category": "performance", "min": 1, "max": 15, "default": 5, "unit": "kW"},
+                {"name": "max_speed", "category": "performance", "min": 1000, "max": 10000, "default": 5000, "unit": "RPM"},
+                {"name": "torque", "category": "performance", "min": 10, "max": 100, "default": 50, "unit": "Nm"}
+            ]
+        },
+        {
+            "id": "table_001",
+            "name": "Work Table",
+            "type": "linear_motion",
+            "parameters": [
+                {"name": "travel_x", "category": "geometry", "min": 500, "max": 2000, "default": 1000, "unit": "mm"},
+                {"name": "travel_y", "category": "geometry", "min": 300, "max": 1000, "default": 500, "unit": "mm"},
+                {"name": "travel_z", "category": "geometry", "min": 300, "max": 800, "default": 500, "unit": "mm"},
+                {"name": "feed_rate", "category": "performance", "min": 1, "max": 50, "default": 20, "unit": "mm/min"}
+            ]
+        },
+        {
+            "id": "frame_001",
+            "name": "Machine Frame",
+            "type": "frame",
+            "parameters": [
+                {"name": "weight", "category": "physical", "min": 500, "max": 5000, "default": 2000, "unit": "kg"},
+                {"name": "footprint_x", "category": "geometry", "min": 1000, "max": 3000, "default": 1500, "unit": "mm"},
+                {"name": "footprint_y", "category": "geometry", "min": 800, "max": 2000, "default": 1200, "unit": "mm"}
+            ]
+        }
+    ],
+    "capabilities": ["kinematics", "dynamics", "thermal"],
+    "specifications": {
+        "precision": "0.01mm",
+        "spindle_power": "5kW",
+        "work_area": "1000x500x500mm"
+    },
+    "tags": ["cnc", "milling", "3-axis", "production"]
+}
