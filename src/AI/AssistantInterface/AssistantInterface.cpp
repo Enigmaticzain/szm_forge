@@ -254,8 +254,8 @@ void AssistantInterface::RenderQuickActions() {
     ImGui::BeginGroup();
     
     if (ImGui::Button("Capture Screen")) {
-        auto capture = Learning::Vision::VisionSystem::GetInstance().CaptureScreen();
-        std::string desc = Learning::Vision::VisionSystem::GetInstance().DescribeScreen(capture.image);
+        auto capture = Vision::VisionSystem::GetInstance().CaptureScreen();
+        std::string desc = Vision::VisionSystem::GetInstance().DescribeScreen(capture.image);
         AddMessage(MessageRole::ASSISTANT, "Screen captured: " + desc);
     }
     
@@ -481,7 +481,7 @@ void AssistantInterface::RenderScreenPreview() {
     ImGui::BeginChild("ScreenPreview", ImVec2(0, 150), true);
     
     try {
-        auto capture = Learning::Vision::VisionSystem::GetInstance().CaptureScreen();
+        auto capture = Vision::VisionSystem::GetInstance().CaptureScreen();
         
         // Convert cv::Mat to ImGui texture
         // In production, you'd cache this texture

@@ -242,12 +242,12 @@ public:
         const std::vector<MachineParameter>& parameters
     );
     
-    bool CompileGeneratedCode(const GeneratedCode& code);
-    bool ValidateGeneratedMachine(const GeneratedMachine& machine);
+    bool CompileGeneratedCode(GeneratedCode& code);
+    bool ValidateGeneratedMachine(GeneratedMachine& machine);
     
     // ===== INTEGRATION =====
     
-    bool IntegrateMachineIntoApp(const GeneratedMachine& machine);
+    bool IntegrateMachineIntoApp(GeneratedMachine& machine);
     bool RegisterMachineComponent(const std::string& component_id, 
                                   const GeneratedCode& code);
     std::string GetMachineHeader() const;
@@ -315,6 +315,7 @@ private:
     void BuildComponentGraph();
     std::string GenerateClassName(const std::string& base_name);
     std::string GenerateUniqueId();
+    void InitializeCodeTemplates();
     
     // Code generation helpers
     std::string GenerateHeaderContent(const GeneratedMachine& machine);

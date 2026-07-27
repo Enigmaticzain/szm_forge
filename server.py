@@ -1,49 +1,106 @@
-for f in targets:
-    log(f"\n--- FILE: {f} ---")
+#!/usr/bin/env python3
+"""Lightweight web-status server for SZM Forge.
 
-    code = read_file(f)
+This module is intentionally dependency-free so it can be used in minimal
+environments or as a simple health endpoint for local development.
+"""
 
-    log("Running EXECUTOR...")
-    new_code = executor(task, step, f, code, memory)
+from __future__ import annotations
 
-    if not new_code or len(new_code) < 20:
-        log("Skipped: invalid output")
-        continue
+import argparse
+import json
+import os
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Optional, Sequence
 
-    log("Running REVIEWER...")
-    review = reviewer(task, step, new_code)
-    log(f"Reviewer: {review}")
+DEFAULT_HOST = os.getenv("SZM_FORGE_HOST", "127.0.0.1")
+DEFAULT_PORT = int(os.getenv("SZM_FORGE_PORT", "8000"))
 
-    if "FIX" in review:
-        log("Rejected by reviewer")
-        continue
 
-    log("Running SANDBOX...")
-    rc, out, err = sandbox_run(new_code)
+class ForgeRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/health":
+            self._write_json(build_health_payload())
+            return
 
-    if rc != 0:
-        log("Sandbox error detected")
-        log(err[:200])
+        if self.path in {"/", "/status"}:
+            self._write_html(build_status_page())
+            return
 
-        fix = ask_llm(f"""
-Fix this code.
+        self.send_error(404, "Not Found")
 
-Error:
-{err}
+    def log_message(self, format: str, *args) -> None:  # noqa: A003
+        return
 
-Return full corrected code.
-""")
+    def _write_json(self, payload: dict, status: int = 200) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
-        if fix and len(fix) > 20:
-            new_code = fix
-            log("Auto-fixed code")
+    def _write_html(self, html: str, status: int = 200) -> None:
+        body = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
-    diff = "\n".join(
-        list(difflib.unified_diff(code.splitlines(), new_code.splitlines()))[:50]
-    )
-    log(f"DIFF:\n{diff}")
 
-    write_file(f, new_code)
-    log(f"Applied changes to {f}")
+def build_health_payload() -> dict:
+    return {
+        "status": "ok",
+        "project": "SZM Forge",
+        "service": "web-status",
+        "version": "0.3.0",
+    }
 
-    store_memory(f"{task} → {f}")
+
+def build_status_page() -> str:
+    payload = build_health_payload()
+    return f"""<!DOCTYPE html>
+<html lang=\"en\">
+  <head>
+    <meta charset=\"utf-8\">
+    <title>{payload['project']} Status</title>
+    <style>
+      body {{ font-family: Arial, sans-serif; margin: 2rem; }}
+      code {{ background: #f4f4f4; padding: 0.15rem 0.3rem; }}
+    </style>
+  </head>
+  <body>
+    <h1>{payload['project']}</h1>
+    <p>The lightweight status service is running.</p>
+    <p>Health endpoint: <code>/health</code></p>
+    <p>Status: <code>{payload['status']}</code></p>
+  </body>
+</html>"""
+
+
+def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the lightweight SZM Forge status server")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="Host interface to bind to")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to listen on")
+    return parser.parse_args(list(argv) if argv is not None else None)
+
+
+def create_server(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT) -> ThreadingHTTPServer:
+    return ThreadingHTTPServer((host, port), ForgeRequestHandler)
+
+
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    args = parse_args(argv)
+    httpd = create_server(host=args.host, port=args.port)
+    print(f"Starting SZM Forge status server on http://{args.host}:{args.port}")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down SZM Forge status server")
+    finally:
+        httpd.server_close()
+
+
+if __name__ == "__main__":
+    main()

@@ -39,7 +39,7 @@ export interface ForgeState {
 const ForgeStoreContext = createContext<ForgeState | null>(null);
 
 export const ForgeStoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [workspace, setWorkspace] = useState<WorkspaceMode>('engineering');
+  const [workspace, setWorkspace] = useState<WorkspaceMode>('command-center');
   const [renderMode, setRenderMode] = useState<ViewportRenderMode>('shaded');
   const [simulationStatus, setSimulationStatus] = useState<SimulationStatus>('complete');
   const [simulationPaused, setSimulationPaused] = useState(false);

@@ -3,6 +3,7 @@
 #include <sstream>
 #include <algorithm>
 #include <random>
+#include <set>
 #include <filesystem>
 #include <iostream>
 
@@ -900,7 +901,7 @@ GeneratedCode MachineLearningSystem::GenerateComponentCode(
     return code;
 }
 
-bool MachineLearningSystem::CompileGeneratedCode(const GeneratedCode& code) {
+bool MachineLearningSystem::CompileGeneratedCode(GeneratedCode& code) {
     std::cout << "[MachineLearningSystem] Compiling generated code..." << std::endl;
     
     // Create temporary directory
@@ -928,7 +929,7 @@ bool MachineLearningSystem::CompileGeneratedCode(const GeneratedCode& code) {
     return true;
 }
 
-bool MachineLearningSystem::ValidateGeneratedMachine(const GeneratedMachine& machine) {
+bool MachineLearningSystem::ValidateGeneratedMachine(GeneratedMachine& machine) {
     std::cout << "[MachineLearningSystem] Validating generated machine..." << std::endl;
     
     // Validate against learned patterns
@@ -960,7 +961,7 @@ bool MachineLearningSystem::ValidateGeneratedMachine(const GeneratedMachine& mac
 // INTEGRATION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-bool MachineLearningSystem::IntegrateMachineIntoApp(const GeneratedMachine& machine) {
+bool MachineLearningSystem::IntegrateMachineIntoApp(GeneratedMachine& machine) {
     std::cout << "[MachineLearningSystem] Integrating machine into application..." << std::endl;
     
     // Generate code
@@ -1243,7 +1244,7 @@ json MachineLearningSystem::GetStatistics() {
     // Pattern breakdown
     json pattern_breakdown;
     for (const auto& pattern : m_LearnedPatterns) {
-        pattern_breakdown[pattern.pattern_type]++;
+        pattern_breakdown[pattern.pattern_type] = pattern_breakdown.value(pattern.pattern_type, 0) + 1;
     }
     stats["pattern_breakdown"] = pattern_breakdown;
     

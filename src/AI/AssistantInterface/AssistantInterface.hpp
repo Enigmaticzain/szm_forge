@@ -68,6 +68,7 @@ public:
     // Rendering
     void Render();
     void RenderMainPanel();
+    void RenderHeader();
     void RenderSuggestionBar();
     void RenderQuickActions();
     void RenderStats();

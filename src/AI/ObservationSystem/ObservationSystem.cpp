@@ -1,5 +1,7 @@
 #include "ObservationSystem.hpp"
+#include <iostream>
 #include <algorithm>
+#include <set>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -704,11 +706,18 @@ ActionContext ObservationSystem::CaptureCurrentContext() {
             
             // Detect focused element
             auto elements = vision.DetectElements(capture.image);
+#ifdef _WIN32
             POINT cursor_pos;
             GetCursorPos(&cursor_pos);
+            int cursor_x = cursor_pos.x;
+            int cursor_y = cursor_pos.y;
+#else
+            int cursor_x = 0;
+            int cursor_y = 0;
+#endif
             
             for (const auto& elem : elements) {
-                if (elem.bounding_box.contains(cv::Point(cursor_pos.x, cursor_pos.y))) {
+                if (elem.bounding_box.contains(cv::Point(cursor_x, cursor_y))) {
                     context.focused_element_id = elem.id;
                     context.focused_element_type = std::to_string((int)elem.type);
                     context.focused_element_text = elem.text_content;

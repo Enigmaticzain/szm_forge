@@ -11,6 +11,7 @@ export const tooltips = {
     switchClassic: 'Switch to the classic command-center dashboard layout.',
   },
   workspace: {
+    commandCenter: 'Command Center — executive overview for design, simulation, manufacturing, and SZM AI coordination.',
     engineering: 'Engineering — 3D modeling, assemblies, part library, and placement (Workshop3D).',
     simulation: 'Simulation — FEA stress/thermal runs linked to codes/ linear solver.',
     digitalTwin: 'Digital Twin — Live sensor telemetry and predictive health monitoring.',

@@ -49,6 +49,14 @@ cmake --build build --parallel
 ./build/SZM_Forge
 ```
 
+For a lightweight local status service, run:
+
+```bash
+python3 server.py --host 127.0.0.1 --port 8000
+```
+
+Then visit http://127.0.0.1:8000/health for a JSON health payload or http://127.0.0.1:8000/ for a simple status page.
+
 Dev UI only: `cd "new ui" && npm run dev` → http://localhost:3000
 
 Legacy ImGui workshop fallback: `SZM_NATIVE_WORKSHOP_UI=1 ./build/SZM_Forge`  

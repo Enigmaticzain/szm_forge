@@ -1,4 +1,4 @@
-export type WorkspaceMode = 'engineering' | 'simulation' | 'digital-twin' | 'manufacturing' | 'ai-assistant' | 'fleet-command' | 'designing' | 'physics';
+export type WorkspaceMode = 'command-center' | 'engineering' | 'simulation' | 'digital-twin' | 'manufacturing' | 'ai-assistant' | 'fleet-command' | 'designing' | 'physics' | 'chemistry-lab' | 'circuit-design';
 
 export type ViewportRenderMode = 'shaded' | 'wireframe' | 'xray' | 'thermal' | 'stress' | 'pressure' | 'electrical';
 

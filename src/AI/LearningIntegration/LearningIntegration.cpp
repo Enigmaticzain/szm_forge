@@ -25,19 +25,19 @@ void LearningIntegration::Initialize() {
     observation_skill.name = "screen_observation";
     observation_skill.level = 1;
     observation_skill.confidence = 0.5f;
-    m_SkillSystem.RegisterSkill(observation_skill);
+    m_MemoryEngine.RegisterSkill(observation_skill);
     
     Legendary::SkillEntry pattern_skill;
     pattern_skill.name = "pattern_recognition";
     pattern_skill.level = 1;
     pattern_skill.confidence = 0.5f;
-    m_SkillSystem.RegisterSkill(pattern_skill);
+    m_MemoryEngine.RegisterSkill(pattern_skill);
     
     Legendary::SkillEntry action_skill;
     action_skill.name = "action_prediction";
     action_skill.level = 1;
     action_skill.confidence = 0.5f;
-    m_SkillSystem.RegisterSkill(action_skill);
+    m_MemoryEngine.RegisterSkill(action_skill);
     
     m_IsInitialized = true;
     m_IsActive = true;
@@ -607,7 +607,9 @@ void LearningIntegration::GenerateSuggestionsFromPatterns() {
         );
         
         suggestion.pattern_id = pattern.id;
-        suggestion.suggested_actions = pattern.possible_actions;
+        for (const auto& act : pattern.action_sequence) {
+            suggestion.suggested_actions.push_back(act.description);
+        }
         
         m_CurrentSuggestions.push_back(suggestion);
         suggestion_count++;

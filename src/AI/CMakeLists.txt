@@ -38,13 +38,18 @@ target_compile_features(SZM_AI_Module PUBLIC cxx_std_20)
 find_package(Threads REQUIRED)
 
 # Find OpenCV for Vision System
-find_package(OpenCV REQUIRED)
+find_package(OpenCV QUIET)
 if(OpenCV_FOUND)
     target_include_directories(SZM_AI_Module PRIVATE ${OpenCV_INCLUDE_DIRS})
     target_link_libraries(SZM_AI_Module PRIVATE ${OpenCV_LIBS})
+else()
+    message(STATUS "OpenCV not found. Using MockOpenCV stubs.")
+    target_include_directories(SZM_AI_Module PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/MockOpenCV)
+    target_compile_definitions(SZM_AI_Module PUBLIC SZM_MOCK_VISION=1)
 endif()
 
 target_link_libraries(SZM_AI_Module PUBLIC 
     Threads::Threads 
     nlohmann_json::nlohmann_json
+    imgui
 )

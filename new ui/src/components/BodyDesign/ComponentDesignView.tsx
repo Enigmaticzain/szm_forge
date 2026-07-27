@@ -15,7 +15,7 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
   const [deformSelectionMode, setDeformSelectionMode] = useState<DeformSelectionMode>('object');
   const [booleanToolMode, setBooleanToolMode] = useState(false);
   const [isSnappingEnabled, setIsSnappingEnabled] = useState(false);
-  const [deformBrushSize, setDeformBrushSize] = useState(30);
+  const [deformBrushSize, setDeformBrushSize] = useState(120);
 
   // Undo/Redo State
   const [history, setHistory] = useState<SceneObject[][]>([objects]);
@@ -528,15 +528,15 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
           </div>
         )}
 
-        {/* Floating properties panel for Deform Brush Size */}
+        {/* Floating properties panel for deformation softness */}
         {deformSelectionMode !== 'object' && (
           <div className="absolute top-4 right-4 bg-forge-panel border border-forge-border rounded p-3 z-20 shadow-lg w-[200px]">
-            <h4 className="text-[10px] font-bold tracking-widest text-forge-accent mb-1 uppercase truncate">DEFORM BRUSH</h4>
-            <div className="text-[8px] font-mono text-forge-text-muted mb-2 mt-3 border-b border-forge-border pb-1">SOFT SELECTION RADIUS</div>
+            <h4 className="text-[10px] font-bold tracking-widest text-forge-accent mb-1 uppercase truncate">FEATURE DEFORM</h4>
+            <div className="text-[8px] font-mono text-forge-text-muted mb-2 mt-3 border-b border-forge-border pb-1">STRETCH SOFTNESS</div>
             <div className="space-y-1.5">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-mono text-forge-text-muted">SIZE (mm)</span>
+                  <span className="text-[9px] font-mono text-forge-text-muted">SOFTNESS</span>
                   <span className="text-[10px] font-mono text-forge-accent">{deformBrushSize}</span>
                 </div>
                 <input 
@@ -556,7 +556,7 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
         <div className="absolute bottom-4 left-4 h-[32px] bg-forge-panel border border-forge-border rounded flex items-center px-4 justify-between z-20 shadow-lg">
           <div className="flex items-center gap-4">
             <span className="text-[9px] font-mono text-forge-text-muted">
-              {booleanToolMode ? 'CSG MODE: SELECT TOOL SHAPE' : deformSelectionMode === 'object' ? 'SELECT: CLICK' : `DRAG ${deformSelectionMode.toUpperCase()} HANDLE`}
+              {booleanToolMode ? 'CSG MODE: SELECT TOOL SHAPE' : deformSelectionMode === 'object' ? 'SELECT: CLICK' : `HOLD + DRAG ${deformSelectionMode.toUpperCase()}`}
             </span>
             <span className={`text-[9px] font-mono ${booleanToolMode ? 'text-forge-red' : 'text-forge-accent'}`}>
               MODE: {booleanToolMode ? 'BOOLEAN CUT' : deformSelectionMode === 'object' ? transformMode.toUpperCase() : deformSelectionMode.toUpperCase()}

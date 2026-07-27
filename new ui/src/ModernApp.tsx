@@ -14,6 +14,9 @@ import { LoadingScreen } from './components/LoadingScreen';
 import { PropertyInspector } from './components/PropertyInspector';
 import { DesigningWorkspace } from './components/DesigningWorkspace';
 import { PhysicsWorkspace } from './components/PhysicsWorkspace';
+import ChemistryLabView from './components/ChemistryLabView';
+import CircuitDesigner from './components/CircuitDesigner';
+import { CommandCenterWorkspace } from './components/CommandCenterWorkspace';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SettingsPanel } from './components/SettingsPanel';
 import { Resizer } from './components/Resizer';
@@ -140,6 +143,22 @@ const ModernApp: React.FC = () => {
             showRight={false}
           />
         );
+      case 'chemistry-lab':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<ChemistryLabView />}
+            showRight={false}
+          />
+        );
+      case 'circuit-design':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<CircuitDesigner />}
+            showRight={false}
+          />
+        );
       case 'simulation':
         return (
           <WorkspaceLayout
@@ -153,6 +172,14 @@ const ModernApp: React.FC = () => {
           <WorkspaceLayout
             showLeft={false}
             center={<DesigningWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'command-center':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<CommandCenterWorkspace />}
             showRight={false}
           />
         );

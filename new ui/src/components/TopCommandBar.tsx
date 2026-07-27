@@ -6,7 +6,7 @@ import {
   Cpu, Layers, Box, Factory, Brain, Radio,
   Play, Pause, RotateCcw, Settings, Maximize2,
   Eye, Thermometer, Zap, Activity, Grid3x3,
-  ChevronDown, Hexagon, Shield, Bell, PenTool
+  ChevronDown, Hexagon, Shield, Bell, PenTool, Microscope, CircuitBoard, LayoutGrid
 } from 'lucide-react';
 
 interface Props {
@@ -29,12 +29,15 @@ interface Props {
 }
 
 const workspaceTabs: { id: WorkspaceMode; label: string; icon: React.ReactNode; tipKey: keyof typeof tooltips.workspace }[] = [
+  { id: 'command-center', label: 'COMMAND CENTER', icon: <LayoutGrid size={13} />, tipKey: 'commandCenter' },
   { id: 'engineering', label: 'ENGINEERING', icon: <Box size={13} />, tipKey: 'engineering' },
   { id: 'designing', label: 'DESIGNING', icon: <PenTool size={13} />, tipKey: 'designing' },
   { id: 'simulation', label: 'SIMULATION', icon: <Cpu size={13} />, tipKey: 'simulation' },
   { id: 'physics', label: 'REAL PHYSICS', icon: <Zap size={13} />, tipKey: 'simulation' },
   { id: 'digital-twin', label: 'DIGITAL TWIN', icon: <Layers size={13} />, tipKey: 'digitalTwin' },
   { id: 'manufacturing', label: 'MANUFACTURING', icon: <Factory size={13} />, tipKey: 'manufacturing' },
+  { id: 'chemistry-lab', label: 'CHEMISTRY LAB', icon: <Microscope size={13} />, tipKey: 'manufacturing' },
+  { id: 'circuit-design', label: 'CIRCUIT DESIGN', icon: <CircuitBoard size={13} />, tipKey: 'manufacturing' },
   { id: 'ai-assistant', label: 'SZM AI ASSISTANCE', icon: <Brain size={13} />, tipKey: 'aiAssistant' },
   { id: 'fleet-command', label: 'FLEET CMD', icon: <Radio size={13} />, tipKey: 'fleetCommand' },
 ];

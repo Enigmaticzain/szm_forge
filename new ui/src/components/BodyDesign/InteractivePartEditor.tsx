@@ -30,8 +30,19 @@ export type ShapeType = 'box' | 'cylinder' | 'plate' | 'custom';
 export type DeformSelectionMode = 'object' | 'point' | 'line' | 'plane';
 
 type Axis = 'x' | 'y' | 'z';
-type DeformHandleKind = Exclude<DeformSelectionMode, 'object'>;
-type AxisLocks = Partial<Record<Axis, number>>;
+type AxisSide = 'min' | 'max';
+type FeatureMode = Exclude<DeformSelectionMode, 'object'>;
+
+interface AxisLock {
+  axis: Axis;
+  side: AxisSide;
+}
+
+interface DeformTarget {
+  mode: FeatureMode;
+  axisLocks: AxisLock[];
+  localAnchor: THREE.Vector3;
+}
 
 export interface SceneObject {
   id: string;
@@ -68,15 +79,173 @@ interface Props {
 interface DeformDragState {
   objectId: string;
   mesh: THREE.Mesh;
-  kind: DeformSelectionMode;
   startPositions: Float32Array;
   startWorldHit: THREE.Vector3;
   dragPlane: THREE.Plane;
-  pointerId: number;
   vertexWeights: Float32Array;
-  brushSize: number;
 }
 
+const AXES: Axis[] = ['x', 'y', 'z'];
+
+const EDGE_INDEX_PAIRS: Array<[number, number]> = [
+  [0, 1], [2, 3], [4, 5], [6, 7],
+  [0, 2], [1, 3], [4, 6], [5, 7],
+  [0, 4], [1, 5], [2, 6], [3, 7],
+];
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+
+const buildCornerTargets = (box: THREE.Box3): DeformTarget[] => [
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+    axisLocks: [{ axis: 'x', side: 'min' }, { axis: 'y', side: 'min' }, { axis: 'z', side: 'min' }],
+  },
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+    axisLocks: [{ axis: 'x', side: 'max' }, { axis: 'y', side: 'min' }, { axis: 'z', side: 'min' }],
+  },
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+    axisLocks: [{ axis: 'x', side: 'min' }, { axis: 'y', side: 'max' }, { axis: 'z', side: 'min' }],
+  },
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+    axisLocks: [{ axis: 'x', side: 'max' }, { axis: 'y', side: 'max' }, { axis: 'z', side: 'min' }],
+  },
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+    axisLocks: [{ axis: 'x', side: 'min' }, { axis: 'y', side: 'min' }, { axis: 'z', side: 'max' }],
+  },
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+    axisLocks: [{ axis: 'x', side: 'max' }, { axis: 'y', side: 'min' }, { axis: 'z', side: 'max' }],
+  },
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+    axisLocks: [{ axis: 'x', side: 'min' }, { axis: 'y', side: 'max' }, { axis: 'z', side: 'max' }],
+  },
+  {
+    mode: 'point',
+    localAnchor: new THREE.Vector3(box.max.x, box.max.y, box.max.z),
+    axisLocks: [{ axis: 'x', side: 'max' }, { axis: 'y', side: 'max' }, { axis: 'z', side: 'max' }],
+  },
+];
+
+const getCommonAxisLocks = (a: DeformTarget, b: DeformTarget): AxisLock[] => {
+  return a.axisLocks.filter(lock =>
+    b.axisLocks.some(other => other.axis === lock.axis && other.side === lock.side)
+  );
+};
+
+const resolvePlaneTarget = (box: THREE.Box3, localPoint: THREE.Vector3): DeformTarget => {
+  let bestAxis: Axis = 'x';
+  let bestSide: AxisSide = 'min';
+  let bestDistance = Infinity;
+
+  AXES.forEach(axis => {
+    const minDistance = Math.abs(localPoint[axis] - box.min[axis]);
+    const maxDistance = Math.abs(localPoint[axis] - box.max[axis]);
+
+    if (minDistance < bestDistance) {
+      bestAxis = axis;
+      bestSide = 'min';
+      bestDistance = minDistance;
+    }
+
+    if (maxDistance < bestDistance) {
+      bestAxis = axis;
+      bestSide = 'max';
+      bestDistance = maxDistance;
+    }
+  });
+
+  const localAnchor = localPoint.clone();
+  localAnchor[bestAxis] = bestSide === 'min' ? box.min[bestAxis] : box.max[bestAxis];
+
+  return {
+    mode: 'plane',
+    localAnchor,
+    axisLocks: [{ axis: bestAxis, side: bestSide }],
+  };
+};
+
+const resolveLineTarget = (box: THREE.Box3, localPoint: THREE.Vector3): DeformTarget => {
+  const corners = buildCornerTargets(box);
+  let bestStart = corners[0];
+  let bestEnd = corners[1];
+  let bestAnchor = new THREE.Vector3();
+  let bestDistance = Infinity;
+
+  EDGE_INDEX_PAIRS.forEach(([startIndex, endIndex]) => {
+    const start = corners[startIndex].localAnchor;
+    const end = corners[endIndex].localAnchor;
+    const edge = new THREE.Line3(start, end);
+    const anchor = new THREE.Vector3();
+    edge.closestPointToPoint(localPoint, true, anchor);
+    const distance = anchor.distanceTo(localPoint);
+
+    if (distance < bestDistance) {
+      bestStart = corners[startIndex];
+      bestEnd = corners[endIndex];
+      bestAnchor = anchor;
+      bestDistance = distance;
+    }
+  });
+
+  return {
+    mode: 'line',
+    localAnchor: bestAnchor,
+    axisLocks: getCommonAxisLocks(bestStart, bestEnd),
+  };
+};
+
+const resolvePointTarget = (box: THREE.Box3, localPoint: THREE.Vector3): DeformTarget => {
+  const corners = buildCornerTargets(box);
+  return corners.reduce((best, target) => (
+    target.localAnchor.distanceTo(localPoint) < best.localAnchor.distanceTo(localPoint) ? target : best
+  ), corners[0]);
+};
+
+const resolveDeformTarget = (mode: FeatureMode, box: THREE.Box3, localPoint: THREE.Vector3): DeformTarget => {
+  if (mode === 'point') return resolvePointTarget(box, localPoint);
+  if (mode === 'line') return resolveLineTarget(box, localPoint);
+  return resolvePlaneTarget(box, localPoint);
+};
+
+const getAxisInfluence = (vertex: THREE.Vector3, box: THREE.Box3, lock: AxisLock): number => {
+  const min = box.min[lock.axis];
+  const max = box.max[lock.axis];
+  const range = max - min;
+  if (Math.abs(range) < 0.000001) return 1;
+
+  const normalized = clamp01((vertex[lock.axis] - min) / range);
+  return lock.side === 'max' ? normalized : 1 - normalized;
+};
+
+const getFeatureInfluence = (
+  vertex: THREE.Vector3,
+  box: THREE.Box3,
+  target: DeformTarget,
+  softnessValue: number
+): number => {
+  const rawWeight = target.axisLocks.reduce(
+    (weight, lock) => weight * getAxisInfluence(vertex, box, lock),
+    1
+  );
+
+  if (rawWeight <= 0.0001) return 0;
+
+  const softness = clamp01((softnessValue - 5) / 195);
+  const sharpness = THREE.MathUtils.lerp(2.4, 0.85, softness);
+  return Math.pow(rawWeight, sharpness);
+};
 
 // Helper to create a bended geometry
 export const createBendedGeometry = (obj: SceneObject) => {
@@ -238,42 +407,21 @@ export const InteractivePartEditor: React.FC<Props> = ({
     mesh.updateMatrixWorld();
     const anchorWorld = intersect.point.clone();
     const anchorLocal = mesh.worldToLocal(anchorWorld.clone());
-    const normalLocal = intersect.face?.normal?.clone() || new THREE.Vector3(0,1,0);
+    geometry.computeBoundingBox();
 
     const kind = deformSelectionModeRef.current;
-    if (kind === 'object') return false;
+    if (kind === 'object' || !geometry.boundingBox) return false;
 
-    const brushSize = deformBrushSizeRef.current;
+    const target = resolveDeformTarget(kind, geometry.boundingBox, anchorLocal);
     const vertexWeights = new Float32Array(position.count);
     const vertex = new THREE.Vector3();
     let hasNonZeroWeight = false;
 
-    let lineDir = new THREE.Vector3();
-    if (kind === 'line') {
-      lineDir.crossVectors(normalLocal, new THREE.Vector3(0,1,0));
-      if (lineDir.lengthSq() < 0.01) lineDir.crossVectors(normalLocal, new THREE.Vector3(1,0,0));
-      lineDir.normalize();
-    }
-
     for (let i = 0; i < position.count; i += 1) {
       vertex.fromBufferAttribute(position, i);
-      let dist = 0;
-      
-      if (kind === 'point') {
-        dist = vertex.distanceTo(anchorLocal);
-      } else if (kind === 'plane') {
-        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normalLocal, anchorLocal);
-        dist = Math.abs(plane.distanceToPoint(vertex));
-      } else if (kind === 'line') {
-        const line = new THREE.Line3(anchorLocal.clone().sub(lineDir.clone().multiplyScalar(1000)), anchorLocal.clone().add(lineDir.clone().multiplyScalar(1000)));
-        const closest = new THREE.Vector3();
-        line.closestPointToPoint(vertex, false, closest);
-        dist = vertex.distanceTo(closest);
-      }
-
-      if (dist <= brushSize) {
-        const t = 1.0 - (dist / brushSize) * (dist / brushSize);
-        vertexWeights[i] = t * t;
+      const weight = getFeatureInfluence(vertex, geometry.boundingBox, target, deformBrushSizeRef.current);
+      if (weight > 0) {
+        vertexWeights[i] = weight;
         hasNonZeroWeight = true;
       } else {
         vertexWeights[i] = 0;
@@ -288,13 +436,10 @@ export const InteractivePartEditor: React.FC<Props> = ({
     activeDragRef.current = {
       objectId,
       mesh,
-      kind,
       startPositions: new Float32Array(position.array as Float32Array),
       startWorldHit: anchorWorld,
       dragPlane,
-      pointerId: event.pointerId,
       vertexWeights,
-      brushSize
     };
 
     controls.enabled = false;
