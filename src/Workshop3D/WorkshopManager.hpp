@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AssemblyManager.hpp"
+#include "Assembly/AttachmentManager.hpp"
 #include "CADImporter.hpp"
 #include "Graphics/Heatmap.hpp"
 #include "PartLibrary.hpp"
@@ -24,6 +25,9 @@ namespace SZM::Workshop3D {
 
         AssemblyManager& GetAssemblyManager() { return m_AssemblyManager; }
         const AssemblyManager& GetAssemblyManager() const { return m_AssemblyManager; }
+
+        Assembly::AttachmentManager& GetAttachmentManager() { return m_AttachmentManager; }
+        const Assembly::AttachmentManager& GetAttachmentManager() const { return m_AttachmentManager; }
 
         std::shared_ptr<Part> ImportPart(const std::string& filepath, const std::string& name = "");
         int ImportCode8Examples(const std::string& code8Dir);
@@ -82,6 +86,7 @@ namespace SZM::Workshop3D {
 
         PartLibrary m_PartLibrary;
         AssemblyManager m_AssemblyManager;
+        Assembly::AttachmentManager m_AttachmentManager;
         SimulationEngine* m_Simulation = nullptr;
         bool m_IsInitialized = false;
         std::string m_Code8Directory;

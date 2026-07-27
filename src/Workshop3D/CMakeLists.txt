@@ -18,6 +18,10 @@ set(SZM_WORKSHOP3D_SOURCES
     ComponentBrowserPanel.cpp
     ComponentWeightTablePanel.hpp
     ComponentWeightTablePanel.cpp
+    AttachmentPanel.hpp
+    AttachmentPanel.cpp
+    AttachmentRenderer.hpp
+    AttachmentRenderer.cpp
 )
 
 # Create Workshop3D module library

@@ -5,6 +5,7 @@ add_library(SZM_Assembly_Module STATIC
     AssemblyGraph.cpp
     KinematicSolver.cpp
     InterferenceCheck.cpp
+    AttachmentManager.cpp
 )
 
 target_include_directories(SZM_Assembly_Module PUBLIC
