@@ -1,0 +1,57 @@
+
+(SZM_Forge:53295): Gdk-WARNING **: 16:40:53.509: eglMakeCurrent failed
+CONSOLE NETWORK INFO Successfully preconnected to https://fonts.gstatic.com/
+CONSOLE NETWORK INFO Successfully preconnected to https://fonts.googleapis.com/
+http://127.0.0.1:8000/:37:20223: CONSOLE WARN THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.
+[SZM Forge] Starting desktop application with React UI...
+SZM Forge [GPU]: OpenGL 4.5 Context Initialized.
+SZM Forge [GPU]: Hardware - Intel Mesa Intel(R) HD Graphics 4400 (HSW GT2)
+[SZM Materials] Standard library loaded (4 materials).
+[Scheduler] Initializing Multi-Physics Orchestrator...
+[CouplingManager] Initialized.
+[SZM Simulation] Engine initialized.
+[SZM Physics] 200-Series Physics Engine initialised.
+[Workshop3D] Imported 56 code 8 examples from /mnt/D/projects/szm_forge/codes/code 8
+[SimulationAPI] Initialized on port 8000
+[AnalysisAPI] Initialized on port 8001
+[ExportAPI] Initialized on port 8002
+[APIManager] Initializing embedded HTTP server...
+[APIManager] HTTP Server listening on port 8000
+[APIManager] Server started successfully
+[APIManager] Endpoints:
+  GET  /api/status
+  GET  /api/assembly
+  GET  /api/project
+  POST /api/project/new
+  POST /api/project/table
+  POST /api/project/limits
+  POST /api/ai/improve
+  POST /api/workshop/bootstrap
+  GET  /api/simulation/status
+  GET  /api/scene.json
+  POST /api/structural/solve
+  GET  /api/code8/catalog
+  GET  /api/materials
+[SZM Forge] Initializing new React UI (new ui/)...
+[ReactUIManager] Initialized successfully
+[ReactUIManager] UI path: /mnt/D/projects/szm_forge/new ui
+[ReactUIManager] Build path: /mnt/D/projects/szm_forge/new ui/dist
+[ReactUIManager] Build already exists. Skipping build step for faster startup.
+[SZM Forge] React UI built successfully
+[SZM Forge] Window initialised (1920×1080).
+[DigitalTwinManager] Initializing Digital Twin Core...
+[SensorTelemetry] Initializing telemetry ingestion engine...
+[SZM Forge] Application initialized.
+[SZM Forge] Entering main loop...
+
+[SZM Forge] Launching Webview: http://127.0.0.1:8000/
+[DigitalTwinManager] Shutting down Digital Twin Core...
+[SensorTelemetry] Shutting down telemetry engine...
+[Scheduler] Shutting down...
+[CouplingManager] Shutdown.
+[SZM Simulation] Engine shutdown.
+[APIManager] Stopping HTTP server...
+[APIManager] Server stopped
+[SZM Forge] Terminated safely.
+
+[SZM Forge] Application terminated successfully.
