@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import { useProject } from '../store/ProjectContext';
 
 // Component types
 type ComponentType = 
@@ -7,6 +8,8 @@ type ComponentType =
   | 'npn_transistor' | 'pnp_transistor' | 'opamp' | 'vcc' | 'gnd'
   // Motors
   | 'dc_motor' | 'stepper_motor' | 'servo_motor'
+  // Motor Parts
+  | 'stator' | 'rotor' | 'coil' | 'magnet' | 'bearing'
   // Mechanical
   | 'sprocket' | 'gear' | 'pulley' | 'shaft'
   // Chain connection
@@ -29,6 +32,11 @@ interface Component {
   // Sprocket specific
   teeth?: number;
   diameter?: number;
+  // Motor internals
+  material?: string;
+  turns?: number;
+  magneticStrength?: number;
+  lubricant?: string;
   // Chain connection
   chainStartId?: string;
   chainEndId?: string;
@@ -59,7 +67,7 @@ interface Tool {
   category: string;
 }
 
-type ComponentCategory = 'electrical' | 'motors' | 'mechanical';
+type ComponentCategory = 'electrical' | 'motors' | 'motor_parts' | 'mechanical';
 
 const ELECTRICAL_COMPONENTS: { type: ComponentType; name: string; icon: string; defaultValue: string }[] = [
   { type: 'resistor', name: 'Resistor', icon: '⏛', defaultValue: '1kΩ' },
@@ -87,6 +95,14 @@ const MECHANICAL_COMPONENTS: { type: ComponentType; name: string; icon: string; 
   { type: 'shaft', name: 'Shaft', icon: '|', defaultValue: '8mm' },
 ];
 
+const MOTOR_PARTS: { type: ComponentType; name: string; icon: string; defaultValue: string }[] = [
+  { type: 'stator', name: 'Stator Body', icon: 'Ⓞ', defaultValue: 'Silicon Steel' },
+  { type: 'rotor', name: 'Rotor Body', icon: '◎', defaultValue: 'Steel' },
+  { type: 'coil', name: 'Copper Coil', icon: '➿', defaultValue: '100 Turns' },
+  { type: 'magnet', name: 'Magnet', icon: '🧲', defaultValue: 'Neodymium' },
+  { type: 'bearing', name: 'Bearing & Oil', icon: '⊚', defaultValue: 'Lubricated' },
+];
+
 const TOOLS: Tool[] = [
   { id: 'select', name: 'Select', icon: '↖', shortcut: 'V', category: 'all' },
   { id: 'wire', name: 'Wire', icon: '⤳', shortcut: 'W', category: 'electrical' },
@@ -98,6 +114,7 @@ const TOOLS: Tool[] = [
 const GRID_SIZE = 20;
 
 export default function CircuitDesigner() {
+  const { customMaterials, saveMotorProject } = useProject();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>(0);
@@ -158,13 +175,18 @@ export default function CircuitDesigner() {
           { x: -35, y: 0, connected: false },  // Negative/Motor-
           { x: 35, y: 0, connected: false },   // Positive/Motor+
         ];
+      case 'coil':
+        return [
+          { x: -15, y: 0, connected: false },
+          { x: 15, y: 0, connected: false },
+        ];
       default:
         return [];
     }
   };
 
   const createComponent = (type: ComponentType, x: number, y: number): Component => {
-    const allComps = [...ELECTRICAL_COMPONENTS, ...MOTOR_COMPONENTS, ...MECHANICAL_COMPONENTS];
+    const allComps = [...ELECTRICAL_COMPONENTS, ...MOTOR_COMPONENTS, ...MOTOR_PARTS, ...MECHANICAL_COMPONENTS];
     const comp = allComps.find(c => c.type === type);
     
     const isMotor = type === 'dc_motor' || type === 'stepper_motor' || type === 'servo_motor';
@@ -185,6 +207,10 @@ export default function CircuitDesigner() {
       direction: 'cw',
       teeth: isSprocket ? 20 : undefined,
       diameter: type === 'pulley' ? 50 : undefined,
+      material: type === 'stator' ? 'Silicon Steel' : type === 'rotor' ? 'Steel' : type === 'magnet' ? 'Neodymium' : type === 'coil' ? 'Copper' : undefined,
+      turns: type === 'coil' ? 100 : undefined,
+      magneticStrength: type === 'magnet' ? 1.2 : undefined,
+      lubricant: type === 'bearing' ? 'Synthetic Oil' : undefined,
     };
   };
 
@@ -506,6 +532,7 @@ export default function CircuitDesigner() {
     const isSelected = selectedComponent === comp.id;
     const isMechanical = ['sprocket', 'gear', 'pulley'].includes(comp.type);
     const isMotor = ['dc_motor', 'stepper_motor', 'servo_motor'].includes(comp.type);
+    const isMotorPart = ['stator', 'rotor', 'coil', 'magnet', 'bearing'].includes(comp.type);
 
     if (isMechanical) {
       if (comp.type === 'sprocket') {
@@ -517,9 +544,124 @@ export default function CircuitDesigner() {
       }
     } else if (isMotor) {
       drawMotor(ctx, comp, time, isSelected);
+    } else if (isMotorPart) {
+      drawMotorPart(ctx, comp, time, isSelected);
     } else {
       drawElectricalComponent(ctx, comp, time, isSelected);
     }
+  };
+
+  const drawMotorPart = (ctx: CanvasRenderingContext2D, comp: Component, time: number, isSelected: boolean) => {
+    ctx.save();
+    ctx.translate(comp.x, comp.y);
+    ctx.rotate((comp.rotation * Math.PI) / 180);
+
+    if (isSelected) {
+      ctx.shadowColor = 'rgba(0, 238, 255, 0.6)';
+      ctx.shadowBlur = 20;
+    }
+
+    ctx.lineWidth = 2;
+
+    switch (comp.type) {
+      case 'stator':
+        ctx.strokeStyle = '#8899aa';
+        ctx.fillStyle = '#8899aa15';
+        ctx.beginPath();
+        ctx.arc(0, 0, 60, 0, Math.PI * 2);
+        ctx.arc(0, 0, 45, 0, Math.PI * 2, true);
+        ctx.fill();
+        ctx.stroke();
+        // Slots
+        for(let i=0; i<12; i++) {
+          ctx.beginPath();
+          const a = (i/12)*Math.PI*2;
+          ctx.moveTo(Math.cos(a)*45, Math.sin(a)*45);
+          ctx.lineTo(Math.cos(a)*55, Math.sin(a)*55);
+          ctx.stroke();
+        }
+        break;
+      case 'rotor':
+        // If simulating and part of a built motor, spin it!
+        const r_rpm = motorRPMs[comp.id] || 0;
+        if (isSimulating && r_rpm !== 0) {
+          ctx.rotate(time * 0.01 * r_rpm / 60 * Math.PI * 2);
+        }
+        ctx.strokeStyle = '#aaaaaa';
+        ctx.fillStyle = '#aaaaaa30';
+        ctx.beginPath();
+        ctx.arc(0, 0, 40, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 0, 10, 0, Math.PI * 2);
+        ctx.fillStyle = '#111';
+        ctx.fill();
+        ctx.stroke();
+        break;
+      case 'coil':
+        ctx.strokeStyle = '#ff8800'; // Copper
+        ctx.fillStyle = '#ff880020';
+        ctx.beginPath();
+        ctx.roundRect(-20, -10, 40, 20, 5);
+        ctx.fill();
+        ctx.stroke();
+        // Windings
+        for(let i=-15; i<=15; i+=5) {
+          ctx.beginPath();
+          ctx.moveTo(i, -10);
+          ctx.lineTo(i, 10);
+          ctx.stroke();
+        }
+        break;
+      case 'magnet':
+        ctx.strokeStyle = '#ff3333';
+        ctx.fillStyle = '#ff333340';
+        ctx.fillRect(-15, -10, 15, 20);
+        ctx.strokeRect(-15, -10, 15, 20);
+        ctx.strokeStyle = '#3333ff';
+        ctx.fillStyle = '#3333ff40';
+        ctx.fillRect(0, -10, 15, 20);
+        ctx.strokeRect(0, -10, 15, 20);
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px monospace';
+        ctx.fillText('N', -7, 4);
+        ctx.fillText('S', 8, 4);
+        break;
+      case 'bearing':
+        ctx.strokeStyle = '#gold';
+        ctx.fillStyle = '#ffff0020';
+        ctx.beginPath();
+        ctx.arc(0, 0, 15, 0, Math.PI * 2);
+        ctx.arc(0, 0, 8, 0, Math.PI * 2, true);
+        ctx.fill();
+        ctx.stroke();
+        // Balls
+        ctx.fillStyle = '#ddd';
+        for(let i=0; i<8; i++) {
+          const a = (i/8)*Math.PI*2;
+          ctx.beginPath();
+          ctx.arc(Math.cos(a)*11.5, Math.sin(a)*11.5, 2.5, 0, Math.PI*2);
+          ctx.fill();
+        }
+        break;
+    }
+
+    // Draw pins
+    comp.pins.forEach(pin => {
+      ctx.beginPath();
+      ctx.arc(pin.x, pin.y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = pin.connected ? '#00ff88' : '#00eeff';
+      ctx.fill();
+    });
+
+    // Label
+    ctx.font = '8px monospace';
+    ctx.fillStyle = '#00c2ff';
+    ctx.textAlign = 'center';
+    ctx.fillText(comp.label, 0, 25);
+
+    ctx.restore();
   };
 
   // Draw electrical component (simplified)
@@ -886,6 +1028,50 @@ export default function CircuitDesigner() {
       });
     });
 
+    // Custom Built Motors Logic
+    const rotors = components.filter(c => c.type === 'rotor');
+    const stators = components.filter(c => c.type === 'stator');
+    const coils = components.filter(c => c.type === 'coil');
+    const magnets = components.filter(c => c.type === 'magnet');
+    const bearings = components.filter(c => c.type === 'bearing');
+
+    rotors.forEach(rotor => {
+      // Find enclosing stator
+      const stator = stators.find(s => Math.abs(s.x - rotor.x) < 30 && Math.abs(s.y - rotor.y) < 30);
+      if (stator && vccCount > 0) {
+        // Find attached coils to stator
+        const attachedCoils = coils.filter(c => Math.abs(c.x - stator.x) < 80 && Math.abs(c.y - stator.y) < 80);
+        // Find attached magnets to rotor
+        const attachedMagnets = magnets.filter(m => Math.abs(m.x - rotor.x) < 50 && Math.abs(m.y - rotor.y) < 50);
+        // Find attached bearing
+        const attachedBearing = bearings.find(b => Math.abs(b.x - rotor.x) < 40 && Math.abs(b.y - rotor.y) < 40);
+
+        if (attachedCoils.length > 0 && attachedMagnets.length > 0) {
+          const totalTurns = attachedCoils.reduce((sum, c) => sum + (c.turns || 100), 0);
+          const totalStrength = attachedMagnets.reduce((sum, m) => sum + (m.magneticStrength || 1.2), 0);
+          
+          let rpm = (totalTurns * totalStrength * 0.5);
+          if (attachedBearing && attachedBearing.lubricant) {
+            rpm *= 1.2; // Lubricant reduces friction
+          }
+          
+          newRPMs[rotor.id] = rpm;
+          
+          // Power any overlapping sprockets
+          components.forEach(comp => {
+            if (['sprocket', 'gear', 'pulley'].includes(comp.type)) {
+              if (Math.abs(comp.x - rotor.x) < 20 && Math.abs(comp.y - rotor.y) < 20) {
+                newRPMs[comp.id] = rpm;
+              }
+            }
+          });
+          
+          // Save the motor assembly to the global project state
+          saveMotorProject([stator, rotor, ...attachedCoils, ...attachedMagnets, ...(attachedBearing ? [attachedBearing] : [])], rpm);
+        }
+      }
+    });
+
     // Propagate RPM through chains
     let changed = true;
     while (changed) {
@@ -940,9 +1126,10 @@ export default function CircuitDesigner() {
   };
 
   const selectedCompData = components.find(c => c.id === selectedComponent);
-  const allComponents = [...ELECTRICAL_COMPONENTS, ...MOTOR_COMPONENTS, ...MECHANICAL_COMPONENTS];
+  const allComponents = [...ELECTRICAL_COMPONENTS, ...MOTOR_COMPONENTS, ...MOTOR_PARTS, ...MECHANICAL_COMPONENTS];
   const filteredComponents = selectedCategory === 'electrical' ? ELECTRICAL_COMPONENTS 
     : selectedCategory === 'motors' ? MOTOR_COMPONENTS 
+    : selectedCategory === 'motor_parts' ? MOTOR_PARTS
     : MECHANICAL_COMPONENTS;
   const filteredTools = TOOLS.filter(t => 
     t.category === 'all' || t.category === selectedCategory
@@ -957,6 +1144,7 @@ export default function CircuitDesigner() {
           {[
             { id: 'electrical', label: '⚡ ELEC', color: '#00eeff' },
             { id: 'motors', label: '⚙ MOTO', color: '#00ff88' },
+            { id: 'motor_parts', label: '🔩 PARTS', color: '#ff3366' },
             { id: 'mechanical', label: '⚙ MECH', color: '#ffa500' },
           ].map(cat => (
             <button
@@ -1040,7 +1228,7 @@ export default function CircuitDesigner() {
           </div>
 
           {/* Motor Presets */}
-          {selectedCategory === 'motors' && (
+          {(selectedCategory === 'motors' || selectedCategory === 'motor_parts') && (
             <div className="mt-4 glass-panel rounded-lg p-2">
               <div className="text-[8px] font-bold text-forge-text-muted tracking-wider mb-2">MOTOR PRESETS</div>
               <div className="space-y-1">
@@ -1066,6 +1254,27 @@ export default function CircuitDesigner() {
                     <div className="text-forge-text-muted">{preset.rpm}RPM | {preset.ratio}</div>
                   </button>
                 ))}
+                
+                <button
+                  onClick={() => {
+                    const cx = 250, cy = 150;
+                    const stator = createComponent('stator', cx, cy);
+                    const rotor = createComponent('rotor', cx, cy);
+                    const coil1 = createComponent('coil', cx, cy - 30);
+                    const coil2 = createComponent('coil', cx, cy + 30);
+                    coil1.rotation = 90; coil2.rotation = 90;
+                    const magnet1 = createComponent('magnet', cx, cy - 15);
+                    const magnet2 = createComponent('magnet', cx, cy + 15);
+                    const bearing = createComponent('bearing', cx, cy);
+                    const vcc = createComponent('vcc', cx - 100, cy);
+                    const gnd = createComponent('gnd', cx - 100, cy + 30);
+                    setComponents(prev => [...prev, stator, rotor, coil1, coil2, magnet1, magnet2, bearing, vcc, gnd]);
+                  }}
+                  className="w-full px-2 py-1 rounded text-left bg-forge-accent/20 hover:bg-forge-accent/40 text-[8px] text-forge-text-dim transition-all border border-forge-accent/30 mt-2"
+                >
+                  <div className="font-semibold text-forge-accent">Custom Motor Assembly</div>
+                  <div className="text-forge-text-muted">Stator, Rotor, Coils & Magnets</div>
+                </button>
               </div>
             </div>
           )}
@@ -1204,6 +1413,82 @@ export default function CircuitDesigner() {
                         ))}
                       </div>
                     </div>
+                  </>
+                )}
+
+                {/* Motor Part Properties */}
+                {['stator', 'rotor', 'coil', 'magnet', 'bearing'].includes(selectedCompData.type) && (
+                  <>
+                    {['stator', 'rotor', 'coil', 'magnet'].includes(selectedCompData.type) && (
+                      <div>
+                        <label className="text-[8px] text-forge-text-muted block mb-1">MATERIAL (Synthesized)</label>
+                        <select
+                          value={selectedCompData.material || ''}
+                          onChange={(e) => setComponents(prev => prev.map(c => 
+                            c.id === selectedCompData.id ? { ...c, material: e.target.value } : c
+                          ))}
+                          className="w-full bg-forge-panel/50 border border-forge-border rounded px-2 py-1 text-[10px] text-forge-electrical font-mono focus:border-forge-electrical outline-none appearance-none"
+                        >
+                          <option value="">Select Material...</option>
+                          <option value="Copper">Standard Copper</option>
+                          <option value="Neodymium">Standard Neodymium</option>
+                          <option value="Silicon Steel">Standard Silicon Steel</option>
+                          {customMaterials.map(mat => (
+                            <option key={mat.id || mat.name} value={mat.name}>
+                              {mat.name} (R:{mat.restitution} D:{mat.density})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {selectedCompData.type === 'coil' && (
+                      <div>
+                        <label className="text-[8px] text-forge-text-muted block mb-1">TURNS</label>
+                        <input
+                          type="number"
+                          value={selectedCompData.turns || 0}
+                          onChange={(e) => setComponents(prev => prev.map(c => 
+                            c.id === selectedCompData.id ? { ...c, turns: parseInt(e.target.value) || 0 } : c
+                          ))}
+                          className="w-full bg-forge-panel/50 border border-forge-border rounded px-2 py-1 text-[10px] text-forge-electrical font-mono focus:border-forge-electrical outline-none"
+                        />
+                      </div>
+                    )}
+                    {selectedCompData.type === 'magnet' && (
+                      <div>
+                        <label className="text-[8px] text-forge-text-muted block mb-1">STRENGTH (T)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={selectedCompData.magneticStrength || 0}
+                          onChange={(e) => setComponents(prev => prev.map(c => 
+                            c.id === selectedCompData.id ? { ...c, magneticStrength: parseFloat(e.target.value) || 0 } : c
+                          ))}
+                          className="w-full bg-forge-panel/50 border border-forge-border rounded px-2 py-1 text-[10px] text-forge-electrical font-mono focus:border-forge-electrical outline-none"
+                        />
+                      </div>
+                    )}
+                    {selectedCompData.type === 'bearing' && (
+                      <div>
+                        <label className="text-[8px] text-forge-text-muted block mb-1">LUBRICANT (Synthesized)</label>
+                        <select
+                          value={selectedCompData.lubricant || ''}
+                          onChange={(e) => setComponents(prev => prev.map(c => 
+                            c.id === selectedCompData.id ? { ...c, lubricant: e.target.value } : c
+                          ))}
+                          className="w-full bg-forge-panel/50 border border-forge-border rounded px-2 py-1 text-[10px] text-forge-electrical font-mono focus:border-forge-electrical outline-none appearance-none"
+                        >
+                          <option value="">Select Lubricant...</option>
+                          <option value="Synthetic Oil">Standard Synthetic Oil</option>
+                          <option value="Lithium Grease">Standard Lithium Grease</option>
+                          {customMaterials.map(mat => (
+                            <option key={mat.id || mat.name} value={mat.name}>
+                              {mat.name} (Synthesized)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </>
                 )}
 

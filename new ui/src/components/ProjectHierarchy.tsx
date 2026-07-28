@@ -139,8 +139,10 @@ function buildFurnitureTree(
       status: p.status === 'FAIL' ? 'error' as const : p.status === 'WARN' ? 'warning' as const : 'active' as const,
     }));
   const mainPart = parts.find(p => !p.name.includes('Leg') && !p.name.includes('Rung') && !p.name.includes('Rail'));
-  const groupLabel =
-    legNodes.length === 4 ? 'Legs (×4)' : parts.some(p => p.name.startsWith('Rung')) ? 'Rungs & rails' : 'Members';
+  let groupLabel = 'Members';
+  if (parts.some(p => p.name.startsWith('Leg-'))) groupLabel = legNodes.length === 4 ? 'Legs (×4)' : 'Legs';
+  else if (parts.some(p => p.name.startsWith('Rung'))) groupLabel = 'Rungs & rails';
+  else if (furnitureLabel === 'Motor') groupLabel = 'Motor Components';
 
   return [
     {
@@ -187,7 +189,7 @@ export const ProjectHierarchy: React.FC<Props> = ({ selectedNode, setSelectedNod
 
   const hasFurniture = project?.hasFurniture ?? false;
   const furnitureLabel =
-    furnitureType === 'chair' ? 'Chair' : furnitureType === 'ladder' ? 'Ladder' : 'Table';
+    furnitureType === 'chair' ? 'Chair' : furnitureType === 'ladder' ? 'Ladder' : furnitureType === 'motor' ? 'Motor' : 'Table';
 
   const tree: TreeNode[] =
     hasFurniture && parts.length > 0

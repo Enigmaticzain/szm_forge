@@ -3,7 +3,7 @@
  * Syncs to C++ backend when SZM_Forge is running on :8000.
  */
 
-export type FurnitureType = 'table' | 'chair' | 'ladder';
+export type FurnitureType = 'table' | 'chair' | 'ladder' | 'motor';
 
 export interface FurniturePart {
   name: string;

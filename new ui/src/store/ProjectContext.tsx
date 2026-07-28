@@ -85,6 +85,7 @@ interface ProjectContextValue {
   refresh: () => Promise<void>;
   customMaterials: CustomMaterial[];
   addMaterial: (mat: Omit<CustomMaterial, 'id'>) => void;
+  saveMotorProject: (motorParts: any[], rpm: number) => void;
 }
 
 // stressToParts removed since solveAssembly is removed.
@@ -460,6 +461,30 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setLoading(false);
   }, [project, furnitureType, parts, ensureBackend]);
 
+  const saveMotorProject = useCallback((motorParts: any[], rpm: number) => {
+    const newParts: FurniturePart[] = motorParts.map((p, i) => ({
+      name: `${p.type.toUpperCase()}_${i}`,
+      stress_MPa: 0,
+      yield_MPa: 100,
+      stressRatio: p.type === 'bearing' ? 0.8 : 0.2, // Arbitrary for visualization
+      status: p.type === 'bearing' ? 'WARN' : 'ACTIVE',
+      material: p.material || p.lubricant || 'Unknown',
+    }));
+    
+    setParts(newParts);
+    setFurnitureType('motor');
+    setProject({
+      projectName: 'Custom Motor Design',
+      hasFurniture: true,
+      furnitureType: 'motor',
+      materialId: 'mixed',
+      material: 'Custom Assembly',
+      loadKg: rpm, // Hijack loadKg to store RPM for display
+      aiImproved: false,
+    });
+    setLastAction(`Saved Custom Motor Project with ${newParts.length} parts and ${rpm.toFixed(1)} RPM.`);
+  }, []);
+
   return (
     <ProjectContext.Provider
       value={{
@@ -493,6 +518,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         refresh,
         customMaterials,
         addMaterial,
+        saveMotorProject,
       }}
     >
       {children}
