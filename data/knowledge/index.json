@@ -1,0 +1,66 @@
+{
+  "schemaVersion": "1.0.0",
+  "title": "SZM Forge Machine Creation Knowledge Base",
+  "domains": [
+    {
+      "id": "materials",
+      "name": "Materials Science",
+      "file": "materials.json",
+      "entryCount": 48
+    },
+    {
+      "id": "equations",
+      "name": "Physics Equations",
+      "file": "equations.json",
+      "entryCount": 21
+    },
+    {
+      "id": "manufacturing",
+      "name": "Manufacturing Processes",
+      "file": "manufacturing.json",
+      "entryCount": 14
+    },
+    {
+      "id": "machine_elements",
+      "name": "Machine Elements",
+      "file": "machine_elements.json",
+      "entryCount": 11
+    },
+    {
+      "id": "machine_types",
+      "name": "Machine Types",
+      "file": "machine_types.json",
+      "entryCount": 11
+    },
+    {
+      "id": "robotics",
+      "name": "Robotics",
+      "file": "robotics.json",
+      "entryCount": 6
+    },
+    {
+      "id": "control_systems",
+      "name": "Control Systems",
+      "file": "control_systems.json",
+      "entryCount": 7
+    },
+    {
+      "id": "treatments",
+      "name": "Heat & Surface Treatments",
+      "file": "treatments.json",
+      "entryCount": 7
+    },
+    {
+      "id": "standards",
+      "name": "Standards & Codes",
+      "file": "standards.json",
+      "entryCount": 6
+    },
+    {
+      "id": "cad_cam",
+      "name": "CAD/CAM/FEA",
+      "file": "cad_cam.json",
+      "entryCount": 8
+    }
+  ]
+}

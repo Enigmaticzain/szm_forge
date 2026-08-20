@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "standards",
+  "entries": [
+    {
+      "id": "STD-ISO286",
+      "name": "ISO 286 Tolerances & Fits",
+      "category": "Dimensional",
+      "examples": [
+        "H7/g6 sliding",
+        "H7/k6 transition",
+        "H7/p6 press"
+      ]
+    },
+    {
+      "id": "STD-ISO1302",
+      "name": "ISO 1302 Surface Finish",
+      "category": "Surface",
+      "parameters": [
+        "Ra",
+        "Rz",
+        "Rmax"
+      ]
+    },
+    {
+      "id": "STD-AGMA",
+      "name": "AGMA Gear Standards",
+      "category": "Machine Elements"
+    },
+    {
+      "id": "STD-ASME-BPV",
+      "name": "ASME Boiler & Pressure Vessel Code",
+      "category": "Pressure Systems"
+    },
+    {
+      "id": "STD-ISO281",
+      "name": "ISO 281 Bearing Life",
+      "category": "Machine Elements"
+    },
+    {
+      "id": "STD-IEC61131",
+      "name": "IEC 61131-3 PLC",
+      "category": "Automation"
+    }
+  ]
+}

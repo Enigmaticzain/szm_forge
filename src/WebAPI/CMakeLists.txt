@@ -26,6 +26,7 @@ target_link_libraries(SZM_WebAPI_Module PUBLIC
     SZM_AI_Module
     SZM_FEA_Module
     SZM_Materials_Module
+    SZM_Knowledge_Module
 )
 
 # FastAPI integration

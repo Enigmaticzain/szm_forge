@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "manufacturing",
+  "entries": [
+    {
+      "id": "MFG-TURNING",
+      "name": "CNC Turning",
+      "category": "Machining",
+      "process": "turning",
+      "parameters": {
+        "vc_steel_carbide_m_min": "150-300",
+        "feed_rough_mm_rev": "0.3-1.5"
+      },
+      "notes": "v=\u03c0DN/1000, MRR=v\u00b7f\u00b7ap"
+    },
+    {
+      "id": "MFG-MILLING",
+      "name": "CNC Milling",
+      "category": "Machining",
+      "process": "milling",
+      "parameters": {
+        "fz_al_mm": "0.05-0.25",
+        "fz_steel_mm": "0.02-0.15"
+      }
+    },
+    {
+      "id": "MFG-DRILLING",
+      "name": "Drilling",
+      "category": "Machining",
+      "process": "drilling",
+      "parameters": {
+        "feed_mm_rev": "0.05-0.5"
+      }
+    },
+    {
+      "id": "MFG-GRINDING",
+      "name": "Grinding",
+      "category": "Machining",
+      "process": "grinding",
+      "parameters": {
+        "Ra_um": "0.025-1.6"
+      }
+    },
+    {
+      "id": "MFG-SAND-CAST",
+      "name": "Sand Casting",
+      "category": "Casting",
+      "tolerance_mm": "\u00b10.5-1.5",
+      "Ra_um": "6.3-25"
+    },
+    {
+      "id": "MFG-DIE-CAST",
+      "name": "Die Casting",
+      "category": "Casting",
+      "tolerance_mm": "\u00b10.025-0.075"
+    },
+    {
+      "id": "MFG-INVESTMENT",
+      "name": "Investment Casting",
+      "category": "Casting",
+      "tolerance_mm": "\u00b10.1-0.25"
+    },
+    {
+      "id": "MFG-FORGING",
+      "name": "Forging",
+      "category": "Forming",
+      "notes": "Hot/warm/cold; F=Yf\u00b7A\u00b7(1+0.4\u03bcD/h)"
+    },
+    {
+      "id": "MFG-EXTRUSION",
+      "name": "Extrusion",
+      "category": "Forming",
+      "notes": "Al ratio up to 40:1"
+    },
+    {
+      "id": "MFG-GMAW",
+      "name": "GMAW (MIG)",
+      "category": "Welding",
+      "filler": "ER70S-6"
+    },
+    {
+      "id": "MFG-GTAW",
+      "name": "GTAW (TIG)",
+      "category": "Welding",
+      "notes": "Precision thin sections"
+    },
+    {
+      "id": "MFG-FDM",
+      "name": "FDM 3D Printing",
+      "category": "Additive",
+      "layer_mm": "0.05-0.4",
+      "tolerance_mm": "\u00b10.2-0.5"
+    },
+    {
+      "id": "MFG-SLA",
+      "name": "SLA/DLP",
+      "category": "Additive",
+      "layer_mm": "0.025-0.1"
+    },
+    {
+      "id": "MFG-DMLS",
+      "name": "DMLS/SLM Metal AM",
+      "category": "Additive",
+      "materials": [
+        "316L",
+        "Ti64",
+        "IN718"
+      ]
+    }
+  ]
+}

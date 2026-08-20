@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "robotics",
+  "entries": [
+    {
+      "id": "ROB-DH",
+      "name": "Denavit-Hartenberg Kinematics",
+      "category": "Kinematics",
+      "notes": "Forward/inverse kinematics via DH parameters"
+    },
+    {
+      "id": "ROB-JACOBIAN",
+      "name": "Jacobian Matrix",
+      "category": "Kinematics",
+      "expression": "\u1e8b = J(\u03b8)\u00b7\u03b8\u0307"
+    },
+    {
+      "id": "ROB-NEWTON-EULER",
+      "name": "Newton-Euler Dynamics",
+      "category": "Dynamics",
+      "expression": "M(\u03b8)\u03b8\u0308 + C(\u03b8,\u03b8\u0307)\u03b8\u0307 + G(\u03b8) = \u03c4"
+    },
+    {
+      "id": "ROB-UR5",
+      "name": "Universal Robots UR5",
+      "category": "Cobot",
+      "payload_kg": 5,
+      "reach_mm": 850
+    },
+    {
+      "id": "ROB-ENCODER",
+      "name": "Rotary Encoder",
+      "category": "Sensor",
+      "resolution_PPR": "100-131072"
+    },
+    {
+      "id": "ROB-LIDAR",
+      "name": "LiDAR",
+      "category": "Sensor",
+      "range_m": "0.1-200"
+    }
+  ]
+}

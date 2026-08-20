@@ -107,3 +107,67 @@ export async function saveMachineConfig(cfg: MachineConfigDto): Promise<boolean>
     return false;
   }
 }
+
+export interface MaterialDto {
+  id: string;
+  name: string;
+  category?: string;
+  tags?: string[];
+  notes?: string;
+  youngsModulus_GPa: number;
+  poissonsRatio?: number;
+  yieldStrength_MPa: number;
+  ultimateStrength_MPa?: number;
+  density_kg_m3: number;
+  thermalExpansion_1_K?: number;
+  thermalConductivity_W_mK?: number;
+}
+
+export interface MaterialsResponse {
+  ok: boolean;
+  materials: MaterialDto[];
+}
+
+export async function fetchMaterials(): Promise<MaterialDto[]> {
+  const res = await fetchJson<MaterialsResponse>('/api/materials', 5000);
+  return res?.materials ?? [];
+}
+
+export interface KbDomainDto {
+  id: string;
+  name: string;
+  file?: string;
+  entryCount?: number;
+}
+
+export interface KbSearchHit {
+  domain: string;
+  entry: Record<string, unknown>;
+}
+
+export interface KbSearchResponse {
+  ok: boolean;
+  query: string;
+  count: number;
+  results: KbSearchHit[];
+}
+
+export async function fetchKbDomains(): Promise<KbDomainDto[]> {
+  const res = await fetchJson<{ ok: boolean; domains: KbDomainDto[] }>('/api/kb/domains', 5000);
+  return res?.domains ?? [];
+}
+
+export async function fetchKbDomain(domain: string): Promise<Record<string, unknown> | null> {
+  const res = await fetchJson<{ ok: boolean; data: Record<string, unknown> }>(
+    `/api/kb/${encodeURIComponent(domain)}`,
+    5000,
+  );
+  return res?.data ?? null;
+}
+
+export async function searchKnowledge(query: string, domain = ''): Promise<KbSearchHit[]> {
+  const params = new URLSearchParams({ q: query });
+  if (domain) params.set('domain', domain);
+  const res = await fetchJson<KbSearchResponse>(`/api/kb/search?${params}`, 5000);
+  return res?.results ?? [];
+}

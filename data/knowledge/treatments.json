@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "treatments",
+  "entries": [
+    {
+      "id": "HT-ANNEAL",
+      "name": "Annealing",
+      "category": "Heat Treatment",
+      "notes": "Soften, relieve stress"
+    },
+    {
+      "id": "HT-QT",
+      "name": "Quench & Temper",
+      "category": "Heat Treatment",
+      "notes": "1045 Q&T HRC 22-58"
+    },
+    {
+      "id": "HT-CARBURIZE",
+      "name": "Gas Carburizing",
+      "category": "Case Hardening",
+      "case_depth_mm": "0.5-2.5"
+    },
+    {
+      "id": "HT-NITRIDE",
+      "name": "Nitriding",
+      "category": "Case Hardening",
+      "temp_C": "550-570"
+    },
+    {
+      "id": "ST-TIN-PVD",
+      "name": "TiN PVD Coating",
+      "category": "Surface",
+      "hardness_HV": 2400
+    },
+    {
+      "id": "ST-DLC",
+      "name": "DLC Coating",
+      "category": "Surface",
+      "hardness_HV": "3000-8000"
+    },
+    {
+      "id": "ST-ANODIZE-III",
+      "name": "Hard Anodize Type III",
+      "category": "Surface",
+      "thickness_um": "50-75"
+    }
+  ]
+}

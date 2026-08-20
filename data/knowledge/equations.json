@@ -1,0 +1,217 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "equations",
+  "entries": [
+    {
+      "id": "EQ-EQUILIBRIUM",
+      "name": "Static Equilibrium",
+      "domain": "statics",
+      "expression": "\u03a3F=0, \u03a3M=0",
+      "variables": [],
+      "notes": "Fundamental statics"
+    },
+    {
+      "id": "EQ-NORMAL-STRESS",
+      "name": "Normal Stress",
+      "domain": "statics",
+      "expression": "\u03c3 = F/A",
+      "variables": [
+        {
+          "symbol": "\u03c3",
+          "unit": "Pa"
+        },
+        {
+          "symbol": "F",
+          "unit": "N"
+        },
+        {
+          "symbol": "A",
+          "unit": "m\u00b2"
+        }
+      ]
+    },
+    {
+      "id": "EQ-HOOKE",
+      "name": "Hooke's Law",
+      "domain": "statics",
+      "expression": "\u03c3 = E\u00b7\u03b5",
+      "variables": [
+        {
+          "symbol": "E",
+          "unit": "Pa"
+        },
+        {
+          "symbol": "\u03b5",
+          "unit": "-"
+        }
+      ]
+    },
+    {
+      "id": "EQ-VON-MISES",
+      "name": "Von Mises Criterion",
+      "domain": "statics",
+      "expression": "\u03c3_vm = \u221a[\u03c3x\u00b2-\u03c3x\u03c3y+\u03c3y\u00b2+3\u03c4xy\u00b2]",
+      "variables": [],
+      "notes": "Failure when \u03c3_vm \u2265 \u03c3_yield"
+    },
+    {
+      "id": "EQ-BEAM-CANTILEVER",
+      "name": "Cantilever Point Load Deflection",
+      "domain": "statics",
+      "expression": "\u03b4max = FL\u00b3/(3EI)",
+      "variables": [
+        {
+          "symbol": "F",
+          "unit": "N"
+        },
+        {
+          "symbol": "L",
+          "unit": "m"
+        },
+        {
+          "symbol": "E",
+          "unit": "Pa"
+        },
+        {
+          "symbol": "I",
+          "unit": "m\u2074"
+        }
+      ]
+    },
+    {
+      "id": "EQ-EULER-BUCKLING",
+      "name": "Euler Column Buckling",
+      "domain": "statics",
+      "expression": "Pcr = \u03c0\u00b2EI/(KL)\u00b2",
+      "variables": [
+        {
+          "symbol": "K",
+          "unit": "-",
+          "notes": "effective length factor"
+        }
+      ]
+    },
+    {
+      "id": "EQ-TORSION",
+      "name": "Torsion Shear Stress",
+      "domain": "statics",
+      "expression": "\u03c4 = Tr/J",
+      "variables": []
+    },
+    {
+      "id": "EQ-NEWTON2",
+      "name": "Newton's Second Law",
+      "domain": "dynamics",
+      "expression": "F = ma",
+      "variables": []
+    },
+    {
+      "id": "EQ-KINETIC-ENERGY",
+      "name": "Kinetic Energy",
+      "domain": "dynamics",
+      "expression": "KE = \u00bdmv\u00b2",
+      "variables": []
+    },
+    {
+      "id": "EQ-NATURAL-FREQ",
+      "name": "Natural Frequency (SDOF)",
+      "domain": "dynamics",
+      "expression": "\u03c9_n = \u221a(k/m)",
+      "variables": [
+        {
+          "symbol": "\u03c9_n",
+          "unit": "rad/s"
+        }
+      ]
+    },
+    {
+      "id": "EQ-GEAR-RATIO",
+      "name": "Gear Ratio",
+      "domain": "dynamics",
+      "expression": "i = N\u2082/N\u2081 = \u03c9\u2081/\u03c9\u2082 = T\u2082/T\u2081",
+      "variables": []
+    },
+    {
+      "id": "EQ-BERNOULLI",
+      "name": "Bernoulli Equation",
+      "domain": "fluids",
+      "expression": "p + \u00bd\u03c1v\u00b2 + \u03c1gh = constant",
+      "variables": []
+    },
+    {
+      "id": "EQ-REYNOLDS",
+      "name": "Reynolds Number",
+      "domain": "fluids",
+      "expression": "Re = \u03c1vL/\u03bc",
+      "variables": [],
+      "notes": "Re<2300 laminar, Re>4000 turbulent"
+    },
+    {
+      "id": "EQ-DARCY",
+      "name": "Darcy-Weisbach Head Loss",
+      "domain": "fluids",
+      "expression": "hf = f\u00b7L\u00b7v\u00b2/(D\u00b72g)",
+      "variables": []
+    },
+    {
+      "id": "EQ-FOURIER",
+      "name": "Fourier Conduction",
+      "domain": "thermo",
+      "expression": "Q = k\u00b7A\u00b7\u0394T/L",
+      "variables": [
+        {
+          "symbol": "k",
+          "unit": "W/(m\u00b7K)"
+        }
+      ]
+    },
+    {
+      "id": "EQ-THERMAL-STRESS",
+      "name": "Thermal Stress",
+      "domain": "thermo",
+      "expression": "\u03c3_thermal = E\u00b7\u03b1\u00b7\u0394T",
+      "variables": []
+    },
+    {
+      "id": "EQ-OHM",
+      "name": "Ohm's Law",
+      "domain": "electromagnetism",
+      "expression": "V = IR",
+      "variables": []
+    },
+    {
+      "id": "EQ-MOTOR-TORQUE",
+      "name": "DC Motor Torque",
+      "domain": "electromagnetism",
+      "expression": "\u03c4 = K_t\u00b7I",
+      "variables": []
+    },
+    {
+      "id": "EQ-PID",
+      "name": "PID Control",
+      "domain": "control",
+      "expression": "u(t) = Kp\u00b7e + Ki\u00b7\u222be dt + Kd\u00b7de/dt",
+      "variables": []
+    },
+    {
+      "id": "EQ-BEARING-L10",
+      "name": "Bearing L10 Life",
+      "domain": "machine_elements",
+      "expression": "L10 = (C/P)^p \u00d7 10\u2076 rev",
+      "variables": [
+        {
+          "symbol": "p",
+          "unit": "-",
+          "notes": "3 ball, 10/3 roller"
+        }
+      ]
+    },
+    {
+      "id": "EQ-SPRING-RATE",
+      "name": "Compression Spring Rate",
+      "domain": "machine_elements",
+      "expression": "k = Gd\u2074/(8D\u00b3Na)",
+      "variables": []
+    }
+  ]
+}

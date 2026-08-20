@@ -20,6 +20,7 @@ export const tooltips = {
     fleetCommand: 'Fleet Command — Multi-asset monitoring across deployed machines.',
     designing: 'Designing — Dedicated sub-system layout and conceptual design (Body, Circuit, etc).',
     textToCAD: 'Text → CAD — Describe a part in natural language and generate a 3D geometry + STEP file.',
+    knowledgeBase: 'Knowledge Base — Materials library and engineering reference (physics, manufacturing, standards).',
   },
   viewport: {
     shaded: 'Shaded — PBR-style solid rendering with lighting.',

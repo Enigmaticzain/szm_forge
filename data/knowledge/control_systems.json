@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "control_systems",
+  "entries": [
+    {
+      "id": "CTL-PID",
+      "name": "PID Controller",
+      "category": "Control",
+      "tuning": "Ziegler-Nichols: Kp=0.6Ku, Ti=Tu/2, Td=Tu/8"
+    },
+    {
+      "id": "CTL-CASCADE",
+      "name": "Cascade Control",
+      "category": "Control",
+      "notes": "Inner loop 5-10\u00d7 faster than outer"
+    },
+    {
+      "id": "CTL-SERVO",
+      "name": "Servo Drive Loops",
+      "category": "Motion",
+      "loops": [
+        "current",
+        "velocity",
+        "position"
+      ]
+    },
+    {
+      "id": "CTL-VFD",
+      "name": "AC Variable Frequency Drive",
+      "category": "Drive",
+      "freq_Hz": "0-400+"
+    },
+    {
+      "id": "CTL-PLC-IEC",
+      "name": "IEC 61131-3 PLC Languages",
+      "category": "PLC",
+      "languages": [
+        "LD",
+        "FBD",
+        "ST",
+        "SFC",
+        "IL"
+      ]
+    },
+    {
+      "id": "CTL-PROFINET",
+      "name": "PROFINET",
+      "category": "Fieldbus",
+      "ecosystem": "Siemens"
+    },
+    {
+      "id": "CTL-ETHERCAT",
+      "name": "EtherCAT",
+      "category": "Fieldbus",
+      "notes": "Ultra-fast industrial Ethernet"
+    }
+  ]
+}

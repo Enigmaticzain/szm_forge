@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "machine_elements",
+  "entries": [
+    {
+      "id": "ME-BOLT-M8-8.8",
+      "name": "Metric Bolt M8 Grade 8.8",
+      "category": "Fastener",
+      "grade": "8.8",
+      "Sp_MPa": 600,
+      "Su_MPa": 830
+    },
+    {
+      "id": "ME-BOLT-M12-12.9",
+      "name": "Metric Bolt M12 Grade 12.9",
+      "category": "Fastener",
+      "grade": "12.9",
+      "Sp_MPa": 970
+    },
+    {
+      "id": "ME-BALL-SCREW",
+      "name": "Ball Screw",
+      "category": "Power Transmission",
+      "efficiency": 0.9
+    },
+    {
+      "id": "ME-BRG-6200",
+      "name": "Deep Groove Ball Bearing (6200 series)",
+      "category": "Bearing",
+      "type": "deep_groove_ball"
+    },
+    {
+      "id": "ME-BRG-7200",
+      "name": "Angular Contact Bearing (7200)",
+      "category": "Bearing",
+      "type": "angular_contact"
+    },
+    {
+      "id": "ME-BRG-TAPER",
+      "name": "Tapered Roller Bearing (30000)",
+      "category": "Bearing",
+      "type": "tapered_roller"
+    },
+    {
+      "id": "ME-GEAR-SPUR",
+      "name": "Spur Gear",
+      "category": "Gear",
+      "pressure_angle_deg": 20,
+      "module_standard": "ISO"
+    },
+    {
+      "id": "ME-GEAR-HELICAL",
+      "name": "Helical Gear",
+      "category": "Gear",
+      "helix_angle_deg": "15-30"
+    },
+    {
+      "id": "ME-GEAR-WORM",
+      "name": "Worm Gear",
+      "category": "Gear",
+      "ratio_range": "5:1 to 100:1"
+    },
+    {
+      "id": "ME-SPRING-COMP",
+      "name": "Compression Spring",
+      "category": "Spring",
+      "formula": "k=Gd\u2074/(8D\u00b3Na)"
+    },
+    {
+      "id": "ME-KEY-PARALLEL",
+      "name": "Parallel Key",
+      "category": "Shaft Connection",
+      "notes": "b\u2248d/4"
+    }
+  ]
+}

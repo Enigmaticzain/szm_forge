@@ -58,6 +58,7 @@ target_link_libraries(SZM_Graphics_Module PUBLIC
     glfw
     glad
     OpenGL::GL
+    entt
 )
 
 target_compile_features(SZM_Graphics_Module PUBLIC cxx_std_20)

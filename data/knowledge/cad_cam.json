@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "cad_cam",
+  "entries": [
+    {
+      "id": "CAD-SW",
+      "name": "SOLIDWORKS",
+      "category": "CAD",
+      "formats": [
+        ".SLDPRT",
+        ".SLDASM",
+        ".SLDDRW"
+      ]
+    },
+    {
+      "id": "CAD-NX",
+      "name": "Siemens NX",
+      "category": "CAD",
+      "notes": "Integrated CAM"
+    },
+    {
+      "id": "CAD-F360",
+      "name": "Fusion 360",
+      "category": "CAD",
+      "notes": "Cloud CAM + FEA"
+    },
+    {
+      "id": "CAD-STEP",
+      "name": "STEP (.stp)",
+      "category": "Exchange",
+      "standard": "ISO 10303"
+    },
+    {
+      "id": "CAM-MASTERCAM",
+      "name": "Mastercam",
+      "category": "CAM",
+      "notes": "Industry standard"
+    },
+    {
+      "id": "CAM-5AXIS",
+      "name": "5-Axis Simultaneous Milling",
+      "category": "CAM",
+      "strategies": [
+        "swarf",
+        "flank"
+      ]
+    },
+    {
+      "id": "FEA-ANSYS",
+      "name": "ANSYS Mechanical",
+      "category": "FEA"
+    },
+    {
+      "id": "GCODE-G81",
+      "name": "G81 Drilling Cycle",
+      "category": "CNC",
+      "code": "G81"
+    }
+  ]
+}

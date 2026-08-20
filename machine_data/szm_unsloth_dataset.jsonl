@@ -1,0 +1,2 @@
+{"instruction": "Generate a detailed specification for a cnc_mill machine.", "input": "", "output": "Here is the specification for the Standard CNC Mill (Model: CNC-1000). It features capabilities in kinematics, dynamics, thermal. The work area is 1000x500x500mm with a spindle power of 5kW and a precision of 0.01mm."}
+{"instruction": "What are the main components of the Standard CNC Mill?", "input": "", "output": "The main components of the Standard CNC Mill are:\n- Main Spindle (spindle)\n- Work Table (linear_motion)\n- Machine Frame (frame)"}

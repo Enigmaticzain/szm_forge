@@ -16,6 +16,7 @@
 #include "../WebViewer/ExportToThreeJS.hpp"
 #include "../FEA/CalculiXPipeline.hpp"
 #include "../Materials/MaterialDatabase.hpp"
+#include "../Knowledge/KnowledgeBaseService.hpp"
 #include "../Geometry/Sketch/Sketch2D.hpp"
 #include "../Geometry/operations/ExtrudeOp.hpp"
 #include "../Geometry/operations/BooleanOp.hpp"
@@ -683,6 +684,9 @@ bool APIManager::Initialize(uint16_t basePort, const std::string& uiDistPath) {
             analysisApi.Start();
             exportApi.Start();
 
+            Materials::MaterialDatabase::GetInstance().LoadStandardLibraries();
+            Knowledge::KnowledgeBaseService::GetInstance().Load();
+
             // CORS — React dev server (:3000) and embedded webview call POST /api/*
             g_Server->set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
                 res.set_header("Access-Control-Allow-Origin", "*");
@@ -1264,21 +1268,63 @@ bool APIManager::Initialize(uint16_t basePort, const std::string& uiDistPath) {
                 res.set_content(j.dump(2), "application/json");
             });
 
-            // ── Engineering materials (codes/ MaterialDatabase) ───────
+            // ── Engineering materials (MaterialDatabase) ───────────────
             g_Server->Get("/api/materials", [](const httplib::Request&, httplib::Response& res) {
                 auto& db = Materials::MaterialDatabase::GetInstance();
                 nlohmann::json mats = nlohmann::json::array();
                 for (const auto& m : db.GetAllMaterials()) {
-                    mats.push_back({
+                    nlohmann::json row = {
                         {"id", m.id},
                         {"name", m.name},
                         {"youngsModulus_GPa", m.youngsModulus},
+                        {"poissonsRatio", m.poissonsRatio},
                         {"yieldStrength_MPa", m.yieldStrength},
+                        {"ultimateStrength_MPa", m.ultimateStrength},
                         {"density_kg_m3", m.density},
-                    });
+                        {"thermalExpansion_1_K", m.thermalExpansion},
+                        {"thermalConductivity_W_mK", m.thermalConductivity},
+                    };
+                    if (!m.category.empty()) {
+                        row["category"] = m.category;
+                    }
+                    if (!m.tags.empty()) {
+                        row["tags"] = m.tags;
+                    }
+                    if (!m.notes.empty()) {
+                        row["notes"] = m.notes;
+                    }
+                    mats.push_back(std::move(row));
                 }
                 res.set_content(nlohmann::json{{"ok", true}, {"materials", mats}}.dump(2),
                                 "application/json");
+            });
+
+            // ── Knowledge base ───────────────────────────────────────
+            g_Server->Get("/api/kb/domains", [](const httplib::Request&, httplib::Response& res) {
+                auto& kb = Knowledge::KnowledgeBaseService::GetInstance();
+                kb.Load();
+                res.set_content(
+                    nlohmann::json{{"ok", true}, {"domains", kb.ListDomains()}}.dump(2),
+                    "application/json");
+            });
+
+            g_Server->Get("/api/kb/search", [](const httplib::Request& req, httplib::Response& res) {
+                const std::string q      = req.has_param("q") ? req.get_param_value("q") : "";
+                const std::string domain = req.has_param("domain") ? req.get_param_value("domain") : "";
+                auto& kb = Knowledge::KnowledgeBaseService::GetInstance();
+                kb.Load();
+                res.set_content(kb.Search(q, domain).dump(2), "application/json");
+            });
+
+            g_Server->Get(R"(/api/kb/([^/]+))", [](const httplib::Request& req, httplib::Response& res) {
+                if (req.matches.size() < 2) {
+                    res.status = 400;
+                    return;
+                }
+                const std::string domain = req.matches[1];
+                auto& kb = Knowledge::KnowledgeBaseService::GetInstance();
+                kb.Load();
+                res.set_content(kb.GetDomain(domain).dump(2), "application/json");
             });
 
             g_Server->Options(R"(/.*)", [](const httplib::Request&, httplib::Response& res) {
@@ -1510,6 +1556,9 @@ bool APIManager::Initialize(uint16_t basePort, const std::string& uiDistPath) {
             std::cout << "  POST /api/machine/config\n";
             std::cout << "  GET  /api/code8/catalog\n";
             std::cout << "  GET  /api/materials\n";
+            std::cout << "  GET  /api/kb/domains\n";
+            std::cout << "  GET  /api/kb/{domain}\n";
+            std::cout << "  GET  /api/kb/search?q=\n";
             return true;
         }
 

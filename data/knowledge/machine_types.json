@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "machine_types",
+  "entries": [
+    {
+      "id": "MT-CNC-LATHE",
+      "name": "CNC Lathe",
+      "category": "Manufacturing",
+      "axes": 2,
+      "applications": [
+        "turning",
+        "boring"
+      ]
+    },
+    {
+      "id": "MT-VMC",
+      "name": "Vertical Machining Center",
+      "category": "Manufacturing",
+      "axes": 3
+    },
+    {
+      "id": "MT-5AXIS",
+      "name": "5-Axis Machining Center",
+      "category": "Manufacturing",
+      "axes": 5
+    },
+    {
+      "id": "MT-ROBOT-6DOF",
+      "name": "6-DOF Articulated Robot",
+      "category": "Robotics",
+      "brands": [
+        "KUKA",
+        "ABB",
+        "FANUC"
+      ]
+    },
+    {
+      "id": "MT-SCARA",
+      "name": "SCARA Robot",
+      "category": "Robotics",
+      "applications": [
+        "assembly"
+      ]
+    },
+    {
+      "id": "MT-DELTA",
+      "name": "Delta Parallel Robot",
+      "category": "Robotics",
+      "applications": [
+        "pick_and_place"
+      ]
+    },
+    {
+      "id": "MT-HYDRAULIC-PRESS",
+      "name": "Hydraulic Press",
+      "category": "Forming",
+      "pressure_bar": "350-700"
+    },
+    {
+      "id": "MT-STEAM-TURBINE",
+      "name": "Steam Turbine",
+      "category": "Power Generation",
+      "power_MW": "1-1800"
+    },
+    {
+      "id": "MT-GAS-TURBINE",
+      "name": "Gas Turbine",
+      "category": "Power Generation",
+      "efficiency_pct": "35-65"
+    },
+    {
+      "id": "MT-WIND",
+      "name": "Wind Turbine",
+      "category": "Power Generation",
+      "notes": "Betz limit 59.3%"
+    },
+    {
+      "id": "MT-CMM",
+      "name": "Coordinate Measuring Machine",
+      "category": "Precision",
+      "accuracy_um": "0.5-5"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+src/ai/localLanguageModel.ts(463,9): error TS6133: 'chunkDocumentFrequencies' is declared but its value is never read.
+src/components/AIChatBot.tsx(2,10): error TS6133: 'Send' is declared but its value is never read.
+src/components/AnalysisPanel.tsx(63,11): error TS6133: 'limits' is declared but its value is never read.
+src/components/AnalysisPanel.tsx(63,42): error TS6133: 'parts' is declared but its value is never read.
+src/components/AnalysisPanel.tsx(63,49): error TS6133: 'project' is declared but its value is never read.
+src/components/AnalysisPanel.tsx(66,9): error TS6133: 'liveInsights' is declared but its value is never read.
+src/components/AnalysisPanel.tsx(70,17): error TS1355: A 'const' assertions can only be applied to references to enum members, or string, number, boolean, array, or object literals.
+src/components/AnalysisPanel.tsx(74,21): error TS1355: A 'const' assertions can only be applied to references to enum members, or string, number, boolean, array, or object literals.
+src/components/BodyDesign/ChainSprocketLab.tsx(1,46): error TS6133: 'useMemo' is declared but its value is never read.
+src/components/BodyDesign/ChainSprocketLab.tsx(4,44): error TS6133: 'ShieldAlert' is declared but its value is never read.
+src/components/BodyDesign/ChainSprocketLab.tsx(5,22): error TS6133: 'CustomMaterial' is declared but its value is never read.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(109,15): error TS2345: Argument of type 'TransformControls' is not assignable to parameter of type 'Object3D<Object3DEventMap>'.
+  Type 'TransformControls' is missing the following properties from type 'Object3D<Object3DEventMap>': isObject3D, id, uuid, name, and 67 more.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(306,7): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(313,12): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(323,7): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(326,11): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(328,11): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(329,11): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(331,11): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/InteractiveAssemblyEditor.tsx(332,11): error TS18048: 'mesh' is possibly 'undefined'.
+src/components/BodyDesign/MaterialSelectionView.tsx(2,35): error TS6133: 'Box' is declared but its value is never read.
+src/components/BodyDesign/MaterialSelectionView.tsx(83,48): error TS2322: Type '"solid"' is not assignable to type 'ViewportRenderMode'.
+src/components/CircuitDesigner.tsx(219,11): error TS6133: 'teeth' is declared but its value is never read.
+src/components/CircuitDesigner.tsx(226,11): error TS6133: 'dist' is declared but its value is never read.
+src/components/CircuitDesigner.tsx(668,84): error TS6133: 'time' is declared but its value is never read.
+src/components/CircuitDesigner.tsx(1018,28): error TS6133: 'i' is declared but its value is never read.
+src/components/CircuitDesigner.tsx(1129,9): error TS6133: 'allComponents' is declared but its value is never read.
+src/components/CommandCenterWorkspace.test.tsx(2,1): error TS6133: 'React' is declared but its value is never read.
+src/components/CommandCenterWorkspace.tsx(6,3): error TS6133: 'Factory' is declared but its value is never read.
+src/components/DesigningWorkspace.tsx(5,3): error TS6133: 'Cpu' is declared but its value is never read.
+src/components/ManufacturingDashboard.tsx(5,22): error TS6133: 'Shield' is declared but its value is never read.
+src/components/PhysicsWorkspace.tsx(3,44): error TS6133: 'Settings' is declared but its value is never read.
+src/components/PropertyInspector.tsx(7,1): error TS6133: 'useTooltips' is declared but its value is never read.
+src/components/StructuralWorkshopPanel.tsx(45,9): error TS6133: 't' is declared but its value is never read.
+src/components/ViewportThree.tsx(118,64): error TS2345: Argument of type '(name: string) => number' is not assignable to parameter of type 'Record<string, number>'.
+  Index signature for type 'string' is missing in type '(name: string) => number'.
+src/components/ViewportThree.tsx(119,69): error TS2345: Argument of type '(name: string) => number' is not assignable to parameter of type 'Record<string, number>'.
+  Index signature for type 'string' is missing in type '(name: string) => number'.
+src/components/ViewportThree.tsx(120,39): error TS2345: Argument of type '(name: string) => number' is not assignable to parameter of type 'Record<string, number>'.
+  Index signature for type 'string' is missing in type '(name: string) => number'.
+src/components/ViewportThree.tsx(133,11): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/legacy/main.tsx(4,17): error TS2307: Cannot find module './App' or its corresponding type declarations.
+src/services/forgeApi.ts(8,16): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/forgeApi.ts(9,16): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/structuralApi.ts(9,16): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/services/structuralApi.ts(10,16): error TS2339: Property 'env' does not exist on type 'ImportMeta'.
+src/store/ForgeStoreContext.tsx(72,25): error TS2345: Argument of type '"paused"' is not assignable to parameter of type 'SetStateAction<SimulationStatus>'.
+src/store/ProjectContext.tsx(317,9): error TS2322: Type 'unknown[]' is not assignable to type 'FurniturePart[]'.
+  Type 'unknown' is not assignable to type 'FurniturePart'.
+src/store/ProjectContext.tsx(361,34): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'SetStateAction<FurniturePart[]>'.
+  Type 'unknown[]' is not assignable to type 'FurniturePart[]'.
+    Type 'unknown' is not assignable to type 'FurniturePart'.
+src/store/ProjectContext.tsx(376,11): error TS6133: 'materialId' is declared but its value is never read.
+src/store/ProjectContext.tsx(393,19): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'SetStateAction<LimitSweepRow[]>'.
+  Type 'unknown[]' is not assignable to type 'LimitSweepRow[]'.
+    Type 'unknown' is not assignable to type 'LimitSweepRow'.
+src/store/ProjectContext.tsx(440,40): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'SetStateAction<AIInsightDto[]>'.
+  Type 'unknown[]' is not assignable to type 'AIInsightDto[]'.
+    Type 'unknown' is not assignable to type 'AIInsightDto'.
+src/store/ProjectContext.tsx(441,32): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'SetStateAction<FurniturePart[]>'.
+  Type 'unknown[]' is not assignable to type 'FurniturePart[]'.
+    Type 'unknown' is not assignable to type 'FurniturePart'.
+src/workshop/structuralAssembly.ts(44,7): error TS6133: 'G' is declared but its value is never read.
+src/workshop/structuralAssembly.ts(50,10): error TS6133: 'crossSection' is declared but its value is never read.
+src/workshop/structuralAssembly.ts(201,11): error TS6133: 'h' is declared but its value is never read.

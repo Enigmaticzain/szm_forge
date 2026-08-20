@@ -32,6 +32,7 @@ interface Props {
 const workspaceTabs: { id: WorkspaceMode; label: string; icon: React.ReactNode; tipKey: keyof typeof tooltips.workspace }[] = [
   { id: 'command-center', label: 'COMMAND CENTER', icon: <LayoutGrid size={13} />, tipKey: 'commandCenter' },
   { id: 'engineering', label: 'ENGINEERING', icon: <Box size={13} />, tipKey: 'engineering' },
+  { id: 'knowledge-base', label: 'KNOWLEDGE', icon: <BookMarked size={13} />, tipKey: 'knowledgeBase' },
   { id: 'designing', label: 'DESIGNING', icon: <PenTool size={13} />, tipKey: 'designing' },
   { id: 'simulation', label: 'SIMULATION', icon: <Cpu size={13} />, tipKey: 'simulation' },
   { id: 'physics', label: 'REAL PHYSICS', icon: <Zap size={13} />, tipKey: 'simulation' },

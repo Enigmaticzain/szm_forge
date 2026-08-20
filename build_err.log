@@ -1,0 +1,841 @@
+[ 12%] Built target SZM_WebViewer_Module
+[ 19%] Built target AppCore_Input_Event_Bus
+[ 24%] Built target SZM_Materials_Module
+[ 36%] Built target SZM_FEA_Module
+[ 48%] Built target SZM_Simulation_Module
+[ 87%] Built target SZM_AI_Module
+[ 90%] Building CXX object src/WebAPI/CMakeFiles/SZM_WebAPI_Module.dir/FastAPIBridge.cpp.o
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In member function ‘std::string SZM::WebAPI::ExportAPI::ExportSceneThreeJS()’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:530:5: error: expected ‘catch’ before ‘}’ token
+  530 |     }
+      |     ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:530:5: error: expected ‘(’ before ‘}’ token
+  530 |     }
+      |     ^
+      |     (
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:530:5: error: expected type-specifier before ‘}’ token
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:529:6: error: expected ‘)’ before ‘}’ token
+  529 |     }
+      |      ^
+      |      )
+  530 |     }
+      |     ~ 
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:530:5: error: expected ‘{’ before ‘}’ token
+  530 |     }
+      |     ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: At global scope:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:531:5: error: expected unqualified-id before ‘catch’
+  531 |     catch (const std::exception& e) {
+      |     ^~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:537:13: error: ‘ExportAPI’ has not been declared
+  537 | std::string ExportAPI::ExportSceneUSD(const std::string& outputPath) {
+      |             ^~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘std::string ExportSceneUSD(const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:538:19: error: ‘SimulationEngine’ has not been declared
+  538 |     auto* scene = SimulationEngine::GetInstance().GetScene();
+      |                   ^~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:545:68: error: expected primary-expression before ‘>’ token
+  545 |     auto entities = scene->View<SZM::SceneGraph::TransformComponent>();
+      |                                                                    ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:545:70: error: expected primary-expression before ‘)’ token
+  545 |     auto entities = scene->View<SZM::SceneGraph::TransformComponent>();
+      |                                                                      ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:549:62: error: expected primary-expression before ‘>’ token
+  549 |         if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+      |                                                              ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:550:69: error: expected primary-expression before ‘>’ token
+  550 |             name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+      |                                                                     ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:553:88: error: expected primary-expression before ‘>’ token
+  553 |         const auto& transform = scene->GetComponent<SZM::SceneGraph::TransformComponent>(e);
+      |                                                                                        ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:555:32: error: no matching function for call to ‘nlohmann::json_abi_v3_11_3::basic_json<>::push_back(<brace-enclosed initializer list>)’
+  555 |         entitiesArray.push_back({
+      |         ~~~~~~~~~~~~~~~~~~~~~~~^~
+  556 |             {"id", static_cast<uint32_t>(e)},
+      |             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  557 |             {"name", name},
+      |             ~~~~~~~~~~~~~~~     
+  558 |             {"transform", {
+      |             ~~~~~~~~~~~~~~~     
+  559 |                 {"position", {transform.position.x, transform.position.y, transform.position.z}},
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  560 |                 {"rotation", {transform.rotation.x, transform.rotation.y, transform.rotation.z}},
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  561 |                 {"scale", {transform.scale.x, transform.scale.y, transform.scale.z}}
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  562 |             }}
+      |             ~~                  
+  563 |         });
+      |         ~~                      
+In file included from /mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:9:
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3088:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 3088 |     void push_back(basic_json&& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3088:33: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘nlohmann::json_abi_v3_11_3::basic_json<>&&’
+ 3088 |     void push_back(basic_json&& val)
+      |                    ~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3121:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 3121 |     void push_back(const basic_json& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3121:38: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘const nlohmann::json_abi_v3_11_3::basic_json<>&’
+ 3121 |     void push_back(const basic_json& val)
+      |                    ~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3153:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(const typename object_t::value_type&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; typename object_t::value_type = std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> >; object_t = std::map<std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<>, std::less<void>, std::allocator<std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> > > >]’
+ 3153 |     void push_back(const typename object_t::value_type& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3153:57: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘const std::map<std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<>, std::less<void>, std::allocator<std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> > > >::value_type&’ {aka ‘const std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> >&’}
+ 3153 |     void push_back(const typename object_t::value_type& val)
+      |                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3184:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(initializer_list_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; initializer_list_t = std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >]’
+ 3184 |     void push_back(initializer_list_t init)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3184:39: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘nlohmann::json_abi_v3_11_3::basic_json<>::initializer_list_t’ {aka ‘std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >’}
+ 3184 |     void push_back(initializer_list_t init)
+      |                    ~~~~~~~~~~~~~~~~~~~^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: At global scope:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:592:13: error: ‘ExportAPI’ has not been declared
+  592 | std::string ExportAPI::ExportReportPDF(const std::string& jobId) {
+      |             ^~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘std::string ExportReportPDF(const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:593:10: error: ‘m_IsRunning’ was not declared in this scope
+  593 |     if (!m_IsRunning) {
+      |          ^~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:598:33: error: ‘EnsureExportDirectory’ was not declared in this scope; did you mean ‘SZM::WebAPI::EnsureExportDirectory’?
+  598 |         const auto exportPath = EnsureExportDirectory();
+      |                                 ^~~~~~~~~~~~~~~~~~~~~
+      |                                 SZM::WebAPI::EnsureExportDirectory
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:446:30: note: ‘SZM::WebAPI::EnsureExportDirectory’ declared here
+  446 | static std::filesystem::path EnsureExportDirectory();
+      |                              ^~~~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: At global scope:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:627:1: error: ‘APIManager’ does not name a type
+  627 | APIManager& APIManager::GetInstance() {
+      | ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:635:8: error: ‘SimulationSnapshot’ does not name a type
+  635 | static SimulationSnapshot g_Snapshot;
+      |        ^~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:644:6: error: ‘APIManager’ has not been declared
+  644 | void APIManager::PushComponentSnapshot(const std::string& name,
+      |      ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘void PushComponentSnapshot(const std::string&, float, float, float, float, double)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:648:38: error: ‘g_Snapshot’ was not declared in this scope
+  648 |     std::lock_guard<std::mutex> lock(g_Snapshot.mu);
+      |                                      ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: At global scope:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:667:6: error: ‘APIManager’ has not been declared
+  667 | bool APIManager::Initialize(uint16_t basePort, const std::string& uiDistPath) {
+      |      ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘bool Initialize(uint16_t, const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:668:38: error: ‘g_ServerMutex’ was not declared in this scope; did you mean ‘SZM::WebAPI::g_ServerMutex’?
+  668 |     std::lock_guard<std::mutex> lock(g_ServerMutex);
+      |                                      ^~~~~~~~~~~~~
+      |                                      SZM::WebAPI::g_ServerMutex
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:26:19: note: ‘SZM::WebAPI::g_ServerMutex’ declared here
+   26 | static std::mutex g_ServerMutex;
+      |                   ^~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:672:14: error: ‘g_Server’ was not declared in this scope; did you mean ‘SZM::WebAPI::g_Server’?
+  672 |         if (!g_Server) {
+      |              ^~~~~~~~
+      |              SZM::WebAPI::g_Server
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:24:41: note: ‘SZM::WebAPI::g_Server’ declared here
+   24 | static std::unique_ptr<httplib::Server> g_Server;
+      |                                         ^~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:28: error: ‘m_SimulationAPI’ was not declared in this scope
+  674 |             auto& simApi = m_SimulationAPI;
+      |                            ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:675:33: error: ‘m_AnalysisAPI’ was not declared in this scope; did you mean ‘analysisApi’?
+  675 |             auto& analysisApi = m_AnalysisAPI;
+      |                                 ^~~~~~~~~~~~~
+      |                                 analysisApi
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:676:31: error: ‘m_ExportAPI’ was not declared in this scope; did you mean ‘exportApi’?
+  676 |             auto& exportApi = m_ExportAPI;
+      |                               ^~~~~~~~~~~
+      |                               exportApi
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:705:33: error: ‘TableProjectService’ has not been declared
+  705 |                 res.set_content(TableProjectService::GetInstance().GetAssemblyTree().dump(2),
+      |                                 ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:711:33: error: ‘TableProjectService’ has not been declared
+  711 |                 res.set_content(TableProjectService::GetInstance().GetProjectState().dump(2),
+      |                                 ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:716:33: error: ‘TableProjectService’ has not been declared
+  716 |                 res.set_content(TableProjectService::GetInstance().GetLimits().dump(2),
+      |                                 ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:721:33: error: ‘TableProjectService’ has not been declared
+  721 |                 res.set_content(TableProjectService::GetInstance().GetAIInsights().dump(2),
+      |                                 ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:753:28: error: ‘TableProjectService’ has not been declared
+  753 |                     return TableProjectService::GetInstance().CreateNewProject(name);
+      |                            ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:751:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  751 |                 postJson(req, res, [](const nlohmann::json& body) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  752 |                     const std::string name = body.value("name", "Table Workshop Project");
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  753 |                     return TableProjectService::GetInstance().CreateNewProject(name);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  754 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:751:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:751:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:761:28: error: ‘TableProjectService’ has not been declared
+  761 |                     return TableProjectService::GetInstance().CreateTable(mat, loadKg);
+      |                            ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:758:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  758 |                 postJson(req, res, [](const nlohmann::json& body) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  759 |                     const std::string mat = body.value("materialId", "MAT-STEEL-STRUCT");
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  760 |                     const float loadKg = body.value("loadKg", 200.0f);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  761 |                     return TableProjectService::GetInstance().CreateTable(mat, loadKg);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  762 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:758:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:758:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:770:28: error: ‘TableProjectService’ has not been declared
+  770 |                     return TableProjectService::GetInstance().CreateFurniture(type, mat, loadKg);
+      |                            ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:766:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  766 |                 postJson(req, res, [](const nlohmann::json& body) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  767 |                     const std::string type = body.value("type", "table");
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  768 |                     const std::string mat = body.value("materialId", "MAT-STEEL-STRUCT");
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  769 |                     const float loadKg = body.value("loadKg", 200.0f);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  770 |                     return TableProjectService::GetInstance().CreateFurniture(type, mat, loadKg);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  771 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:766:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:766:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:776:28: error: ‘TableProjectService’ has not been declared
+  776 |                     return TableProjectService::GetInstance().SetLoad(body.value("loadKg", 200.0f));
+      |                            ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:775:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  775 |                 postJson(req, res, [](const nlohmann::json& body) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  776 |                     return TableProjectService::GetInstance().SetLoad(body.value("loadKg", 200.0f));
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  777 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:775:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:775:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:783:28: error: ‘TableProjectService’ has not been declared
+  783 |                     return TableProjectService::GetInstance().RunLimitSweep();
+      |                            ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:782:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  782 |                 postJson(req, res, [](const nlohmann::json&) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  783 |                     return TableProjectService::GetInstance().RunLimitSweep();
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  784 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:782:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:782:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:790:28: error: ‘TableProjectService’ has not been declared
+  790 |                     return TableProjectService::GetInstance().RunAIImprove();
+      |                            ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:789:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  789 |                 postJson(req, res, [](const nlohmann::json&) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  790 |                     return TableProjectService::GetInstance().RunAIImprove();
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  791 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:789:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:789:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:820:33: error: ‘TableProjectService’ has not been declared
+  820 |                     auto& svc = TableProjectService::GetInstance();
+      |                                 ^~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:834:21: error: no matching function for call to ‘nlohmann::json_abi_v3_11_3::basic_json<>::basic_json(<brace-enclosed initializer list>)’
+  834 |                     };
+      |                     ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1141:5: note: candidate: ‘template<class JsonRef, typename std::enable_if<nlohmann::json_abi_v3_11_3::detail::conjunction<nlohmann::json_abi_v3_11_3::detail::is_json_ref<JsonRef>, std::is_same<typename JsonRef::value_type, nlohmann::json_abi_v3_11_3::basic_json<std::map, std::vector, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long int, long unsigned int, double, std::allocator, nlohmann::json_abi_v3_11_3::adl_serializer, std::vector<unsigned char, std::allocator<unsigned char> >, void> > >::value, int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const JsonRef&) [with typename std::enable_if<nlohmann::json_abi_v3_11_3::detail::conjunction<nlohmann::json_abi_v3_11_3::detail::is_json_ref<JsonRef>, std::is_same<typename JsonRef::value_type, nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value, int>::type <anonymous> = JsonRef; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1141 |     basic_json(const JsonRef& ref) : basic_json(ref.moved_or_copied()) {}
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1141:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:834:21: note:   candidate expects 1 argument, 5 provided
+  834 |                     };
+      |                     ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1032:5: note: candidate: ‘template<class InputIT, typename std::enable_if<(std::is_same<IterImpl, nlohmann::json_abi_v3_11_3::detail::iter_impl<nlohmann::json_abi_v3_11_3::basic_json<> > >::value || std::is_same<IterImpl, nlohmann::json_abi_v3_11_3::detail::iter_impl<const nlohmann::json_abi_v3_11_3::basic_json<> > >::value), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(InputIT, InputIT) [with typename std::enable_if<(std::is_same<InputIT, nlohmann::json_abi_v3_11_3::detail::iter_impl<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value || std::is_same<InputIT, nlohmann::json_abi_v3_11_3::detail::iter_impl<const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value), int>::type <anonymous> = InputIT; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1032 |     basic_json(InputIT first, InputIT last)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1032:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:834:21: note:   candidate expects 2 arguments, 5 provided
+  834 |                     };
+      |                     ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:849:5: note: candidate: ‘template<class BasicJsonType, typename std::enable_if<(nlohmann::json_abi_v3_11_3::detail::is_basic_json<BasicJsonType>::value && (! std::is_same<nlohmann::json_abi_v3_11_3::basic_json<>, BasicJsonType>::value)), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const BasicJsonType&) [with typename std::enable_if<(nlohmann::json_abi_v3_11_3::detail::is_basic_json<BasicJsonType>::value && (! std::is_same<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>, BasicJsonType>::value)), int>::type <anonymous> = BasicJsonType; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+  849 |     basic_json(const BasicJsonType& val)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:849:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:834:21: note:   candidate expects 1 argument, 5 provided
+  834 |                     };
+      |                     ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:835:5: note: candidate: ‘template<class CompatibleType, class U, typename std::enable_if<((! nlohmann::json_abi_v3_11_3::detail::is_basic_json<T>::value) && nlohmann::json_abi_v3_11_3::detail::is_compatible_type<nlohmann::json_abi_v3_11_3::basic_json<>, U>::value), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(CompatibleType&&) [with U = CompatibleType; typename std::enable_if<((! nlohmann::json_abi_v3_11_3::detail::is_basic_json<U>::value) && nlohmann::json_abi_v3_11_3::detail::is_compatible_type<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>, U>::value), int>::type <anonymous> = U; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+  835 |     basic_json(CompatibleType && val) noexcept(noexcept( // NOLINT(bugprone-forwarding-reference-overload,bugprone-exception-escape)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:835:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:834:21: note:   candidate expects 1 argument, 5 provided
+  834 |                     };
+      |                     ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1214:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1214 |     basic_json(basic_json&& other) noexcept
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1214:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1145:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1145 |     basic_json(const basic_json& other)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1145:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1020:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(size_type, const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; size_type = long unsigned int]’
+ 1020 |     basic_json(size_type cnt, const basic_json& val):
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1020:5: note:   candidate expects 2 arguments, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:902:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(initializer_list_t, bool, value_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; initializer_list_t = std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >; value_t = nlohmann::json_abi_v3_11_3::detail::value_t]’
+  902 |     basic_json(initializer_list_t init,
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:902:5: note:   candidate expects 3 arguments, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:823:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(std::nullptr_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; std::nullptr_t = std::nullptr_t]’
+  823 |     basic_json(std::nullptr_t = nullptr) noexcept // NOLINT(bugprone-exception-escape)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:823:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:815:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(value_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; value_t = nlohmann::json_abi_v3_11_3::detail::value_t]’
+  815 |     basic_json(const value_t v)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:815:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:819:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  819 |                 postJson(req, res, [](const nlohmann::json& body) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  820 |                     auto& svc = TableProjectService::GetInstance();
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  821 |                     const std::string name = body.value("name", "Four-Leg Table Study");
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  822 |                     const std::string mat = body.value("materialId", "MAT-STEEL-STRUCT");
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  823 |                     const float loadKg = body.value("loadKg", 200.0f);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  824 |                     svc.CreateNewProject(name);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  825 |                     auto table = svc.CreateTable(mat, loadKg);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  826 |                     auto limits = svc.RunLimitSweep();
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  827 |                     auto improved = svc.RunAIImprove();
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  828 |                     return nlohmann::json{
+      |                     ~~~~~~~~~~~~~~~~~~~~~~
+  829 |                         {"ok", true},
+      |                         ~~~~~~~~~~~~~
+  830 |                         {"project", svc.GetProjectState()},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  831 |                         {"table", table},
+      |                         ~~~~~~~~~~~~~~~~~
+  832 |                         {"limits", limits},
+      |                         ~~~~~~~~~~~~~~~~~~~
+  833 |                         {"ai", improved}
+      |                         ~~~~~~~~~~~~~~~~
+  834 |                     };
+      |                     ~~   
+  835 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:819:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:819:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:841:28: error: ‘StructuralSolveService’ has not been declared
+  841 |                     return StructuralSolveService::Solve(body);
+      |                            ^~~~~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:840:25: error: no match for call to ‘(Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>) (const httplib::Request&, httplib::Response&, Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>)’
+  840 |                 postJson(req, res, [](const nlohmann::json& body) {
+      |                 ~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  841 |                     return StructuralSolveService::Solve(body);
+      |                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  842 |                 });
+      |                 ~~       
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:840:25: note: candidate: ‘void (*)(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)’ (conversion)
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:840:25: note:   candidate expects 4 arguments, 4 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note: candidate: ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&, const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&)>’
+  725 |             auto postJson = [](const httplib::Request& req, httplib::Response& res,
+      |                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:725:29: note:   no known conversion for argument 3 from ‘Initialize(uint16_t, const std::string&)::<lambda(const httplib::Request&, httplib::Response&)>::<lambda(const nlohmann::json_abi_v3_11_3::json&)>’ to ‘const std::function<nlohmann::json_abi_v3_11_3::basic_json<>(const nlohmann::json_abi_v3_11_3::basic_json<>&)>&’
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:896:28: error: ‘Materials’ has not been declared
+  896 |                 auto& db = Materials::MaterialDatabase::GetInstance();
+      |                            ^~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:899:35: error: no matching function for call to ‘nlohmann::json_abi_v3_11_3::basic_json<>::push_back(<brace-enclosed initializer list>)’
+  899 |                     mats.push_back({
+      |                     ~~~~~~~~~~~~~~^~
+  900 |                         {"id", m.id},
+      |                         ~~~~~~~~~~~~~
+  901 |                         {"name", m.name},
+      |                         ~~~~~~~~~~~~~~~~~
+  902 |                         {"youngsModulus_GPa", m.youngsModulus},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  903 |                         {"yieldStrength_MPa", m.yieldStrength},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  904 |                         {"density_kg_m3", m.density},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  905 |                     });
+      |                     ~~             
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3088:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 3088 |     void push_back(basic_json&& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3088:33: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘nlohmann::json_abi_v3_11_3::basic_json<>&&’
+ 3088 |     void push_back(basic_json&& val)
+      |                    ~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3121:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 3121 |     void push_back(const basic_json& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3121:38: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘const nlohmann::json_abi_v3_11_3::basic_json<>&’
+ 3121 |     void push_back(const basic_json& val)
+      |                    ~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3153:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(const typename object_t::value_type&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; typename object_t::value_type = std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> >; object_t = std::map<std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<>, std::less<void>, std::allocator<std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> > > >]’
+ 3153 |     void push_back(const typename object_t::value_type& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3153:57: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘const std::map<std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<>, std::less<void>, std::allocator<std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> > > >::value_type&’ {aka ‘const std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> >&’}
+ 3153 |     void push_back(const typename object_t::value_type& val)
+      |                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3184:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(initializer_list_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; initializer_list_t = std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >]’
+ 3184 |     void push_back(initializer_list_t init)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3184:39: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘nlohmann::json_abi_v3_11_3::basic_json<>::initializer_list_t’ {aka ‘std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >’}
+ 3184 |     void push_back(initializer_list_t init)
+      |                    ~~~~~~~~~~~~~~~~~~~^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:917:50: error: ‘g_Snapshot’ was not declared in this scope
+  917 |                 std::lock_guard<std::mutex> lock(g_Snapshot.mu);
+      |                                                  ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:924:36: error: no matching function for call to ‘nlohmann::json_abi_v3_11_3::basic_json<>::push_back(<brace-enclosed initializer list>)’
+  924 |                     comps.push_back({
+      |                     ~~~~~~~~~~~~~~~^~
+  925 |                         {"name",        c.name},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~
+  926 |                         {"stress_MPa",  c.stress},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~
+  927 |                         {"temperature_C", c.temperature},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  928 |                         {"stressRatio", c.stressRatio},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  929 |                         {"tempRatio",   c.tempRatio},
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  930 |                         {"status",      c.status}
+      |                         ~~~~~~~~~~~~~~~~~~~~~~~~~
+  931 |                     });
+      |                     ~~              
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3088:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 3088 |     void push_back(basic_json&& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3088:33: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘nlohmann::json_abi_v3_11_3::basic_json<>&&’
+ 3088 |     void push_back(basic_json&& val)
+      |                    ~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3121:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 3121 |     void push_back(const basic_json& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3121:38: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘const nlohmann::json_abi_v3_11_3::basic_json<>&’
+ 3121 |     void push_back(const basic_json& val)
+      |                    ~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3153:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(const typename object_t::value_type&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; typename object_t::value_type = std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> >; object_t = std::map<std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<>, std::less<void>, std::allocator<std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> > > >]’
+ 3153 |     void push_back(const typename object_t::value_type& val)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3153:57: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘const std::map<std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<>, std::less<void>, std::allocator<std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> > > >::value_type&’ {aka ‘const std::pair<const std::__cxx11::basic_string<char>, nlohmann::json_abi_v3_11_3::basic_json<> >&’}
+ 3153 |     void push_back(const typename object_t::value_type& val)
+      |                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3184:10: note: candidate: ‘void nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::push_back(initializer_list_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; initializer_list_t = std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >]’
+ 3184 |     void push_back(initializer_list_t init)
+      |          ^~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:3184:39: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘nlohmann::json_abi_v3_11_3::basic_json<>::initializer_list_t’ {aka ‘std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >’}
+ 3184 |     void push_back(initializer_list_t init)
+      |                    ~~~~~~~~~~~~~~~~~~~^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘bool Initialize(uint16_t, const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:937:55: error: invalid use of ‘this’ in non-member function
+  937 |             g_Server->Post("/api/simulation/submit", [this, &postJson](const httplib::Request& req, httplib::Response& res) {
+      |                                                       ^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:938:37: error: ‘this’ was not captured for this lambda function
+  938 |                 postJson(req, res, [this](const nlohmann::json& body) {
+      |                                     ^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:939:21: error: ‘SimulationAPI’ has not been declared
+  939 |                     SimulationAPI::JobRequest request;
+      |                     ^~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:940:21: error: ‘request’ was not declared in this scope
+  940 |                     request.componentId = body.value("componentId", 0u);
+      |                     ^~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:950:47: error: ‘m_SimulationAPI’ is not captured
+  950 |                     const std::string jobId = m_SimulationAPI.SubmitJob(request);
+      |                                               ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:938:41: note: the lambda has no capture-default
+  938 |                 postJson(req, res, [this](const nlohmann::json& body) {
+      |                                         ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:28: note: ‘<typeprefixerror>m_SimulationAPI’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                            ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘bool Initialize(uint16_t, const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:955:59: error: invalid use of ‘this’ in non-member function
+  955 |             g_Server->Get(R"(/api/simulation/job/(.*))", [this](const httplib::Request& req, httplib::Response& res) {
+      |                                                           ^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:962:37: error: ‘m_SimulationAPI’ is not captured
+  962 |                 const auto status = m_SimulationAPI.GetJobStatus(jobId);
+      |                                     ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:955:63: note: the lambda has no capture-default
+  955 |             g_Server->Get(R"(/api/simulation/job/(.*))", [this](const httplib::Request& req, httplib::Response& res) {
+      |                                                               ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:28: note: ‘<typeprefixerror>m_SimulationAPI’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                            ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:969:17: error: no matching function for call to ‘nlohmann::json_abi_v3_11_3::basic_json<>::basic_json(<brace-enclosed initializer list>)’
+  969 |                 }.dump(2), "application/json");
+      |                 ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1141:5: note: candidate: ‘template<class JsonRef, typename std::enable_if<nlohmann::json_abi_v3_11_3::detail::conjunction<nlohmann::json_abi_v3_11_3::detail::is_json_ref<JsonRef>, std::is_same<typename JsonRef::value_type, nlohmann::json_abi_v3_11_3::basic_json<std::map, std::vector, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long int, long unsigned int, double, std::allocator, nlohmann::json_abi_v3_11_3::adl_serializer, std::vector<unsigned char, std::allocator<unsigned char> >, void> > >::value, int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const JsonRef&) [with typename std::enable_if<nlohmann::json_abi_v3_11_3::detail::conjunction<nlohmann::json_abi_v3_11_3::detail::is_json_ref<JsonRef>, std::is_same<typename JsonRef::value_type, nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value, int>::type <anonymous> = JsonRef; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1141 |     basic_json(const JsonRef& ref) : basic_json(ref.moved_or_copied()) {}
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1141:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:969:17: note:   candidate expects 1 argument, 5 provided
+  969 |                 }.dump(2), "application/json");
+      |                 ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1032:5: note: candidate: ‘template<class InputIT, typename std::enable_if<(std::is_same<IterImpl, nlohmann::json_abi_v3_11_3::detail::iter_impl<nlohmann::json_abi_v3_11_3::basic_json<> > >::value || std::is_same<IterImpl, nlohmann::json_abi_v3_11_3::detail::iter_impl<const nlohmann::json_abi_v3_11_3::basic_json<> > >::value), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(InputIT, InputIT) [with typename std::enable_if<(std::is_same<InputIT, nlohmann::json_abi_v3_11_3::detail::iter_impl<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value || std::is_same<InputIT, nlohmann::json_abi_v3_11_3::detail::iter_impl<const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value), int>::type <anonymous> = InputIT; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1032 |     basic_json(InputIT first, InputIT last)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1032:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:969:17: note:   candidate expects 2 arguments, 5 provided
+  969 |                 }.dump(2), "application/json");
+      |                 ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:849:5: note: candidate: ‘template<class BasicJsonType, typename std::enable_if<(nlohmann::json_abi_v3_11_3::detail::is_basic_json<BasicJsonType>::value && (! std::is_same<nlohmann::json_abi_v3_11_3::basic_json<>, BasicJsonType>::value)), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const BasicJsonType&) [with typename std::enable_if<(nlohmann::json_abi_v3_11_3::detail::is_basic_json<BasicJsonType>::value && (! std::is_same<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>, BasicJsonType>::value)), int>::type <anonymous> = BasicJsonType; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+  849 |     basic_json(const BasicJsonType& val)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:849:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:969:17: note:   candidate expects 1 argument, 5 provided
+  969 |                 }.dump(2), "application/json");
+      |                 ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:835:5: note: candidate: ‘template<class CompatibleType, class U, typename std::enable_if<((! nlohmann::json_abi_v3_11_3::detail::is_basic_json<T>::value) && nlohmann::json_abi_v3_11_3::detail::is_compatible_type<nlohmann::json_abi_v3_11_3::basic_json<>, U>::value), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(CompatibleType&&) [with U = CompatibleType; typename std::enable_if<((! nlohmann::json_abi_v3_11_3::detail::is_basic_json<U>::value) && nlohmann::json_abi_v3_11_3::detail::is_compatible_type<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>, U>::value), int>::type <anonymous> = U; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+  835 |     basic_json(CompatibleType && val) noexcept(noexcept( // NOLINT(bugprone-forwarding-reference-overload,bugprone-exception-escape)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:835:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:969:17: note:   candidate expects 1 argument, 5 provided
+  969 |                 }.dump(2), "application/json");
+      |                 ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1214:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1214 |     basic_json(basic_json&& other) noexcept
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1214:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1145:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1145 |     basic_json(const basic_json& other)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1145:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1020:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(size_type, const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; size_type = long unsigned int]’
+ 1020 |     basic_json(size_type cnt, const basic_json& val):
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1020:5: note:   candidate expects 2 arguments, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:902:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(initializer_list_t, bool, value_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; initializer_list_t = std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >; value_t = nlohmann::json_abi_v3_11_3::detail::value_t]’
+  902 |     basic_json(initializer_list_t init,
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:902:5: note:   candidate expects 3 arguments, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:823:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(std::nullptr_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; std::nullptr_t = std::nullptr_t]’
+  823 |     basic_json(std::nullptr_t = nullptr) noexcept // NOLINT(bugprone-exception-escape)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:823:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:815:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(value_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; value_t = nlohmann::json_abi_v3_11_3::detail::value_t]’
+  815 |     basic_json(const value_t v)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:815:5: note:   candidate expects 1 argument, 5 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘bool Initialize(uint16_t, const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:972:67: error: invalid use of ‘this’ in non-member function
+  972 |             g_Server->Post(R"(/api/simulation/job/(.*)/cancel)", [this](const httplib::Request& req, httplib::Response& res) {
+      |                                                                   ^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:979:40: error: ‘m_SimulationAPI’ is not captured
+  979 |                 const bool cancelled = m_SimulationAPI.CancelJob(jobId);
+      |                                        ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:972:71: note: the lambda has no capture-default
+  972 |             g_Server->Post(R"(/api/simulation/job/(.*)/cancel)", [this](const httplib::Request& req, httplib::Response& res) {
+      |                                                                       ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:28: note: ‘<typeprefixerror>m_SimulationAPI’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                            ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘bool Initialize(uint16_t, const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:983:66: error: invalid use of ‘this’ in non-member function
+  983 |             g_Server->Get(R"(/api/simulation/job/(.*)/result)", [this](const httplib::Request& req, httplib::Response& res) {
+      |                                                                  ^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:990:51: error: ‘m_SimulationAPI’ is not captured
+  990 |                 const std::string resultPayload = m_SimulationAPI.GetJobResult(jobId);
+      |                                                   ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:983:70: note: the lambda has no capture-default
+  983 |             g_Server->Get(R"(/api/simulation/job/(.*)/result)", [this](const httplib::Request& req, httplib::Response& res) {
+      |                                                                      ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:28: note: ‘<typeprefixerror>m_SimulationAPI’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                            ^~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:996:50: error: ‘g_Snapshot’ was not declared in this scope
+  996 |                 std::lock_guard<std::mutex> lock(g_Snapshot.mu);
+      |                                                  ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1008:31: error: ‘simApi’ is not captured
+ 1008 |                 auto status = simApi.GetJobStatus(jobId);
+      |                               ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1001:59: note: the lambda has no capture-default
+ 1001 |             g_Server->Get("/api/simulation/jobs", [&simApi](const httplib::Request& req, httplib::Response& res) {
+      |                                                           ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:19: note: ‘<typeprefixerror>simApi’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                   ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1014:19: error: no matching function for call to ‘nlohmann::json_abi_v3_11_3::basic_json<>::basic_json(<brace-enclosed initializer list>)’
+ 1014 |                 }}}.dump(2), "application/json");
+      |                   ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1141:5: note: candidate: ‘template<class JsonRef, typename std::enable_if<nlohmann::json_abi_v3_11_3::detail::conjunction<nlohmann::json_abi_v3_11_3::detail::is_json_ref<JsonRef>, std::is_same<typename JsonRef::value_type, nlohmann::json_abi_v3_11_3::basic_json<std::map, std::vector, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, bool, long int, long unsigned int, double, std::allocator, nlohmann::json_abi_v3_11_3::adl_serializer, std::vector<unsigned char, std::allocator<unsigned char> >, void> > >::value, int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const JsonRef&) [with typename std::enable_if<nlohmann::json_abi_v3_11_3::detail::conjunction<nlohmann::json_abi_v3_11_3::detail::is_json_ref<JsonRef>, std::is_same<typename JsonRef::value_type, nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value, int>::type <anonymous> = JsonRef; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1141 |     basic_json(const JsonRef& ref) : basic_json(ref.moved_or_copied()) {}
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1141:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1014:19: note:   candidate expects 1 argument, 2 provided
+ 1014 |                 }}}.dump(2), "application/json");
+      |                   ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1032:5: note: candidate: ‘template<class InputIT, typename std::enable_if<(std::is_same<IterImpl, nlohmann::json_abi_v3_11_3::detail::iter_impl<nlohmann::json_abi_v3_11_3::basic_json<> > >::value || std::is_same<IterImpl, nlohmann::json_abi_v3_11_3::detail::iter_impl<const nlohmann::json_abi_v3_11_3::basic_json<> > >::value), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(InputIT, InputIT) [with typename std::enable_if<(std::is_same<InputIT, nlohmann::json_abi_v3_11_3::detail::iter_impl<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value || std::is_same<InputIT, nlohmann::json_abi_v3_11_3::detail::iter_impl<const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass> > >::value), int>::type <anonymous> = InputIT; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1032 |     basic_json(InputIT first, InputIT last)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1032:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1014:19: note:   couldn’t deduce template parameter ‘InputIT’
+ 1014 |                 }}}.dump(2), "application/json");
+      |                   ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:849:5: note: candidate: ‘template<class BasicJsonType, typename std::enable_if<(nlohmann::json_abi_v3_11_3::detail::is_basic_json<BasicJsonType>::value && (! std::is_same<nlohmann::json_abi_v3_11_3::basic_json<>, BasicJsonType>::value)), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const BasicJsonType&) [with typename std::enable_if<(nlohmann::json_abi_v3_11_3::detail::is_basic_json<BasicJsonType>::value && (! std::is_same<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>, BasicJsonType>::value)), int>::type <anonymous> = BasicJsonType; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+  849 |     basic_json(const BasicJsonType& val)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:849:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1014:19: note:   candidate expects 1 argument, 2 provided
+ 1014 |                 }}}.dump(2), "application/json");
+      |                   ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:835:5: note: candidate: ‘template<class CompatibleType, class U, typename std::enable_if<((! nlohmann::json_abi_v3_11_3::detail::is_basic_json<T>::value) && nlohmann::json_abi_v3_11_3::detail::is_compatible_type<nlohmann::json_abi_v3_11_3::basic_json<>, U>::value), int>::type <anonymous> > nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(CompatibleType&&) [with U = CompatibleType; typename std::enable_if<((! nlohmann::json_abi_v3_11_3::detail::is_basic_json<U>::value) && nlohmann::json_abi_v3_11_3::detail::is_compatible_type<nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>, U>::value), int>::type <anonymous> = U; ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+  835 |     basic_json(CompatibleType && val) noexcept(noexcept( // NOLINT(bugprone-forwarding-reference-overload,bugprone-exception-escape)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:835:5: note:   template argument deduction/substitution failed:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1014:19: note:   candidate expects 1 argument, 2 provided
+ 1014 |                 }}}.dump(2), "application/json");
+      |                   ^
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1214:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1214 |     basic_json(basic_json&& other) noexcept
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1214:5: note:   candidate expects 1 argument, 2 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1145:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void]’
+ 1145 |     basic_json(const basic_json& other)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1145:5: note:   candidate expects 1 argument, 2 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1020:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(size_type, const nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>&) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; size_type = long unsigned int]’
+ 1020 |     basic_json(size_type cnt, const basic_json& val):
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:1020:26: note:   no known conversion for argument 1 from ‘<brace-enclosed initializer list>’ to ‘nlohmann::json_abi_v3_11_3::basic_json<>::size_type’ {aka ‘long unsigned int’}
+ 1020 |     basic_json(size_type cnt, const basic_json& val):
+      |                ~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:902:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(initializer_list_t, bool, value_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; initializer_list_t = std::initializer_list<nlohmann::json_abi_v3_11_3::detail::json_ref<nlohmann::json_abi_v3_11_3::basic_json<> > >; value_t = nlohmann::json_abi_v3_11_3::detail::value_t]’
+  902 |     basic_json(initializer_list_t init,
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:903:21: note:   no known conversion for argument 2 from ‘<brace-enclosed initializer list>’ to ‘bool’
+  903 |                bool type_deduction = true,
+      |                ~~~~~^~~~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:823:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(std::nullptr_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; std::nullptr_t = std::nullptr_t]’
+  823 |     basic_json(std::nullptr_t = nullptr) noexcept // NOLINT(bugprone-exception-escape)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:823:5: note:   candidate expects 1 argument, 2 provided
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:815:5: note: candidate: ‘nlohmann::json_abi_v3_11_3::basic_json<ObjectType, ArrayType, StringType, BooleanType, NumberIntegerType, NumberUnsignedType, NumberFloatType, AllocatorType, JSONSerializer, BinaryType, CustomBaseClass>::basic_json(value_t) [with ObjectType = std::map; ArrayType = std::vector; StringType = std::__cxx11::basic_string<char>; BooleanType = bool; NumberIntegerType = long int; NumberUnsignedType = long unsigned int; NumberFloatType = double; AllocatorType = std::allocator; JSONSerializer = nlohmann::json_abi_v3_11_3::adl_serializer; BinaryType = std::vector<unsigned char>; CustomBaseClass = void; value_t = nlohmann::json_abi_v3_11_3::detail::value_t]’
+  815 |     basic_json(const value_t v)
+      |     ^~~~~~~~~~
+/mnt/D/projects/szm_forge/build/_deps/nlohmann_json-src/include/nlohmann/json.hpp:815:5: note:   candidate expects 1 argument, 2 provided
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1020:21: error: ‘SimulationAPI’ has not been declared
+ 1020 |                     SimulationAPI::JobRequest request;
+      |                     ^~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1021:21: error: ‘request’ was not declared in this scope
+ 1021 |                     request.componentId = body.value("componentId", 0U);
+      |                     ^~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1032:47: error: ‘simApi’ is not captured
+ 1032 |                     const std::string jobId = simApi.SubmitJob(request);
+      |                                               ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1017:62: note: the lambda has no capture-default
+ 1017 |             g_Server->Post("/api/simulation/submit", [&simApi](const httplib::Request& req, httplib::Response& res) {
+      |                                                              ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:19: note: ‘<typeprefixerror>simApi’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                   ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1050:44: error: ‘simApi’ is not captured
+ 1050 |                     const bool cancelled = simApi.CancelJob(jobId);
+      |                                            ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1046:62: note: the lambda has no capture-default
+ 1046 |             g_Server->Post("/api/simulation/cancel", [&simApi](const httplib::Request& req, httplib::Response& res) {
+      |                                                              ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:19: note: ‘<typeprefixerror>simApi’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                   ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1060:44: error: ‘simApi’ is not captured
+ 1060 |                 const std::string result = simApi.GetJobResult(jobId);
+      |                                            ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1058:61: note: the lambda has no capture-default
+ 1058 |             g_Server->Get("/api/simulation/result", [&simApi](const httplib::Request& req, httplib::Response& res) {
+      |                                                             ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:674:19: note: ‘<typeprefixerror>simApi’ declared here
+  674 |             auto& simApi = m_SimulationAPI;
+      |                   ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘bool Initialize(uint16_t, const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1085:13: error: ‘m_Port’ was not declared in this scope
+ 1085 |             m_Port = basePort;
+      |             ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1086:13: error: ‘g_ServerThread’ was not declared in this scope; did you mean ‘SZM::WebAPI::g_ServerThread’?
+ 1086 |             g_ServerThread = std::make_unique<std::thread>([this]() {
+      |             ^~~~~~~~~~~~~~
+      |             SZM::WebAPI::g_ServerThread
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:25:37: note: ‘SZM::WebAPI::g_ServerThread’ declared here
+   25 | static std::unique_ptr<std::thread> g_ServerThread;
+      |                                     ^~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1086:61: error: invalid use of ‘this’ in non-member function
+ 1086 |             g_ServerThread = std::make_unique<std::thread>([this]() {
+      |                                                             ^~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1087:79: error: ‘m_Port’ is not captured
+ 1087 |                 std::cout << "[APIManager] HTTP Server listening on port " << m_Port << "\n";
+      |                                                                               ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1086:65: note: the lambda has no capture-default
+ 1086 |             g_ServerThread = std::make_unique<std::thread>([this]() {
+      |                                                                 ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1085:13: note: ‘<typeprefixerror>m_Port’ declared here
+ 1085 |             m_Port = basePort;
+      |             ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1088:17: error: ‘g_Server’ is not captured
+ 1088 |                 g_Server->listen("0.0.0.0", m_Port);
+      |                 ^~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1086:65: note: the lambda has no capture-default
+ 1086 |             g_ServerThread = std::make_unique<std::thread>([this]() {
+      |                                                                 ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:672:14: note: ‘<typeprefixerror>g_Server’ declared here
+  672 |         if (!g_Server) {
+      |              ^~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1088:45: error: ‘m_Port’ is not captured
+ 1088 |                 g_Server->listen("0.0.0.0", m_Port);
+      |                                             ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1086:65: note: the lambda has no capture-default
+ 1086 |             g_ServerThread = std::make_unique<std::thread>([this]() {
+      |                                                                 ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1085:13: note: ‘<typeprefixerror>m_Port’ declared here
+ 1085 |             m_Port = basePort;
+      |             ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘bool Initialize(uint16_t, const std::string&)’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1107:17: error: ‘m_IsReady’ was not declared in this scope
+ 1107 |                 m_IsReady = false;
+      |                 ^~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1115:13: error: ‘m_IsReady’ was not declared in this scope
+ 1115 |             m_IsReady = true;
+      |             ^~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1139:9: error: ‘m_IsReady’ was not declared in this scope
+ 1139 |         m_IsReady = false;
+      |         ^~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: At global scope:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1144:6: error: ‘APIManager’ has not been declared
+ 1144 | void APIManager::Shutdown() {
+      |      ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘void Shutdown()’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1145:38: error: ‘g_ServerMutex’ was not declared in this scope; did you mean ‘SZM::WebAPI::g_ServerMutex’?
+ 1145 |     std::lock_guard<std::mutex> lock(g_ServerMutex);
+      |                                      ^~~~~~~~~~~~~
+      |                                      SZM::WebAPI::g_ServerMutex
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:26:19: note: ‘SZM::WebAPI::g_ServerMutex’ declared here
+   26 | static std::mutex g_ServerMutex;
+      |                   ^~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1147:13: error: ‘g_Server’ was not declared in this scope; did you mean ‘SZM::WebAPI::g_Server’?
+ 1147 |         if (g_Server) {
+      |             ^~~~~~~~
+      |             SZM::WebAPI::g_Server
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:24:41: note: ‘SZM::WebAPI::g_Server’ declared here
+   24 | static std::unique_ptr<httplib::Server> g_Server;
+      |                                         ^~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1150:17: error: ‘g_ServerThread’ was not declared in this scope; did you mean ‘SZM::WebAPI::g_ServerThread’?
+ 1150 |             if (g_ServerThread && g_ServerThread->joinable()) {
+      |                 ^~~~~~~~~~~~~~
+      |                 SZM::WebAPI::g_ServerThread
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:25:37: note: ‘SZM::WebAPI::g_ServerThread’ declared here
+   25 | static std::unique_ptr<std::thread> g_ServerThread;
+      |                                     ^~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1154:13: error: ‘g_ServerThread’ was not declared in this scope; did you mean ‘SZM::WebAPI::g_ServerThread’?
+ 1154 |             g_ServerThread.reset();
+      |             ^~~~~~~~~~~~~~
+      |             SZM::WebAPI::g_ServerThread
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:25:37: note: ‘SZM::WebAPI::g_ServerThread’ declared here
+   25 | static std::unique_ptr<std::thread> g_ServerThread;
+      |                                     ^~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1156:9: error: ‘m_IsReady’ was not declared in this scope
+ 1156 |         m_IsReady = false;
+      |         ^~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: At global scope:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1164:13: error: ‘APIManager’ has not been declared
+ 1164 | std::string APIManager::GetDocumentationURL() const {
+      |             ^~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1164:47: error: non-member function ‘std::string GetDocumentationURL()’ cannot have cv-qualifier
+ 1164 | std::string APIManager::GetDocumentationURL() const {
+      |                                               ^~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In function ‘std::string GetDocumentationURL()’:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1165:49: error: ‘m_Port’ was not declared in this scope
+ 1165 |     return "http://localhost:" + std::to_string(m_Port) + "/docs";
+      |                                                 ^~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: At global scope:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1168:1: error: expected declaration before ‘}’ token
+ 1168 | } // namespace SZM::WebAPI
+      | ^
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:446:30: warning: ‘std::filesystem::__cxx11::path SZM::WebAPI::EnsureExportDirectory()’ declared ‘static’ but never defined [-Wunused-function]
+  446 | static std::filesystem::path EnsureExportDirectory();
+      |                              ^~~~~~~~~~~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:446:30: warning: ‘std::filesystem::__cxx11::path SZM::WebAPI::EnsureExportDirectory()’ used but never defined
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:637:30: warning: ‘std::filesystem::__cxx11::path EnsureExportDirectory()’ defined but not used [-Wunused-function]
+  637 | static std::filesystem::path EnsureExportDirectory() {
+      |                              ^~~~~~~~~~~~~~~~~~~~~
+gmake[3]: *** [src/WebAPI/CMakeFiles/SZM_WebAPI_Module.dir/build.make:76: src/WebAPI/CMakeFiles/SZM_WebAPI_Module.dir/FastAPIBridge.cpp.o] Error 1
+gmake[2]: *** [CMakeFiles/Makefile2:1508: src/WebAPI/CMakeFiles/SZM_WebAPI_Module.dir/all] Error 2
+gmake[1]: *** [CMakeFiles/Makefile2:1515: src/WebAPI/CMakeFiles/SZM_WebAPI_Module.dir/rule] Error 2
+gmake: *** [Makefile:712: SZM_WebAPI_Module] Error 2

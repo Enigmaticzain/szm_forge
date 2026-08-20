@@ -30,7 +30,7 @@ import { useTooltips } from './store/TooltipContext';
 import { tooltips } from './data/tooltips';
 import { useAuth } from './store/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
-import { ActionObserver } from './components/ActionObserver';
+import { KnowledgeWorkspace } from './components/KnowledgeWorkspace';
 
 const ModernApp: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -204,6 +204,14 @@ const ModernApp: React.FC = () => {
           <WorkspaceLayout
             showLeft={false}
             center={<CommandCenterWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'knowledge-base':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<KnowledgeWorkspace />}
             showRight={false}
           />
         );

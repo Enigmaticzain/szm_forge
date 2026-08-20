@@ -1,0 +1,888 @@
+{
+  "schemaVersion": "1.0.0",
+  "domain": "materials",
+  "entries": [
+    {
+      "id": "MAT-STEEL-STRUCT",
+      "name": "Structural Steel (AISI 1020)",
+      "category": "Ferrous / Low Carbon Steel",
+      "tags": [
+        "steel",
+        "AISI 1020",
+        "weldable"
+      ],
+      "youngsModulus_GPa": 200,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 250,
+      "ultimateStrength_MPa": 400,
+      "density_kg_m3": 7850,
+      "thermalExpansion_1_K": 1.2e-05,
+      "thermalConductivity_W_mK": 50,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-AL-6061-T6",
+      "name": "6061-T6 Aluminum",
+      "category": "Non-Ferrous / Aluminum",
+      "tags": [
+        "aluminum",
+        "6061",
+        "machinable"
+      ],
+      "youngsModulus_GPa": 68.9,
+      "poissonsRatio": 0.33,
+      "yieldStrength_MPa": 276,
+      "ultimateStrength_MPa": 310,
+      "density_kg_m3": 2700,
+      "thermalExpansion_1_K": 2.32e-05,
+      "thermalConductivity_W_mK": 167,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-TI-6AL4V",
+      "name": "Ti-6Al-4V (Grade 5)",
+      "category": "Non-Ferrous / Titanium",
+      "tags": [
+        "titanium",
+        "aerospace",
+        "biocompatible"
+      ],
+      "youngsModulus_GPa": 113.8,
+      "poissonsRatio": 0.342,
+      "yieldStrength_MPa": 880,
+      "ultimateStrength_MPa": 950,
+      "density_kg_m3": 4430,
+      "thermalExpansion_1_K": 8.6e-06,
+      "thermalConductivity_W_mK": 6.7,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-CU-C110",
+      "name": "C110 Copper",
+      "category": "Non-Ferrous / Copper",
+      "tags": [
+        "copper",
+        "electrical"
+      ],
+      "youngsModulus_GPa": 117,
+      "poissonsRatio": 0.34,
+      "yieldStrength_MPa": 69,
+      "ultimateStrength_MPa": 220,
+      "density_kg_m3": 8960,
+      "thermalExpansion_1_K": 1.68e-05,
+      "thermalConductivity_W_mK": 385,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-IRON-PURE",
+      "name": "Pure Iron",
+      "category": "Ferrous / Pure Iron",
+      "tags": [
+        "iron",
+        "BCC"
+      ],
+      "youngsModulus_GPa": 211,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 540,
+      "ultimateStrength_MPa": 540,
+      "density_kg_m3": 7874,
+      "thermalExpansion_1_K": 1.18e-05,
+      "thermalConductivity_W_mK": 80,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-CAST-GRAY",
+      "name": "Gray Cast Iron",
+      "category": "Ferrous / Cast Iron",
+      "tags": [
+        "cast iron",
+        "gray",
+        "damping"
+      ],
+      "youngsModulus_GPa": 110,
+      "poissonsRatio": 0.26,
+      "yieldStrength_MPa": 200,
+      "ultimateStrength_MPa": 350,
+      "density_kg_m3": 7200,
+      "thermalExpansion_1_K": 1.08e-05,
+      "thermalConductivity_W_mK": 50,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-CAST-DUCTILE",
+      "name": "Ductile/Nodular Cast Iron",
+      "category": "Ferrous / Cast Iron",
+      "tags": [
+        "cast iron",
+        "ductile"
+      ],
+      "youngsModulus_GPa": 169,
+      "poissonsRatio": 0.28,
+      "yieldStrength_MPa": 550,
+      "ultimateStrength_MPa": 900,
+      "density_kg_m3": 7100,
+      "thermalExpansion_1_K": 1.1e-05,
+      "thermalConductivity_W_mK": 36,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-STEEL-1010",
+      "name": "AISI 1010 Low Carbon Steel",
+      "category": "Ferrous / Low Carbon Steel",
+      "tags": [
+        "AISI 1010",
+        "soft",
+        "weldable"
+      ],
+      "youngsModulus_GPa": 200,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 205,
+      "ultimateStrength_MPa": 365,
+      "density_kg_m3": 7830,
+      "thermalExpansion_1_K": 1.22e-05,
+      "thermalConductivity_W_mK": 49.8,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-STEEL-1045",
+      "name": "AISI 1045 Medium Carbon Steel",
+      "category": "Ferrous / Medium Carbon Steel",
+      "tags": [
+        "AISI 1045",
+        "shafts",
+        "gears"
+      ],
+      "youngsModulus_GPa": 200,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 530,
+      "ultimateStrength_MPa": 630,
+      "density_kg_m3": 7850,
+      "thermalExpansion_1_K": 1.17e-05,
+      "thermalConductivity_W_mK": 49.8,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-STEEL-1080",
+      "name": "AISI 1080 High Carbon Steel",
+      "category": "Ferrous / High Carbon Steel",
+      "tags": [
+        "AISI 1080",
+        "springs"
+      ],
+      "youngsModulus_GPa": 200,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 800,
+      "ultimateStrength_MPa": 1000,
+      "density_kg_m3": 7850,
+      "thermalExpansion_1_K": 1.1e-05,
+      "thermalConductivity_W_mK": 49.0,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-STEEL-4130",
+      "name": "4130 Chromoly",
+      "category": "Ferrous / Alloy Steel",
+      "tags": [
+        "chromoly",
+        "4130",
+        "aerospace"
+      ],
+      "youngsModulus_GPa": 205,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 460,
+      "ultimateStrength_MPa": 670,
+      "density_kg_m3": 7850,
+      "thermalExpansion_1_K": 1.23e-05,
+      "thermalConductivity_W_mK": 42.7,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-STEEL-4140",
+      "name": "4140 Alloy Steel",
+      "category": "Ferrous / Alloy Steel",
+      "tags": [
+        "4140",
+        "gears",
+        "shafts"
+      ],
+      "youngsModulus_GPa": 205,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 655,
+      "ultimateStrength_MPa": 1020,
+      "density_kg_m3": 7850,
+      "thermalExpansion_1_K": 1.23e-05,
+      "thermalConductivity_W_mK": 42.7,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-STEEL-4340",
+      "name": "4340 Alloy Steel",
+      "category": "Ferrous / Alloy Steel",
+      "tags": [
+        "4340",
+        "high strength"
+      ],
+      "youngsModulus_GPa": 205,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 710,
+      "ultimateStrength_MPa": 1080,
+      "density_kg_m3": 7850,
+      "thermalExpansion_1_K": 1.23e-05,
+      "thermalConductivity_W_mK": 44.5,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-STEEL-52100",
+      "name": "52100 Bearing Steel",
+      "category": "Ferrous / Tool Steel",
+      "tags": [
+        "bearing steel",
+        "52100"
+      ],
+      "youngsModulus_GPa": 210,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 1500,
+      "ultimateStrength_MPa": 1900,
+      "density_kg_m3": 7810,
+      "thermalExpansion_1_K": 1.15e-05,
+      "thermalConductivity_W_mK": 46,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-SS-304",
+      "name": "304 Stainless Steel",
+      "category": "Ferrous / Stainless",
+      "tags": [
+        "304",
+        "18Cr-8Ni",
+        "corrosion"
+      ],
+      "youngsModulus_GPa": 193,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 215,
+      "ultimateStrength_MPa": 505,
+      "density_kg_m3": 8000,
+      "thermalExpansion_1_K": 1.73e-05,
+      "thermalConductivity_W_mK": 16.2,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-SS-316",
+      "name": "316 Stainless Steel",
+      "category": "Ferrous / Stainless",
+      "tags": [
+        "316",
+        "marine",
+        "Mo"
+      ],
+      "youngsModulus_GPa": 193,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 290,
+      "ultimateStrength_MPa": 580,
+      "density_kg_m3": 8000,
+      "thermalExpansion_1_K": 1.6e-05,
+      "thermalConductivity_W_mK": 16.3,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-SS-17-4PH",
+      "name": "17-4 PH Stainless",
+      "category": "Ferrous / Stainless",
+      "tags": [
+        "17-4PH",
+        "aerospace"
+      ],
+      "youngsModulus_GPa": 196,
+      "poissonsRatio": 0.27,
+      "yieldStrength_MPa": 1170,
+      "ultimateStrength_MPa": 1310,
+      "density_kg_m3": 7800,
+      "thermalExpansion_1_K": 1.08e-05,
+      "thermalConductivity_W_mK": 17.9,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-TOOL-H13",
+      "name": "H13 Hot Work Tool Steel",
+      "category": "Ferrous / Tool Steel",
+      "tags": [
+        "H13",
+        "dies"
+      ],
+      "youngsModulus_GPa": 210,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 1200,
+      "ultimateStrength_MPa": 1380,
+      "density_kg_m3": 7800,
+      "thermalExpansion_1_K": 1.15e-05,
+      "thermalConductivity_W_mK": 28,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-TOOL-D2",
+      "name": "D2 Cold Work Tool Steel",
+      "category": "Ferrous / Tool Steel",
+      "tags": [
+        "D2",
+        "punches"
+      ],
+      "youngsModulus_GPa": 210,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 1400,
+      "ultimateStrength_MPa": 1520,
+      "density_kg_m3": 7700,
+      "thermalExpansion_1_K": 1.1e-05,
+      "thermalConductivity_W_mK": 20,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-AL-2024-T3",
+      "name": "2024-T3 Aluminum",
+      "category": "Non-Ferrous / Aluminum",
+      "tags": [
+        "2024",
+        "Al-Cu",
+        "aerospace"
+      ],
+      "youngsModulus_GPa": 73.1,
+      "poissonsRatio": 0.33,
+      "yieldStrength_MPa": 345,
+      "ultimateStrength_MPa": 483,
+      "density_kg_m3": 2780,
+      "thermalExpansion_1_K": 2.32e-05,
+      "thermalConductivity_W_mK": 121,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-AL-5083",
+      "name": "5083 Aluminum (Marine)",
+      "category": "Non-Ferrous / Aluminum",
+      "tags": [
+        "5083",
+        "marine"
+      ],
+      "youngsModulus_GPa": 70,
+      "poissonsRatio": 0.33,
+      "yieldStrength_MPa": 145,
+      "ultimateStrength_MPa": 315,
+      "density_kg_m3": 2660,
+      "thermalExpansion_1_K": 2.38e-05,
+      "thermalConductivity_W_mK": 117,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-AL-7075-T6",
+      "name": "7075-T6 Aluminum",
+      "category": "Non-Ferrous / Aluminum",
+      "tags": [
+        "7075",
+        "aerospace"
+      ],
+      "youngsModulus_GPa": 71.7,
+      "poissonsRatio": 0.33,
+      "yieldStrength_MPa": 503,
+      "ultimateStrength_MPa": 572,
+      "density_kg_m3": 2810,
+      "thermalExpansion_1_K": 2.36e-05,
+      "thermalConductivity_W_mK": 130,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-AL-6063-T5",
+      "name": "6063-T5 Aluminum",
+      "category": "Non-Ferrous / Aluminum",
+      "tags": [
+        "6063",
+        "extrusions"
+      ],
+      "youngsModulus_GPa": 68.9,
+      "poissonsRatio": 0.33,
+      "yieldStrength_MPa": 145,
+      "ultimateStrength_MPa": 190,
+      "density_kg_m3": 2700,
+      "thermalExpansion_1_K": 2.34e-05,
+      "thermalConductivity_W_mK": 201,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-TI-GRADE4",
+      "name": "Titanium Grade 4",
+      "category": "Non-Ferrous / Titanium",
+      "tags": [
+        "titanium",
+        "pure"
+      ],
+      "youngsModulus_GPa": 105,
+      "poissonsRatio": 0.34,
+      "yieldStrength_MPa": 480,
+      "ultimateStrength_MPa": 550,
+      "density_kg_m3": 4506,
+      "thermalExpansion_1_K": 8.6e-06,
+      "thermalConductivity_W_mK": 7.2,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-BRASS-7030",
+      "name": "70/30 Brass",
+      "category": "Non-Ferrous / Copper Alloy",
+      "tags": [
+        "brass",
+        "Cu-Zn"
+      ],
+      "youngsModulus_GPa": 110,
+      "poissonsRatio": 0.34,
+      "yieldStrength_MPa": 124,
+      "ultimateStrength_MPa": 320,
+      "density_kg_m3": 8520,
+      "thermalExpansion_1_K": 1.99e-05,
+      "thermalConductivity_W_mK": 120,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-BRONZE-AL",
+      "name": "Aluminum Bronze",
+      "category": "Non-Ferrous / Copper Alloy",
+      "tags": [
+        "bronze",
+        "bearings"
+      ],
+      "youngsModulus_GPa": 110,
+      "poissonsRatio": 0.34,
+      "yieldStrength_MPa": 250,
+      "ultimateStrength_MPa": 655,
+      "density_kg_m3": 7640,
+      "thermalExpansion_1_K": 1.63e-05,
+      "thermalConductivity_W_mK": 59,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-BECU",
+      "name": "Beryllium Copper",
+      "category": "Non-Ferrous / Copper Alloy",
+      "tags": [
+        "beryllium copper",
+        "non-sparking"
+      ],
+      "youngsModulus_GPa": 131,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 965,
+      "ultimateStrength_MPa": 1380,
+      "density_kg_m3": 8250,
+      "thermalExpansion_1_K": 1.7e-05,
+      "thermalConductivity_W_mK": 105,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-IN718",
+      "name": "Inconel 718",
+      "category": "Non-Ferrous / Nickel Superalloy",
+      "tags": [
+        "Inconel",
+        "718",
+        "aerospace"
+      ],
+      "youngsModulus_GPa": 200,
+      "poissonsRatio": 0.29,
+      "yieldStrength_MPa": 1100,
+      "ultimateStrength_MPa": 1375,
+      "density_kg_m3": 8190,
+      "thermalExpansion_1_K": 1.3e-05,
+      "thermalConductivity_W_mK": 11.4,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-IN625",
+      "name": "Inconel 625",
+      "category": "Non-Ferrous / Nickel Superalloy",
+      "tags": [
+        "Inconel",
+        "625",
+        "1000C service"
+      ],
+      "youngsModulus_GPa": 205,
+      "poissonsRatio": 0.31,
+      "yieldStrength_MPa": 690,
+      "ultimateStrength_MPa": 965,
+      "density_kg_m3": 8440,
+      "thermalExpansion_1_K": 1.28e-05,
+      "thermalConductivity_W_mK": 9.8,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-HAST-C276",
+      "name": "Hastelloy C-276",
+      "category": "Non-Ferrous / Nickel Superalloy",
+      "tags": [
+        "Hastelloy",
+        "chemical"
+      ],
+      "youngsModulus_GPa": 205,
+      "poissonsRatio": 0.31,
+      "yieldStrength_MPa": 380,
+      "ultimateStrength_MPa": 760,
+      "density_kg_m3": 8890,
+      "thermalExpansion_1_K": 1.12e-05,
+      "thermalConductivity_W_mK": 10.2,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-MG-AZ31B",
+      "name": "AZ31B Magnesium",
+      "category": "Non-Ferrous / Magnesium",
+      "tags": [
+        "magnesium",
+        "lightweight"
+      ],
+      "youngsModulus_GPa": 45,
+      "poissonsRatio": 0.35,
+      "yieldStrength_MPa": 200,
+      "ultimateStrength_MPa": 260,
+      "density_kg_m3": 1738,
+      "thermalExpansion_1_K": 2.6e-05,
+      "thermalConductivity_W_mK": 96,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-W-PURE",
+      "name": "Tungsten",
+      "category": "Non-Ferrous / Refractory",
+      "tags": [
+        "tungsten",
+        "cutting tools"
+      ],
+      "youngsModulus_GPa": 411,
+      "poissonsRatio": 0.28,
+      "yieldStrength_MPa": 750,
+      "ultimateStrength_MPa": 980,
+      "density_kg_m3": 19300,
+      "thermalExpansion_1_K": 4.5e-06,
+      "thermalConductivity_W_mK": 173,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-CO-STELLITE6",
+      "name": "Stellite 6 Cobalt Alloy",
+      "category": "Non-Ferrous / Cobalt",
+      "tags": [
+        "Stellite",
+        "wear"
+      ],
+      "youngsModulus_GPa": 240,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 450,
+      "ultimateStrength_MPa": 950,
+      "density_kg_m3": 8400,
+      "thermalExpansion_1_K": 1.4e-05,
+      "thermalConductivity_W_mK": 15,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-ABS",
+      "name": "ABS",
+      "category": "Polymer / Thermoplastic",
+      "tags": [
+        "ABS",
+        "impact resistant"
+      ],
+      "youngsModulus_GPa": 2.3,
+      "poissonsRatio": 0.35,
+      "yieldStrength_MPa": 40,
+      "ultimateStrength_MPa": 50,
+      "density_kg_m3": 1050,
+      "thermalExpansion_1_K": 9e-05,
+      "thermalConductivity_W_mK": 0.17,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-PA66",
+      "name": "Nylon PA66",
+      "category": "Polymer / Thermoplastic",
+      "tags": [
+        "nylon",
+        "PA66",
+        "gears"
+      ],
+      "youngsModulus_GPa": 3.0,
+      "poissonsRatio": 0.39,
+      "yieldStrength_MPa": 70,
+      "ultimateStrength_MPa": 82,
+      "density_kg_m3": 1140,
+      "thermalExpansion_1_K": 8e-05,
+      "thermalConductivity_W_mK": 0.25,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-PEEK",
+      "name": "PEEK",
+      "category": "Polymer / High Performance",
+      "tags": [
+        "PEEK",
+        "250C service"
+      ],
+      "youngsModulus_GPa": 3.6,
+      "poissonsRatio": 0.4,
+      "yieldStrength_MPa": 91,
+      "ultimateStrength_MPa": 100,
+      "density_kg_m3": 1320,
+      "thermalExpansion_1_K": 4.7e-05,
+      "thermalConductivity_W_mK": 0.25,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-PC",
+      "name": "Polycarbonate",
+      "category": "Polymer / Thermoplastic",
+      "tags": [
+        "polycarbonate",
+        "optical"
+      ],
+      "youngsModulus_GPa": 2.3,
+      "poissonsRatio": 0.37,
+      "yieldStrength_MPa": 62,
+      "ultimateStrength_MPa": 70,
+      "density_kg_m3": 1200,
+      "thermalExpansion_1_K": 6.5e-05,
+      "thermalConductivity_W_mK": 0.2,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-POM",
+      "name": "POM (Delrin/Acetal)",
+      "category": "Polymer / Thermoplastic",
+      "tags": [
+        "POM",
+        "Delrin",
+        "gears"
+      ],
+      "youngsModulus_GPa": 3.0,
+      "poissonsRatio": 0.35,
+      "yieldStrength_MPa": 65,
+      "ultimateStrength_MPa": 70,
+      "density_kg_m3": 1410,
+      "thermalExpansion_1_K": 0.00011,
+      "thermalConductivity_W_mK": 0.31,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-PTFE",
+      "name": "PTFE (Teflon)",
+      "category": "Polymer / Thermoplastic",
+      "tags": [
+        "PTFE",
+        "low friction"
+      ],
+      "youngsModulus_GPa": 0.5,
+      "poissonsRatio": 0.46,
+      "yieldStrength_MPa": 12,
+      "ultimateStrength_MPa": 25,
+      "density_kg_m3": 2200,
+      "thermalExpansion_1_K": 0.000135,
+      "thermalConductivity_W_mK": 0.25,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-UHMWPE",
+      "name": "UHMWPE",
+      "category": "Polymer / Thermoplastic",
+      "tags": [
+        "UHMWPE",
+        "wear",
+        "armor"
+      ],
+      "youngsModulus_GPa": 0.8,
+      "poissonsRatio": 0.46,
+      "yieldStrength_MPa": 20,
+      "ultimateStrength_MPa": 40,
+      "density_kg_m3": 930,
+      "thermalExpansion_1_K": 0.0002,
+      "thermalConductivity_W_mK": 0.42,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-PP",
+      "name": "Polypropylene",
+      "category": "Polymer / Thermoplastic",
+      "tags": [
+        "polypropylene",
+        "hinges"
+      ],
+      "youngsModulus_GPa": 1.5,
+      "poissonsRatio": 0.42,
+      "yieldStrength_MPa": 32,
+      "ultimateStrength_MPa": 40,
+      "density_kg_m3": 905,
+      "thermalExpansion_1_K": 0.0001,
+      "thermalConductivity_W_mK": 0.22,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-CFRP-UD",
+      "name": "CFRP Unidirectional",
+      "category": "Composite / Fiber Reinforced",
+      "tags": [
+        "CFRP",
+        "carbon fiber",
+        "T300"
+      ],
+      "youngsModulus_GPa": 135,
+      "poissonsRatio": 0.3,
+      "yieldStrength_MPa": 1500,
+      "ultimateStrength_MPa": 1500,
+      "density_kg_m3": 1600,
+      "thermalExpansion_1_K": -5e-07,
+      "thermalConductivity_W_mK": 5,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-GFRP",
+      "name": "GFRP (E-Glass)",
+      "category": "Composite / Fiber Reinforced",
+      "tags": [
+        "fiberglass",
+        "GFRP"
+      ],
+      "youngsModulus_GPa": 45,
+      "poissonsRatio": 0.25,
+      "yieldStrength_MPa": 200,
+      "ultimateStrength_MPa": 400,
+      "density_kg_m3": 1850,
+      "thermalExpansion_1_K": 6e-06,
+      "thermalConductivity_W_mK": 0.35,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-KEVLAR49",
+      "name": "Kevlar 49 Aramid",
+      "category": "Composite / Fiber Reinforced",
+      "tags": [
+        "Kevlar",
+        "ballistic"
+      ],
+      "youngsModulus_GPa": 70,
+      "poissonsRatio": 0.36,
+      "yieldStrength_MPa": 3000,
+      "ultimateStrength_MPa": 3000,
+      "density_kg_m3": 1440,
+      "thermalExpansion_1_K": -4e-06,
+      "thermalConductivity_W_mK": 0.04,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-AL2O3-96",
+      "name": "Alumina 96%",
+      "category": "Ceramic / Technical",
+      "tags": [
+        "alumina",
+        "Al2O3",
+        "wear"
+      ],
+      "youngsModulus_GPa": 370,
+      "poissonsRatio": 0.22,
+      "yieldStrength_MPa": 310,
+      "ultimateStrength_MPa": 310,
+      "density_kg_m3": 3950,
+      "thermalExpansion_1_K": 8e-06,
+      "thermalConductivity_W_mK": 24,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-SIC",
+      "name": "Silicon Carbide",
+      "category": "Ceramic / Technical",
+      "tags": [
+        "SiC",
+        "1650C"
+      ],
+      "youngsModulus_GPa": 410,
+      "poissonsRatio": 0.17,
+      "yieldStrength_MPa": 410,
+      "ultimateStrength_MPa": 550,
+      "density_kg_m3": 3210,
+      "thermalExpansion_1_K": 4e-06,
+      "thermalConductivity_W_mK": 120,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-SI3N4",
+      "name": "Silicon Nitride",
+      "category": "Ceramic / Technical",
+      "tags": [
+        "Si3N4",
+        "bearings"
+      ],
+      "youngsModulus_GPa": 310,
+      "poissonsRatio": 0.24,
+      "yieldStrength_MPa": 580,
+      "ultimateStrength_MPa": 1000,
+      "density_kg_m3": 3200,
+      "thermalExpansion_1_K": 3.2e-06,
+      "thermalConductivity_W_mK": 30,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    },
+    {
+      "id": "MAT-ZRO2",
+      "name": "Toughened Zirconia",
+      "category": "Ceramic / Technical",
+      "tags": [
+        "zirconia",
+        "dental"
+      ],
+      "youngsModulus_GPa": 200,
+      "poissonsRatio": 0.31,
+      "yieldStrength_MPa": 900,
+      "ultimateStrength_MPa": 1200,
+      "density_kg_m3": 6030,
+      "thermalExpansion_1_K": 1.05e-05,
+      "thermalConductivity_W_mK": 2,
+      "notes": "",
+      "source": "Machine Creation KB Part 1"
+    }
+  ]
+}

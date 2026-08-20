@@ -52,6 +52,12 @@ struct IMaterial {
     double thermalExpansion;    ///< α  — CTE [1/K]
     double thermalConductivity; ///< k  — Thermal conductivity [W/(m·K)]
 
+    // --- Metadata (optional — from knowledge base) -------------------
+    std::string category;           ///< e.g. "Ferrous / Alloy Steel"
+    std::vector<std::string> tags;  ///< Searchable tags
+    std::string notes;              ///< Free-form description
+    std::string source;             ///< Provenance / reference
+
     // --- Advanced (optional) -----------------------------------------
     std::optional<PlasticityCurve> plasticity; ///< True stress vs plastic strain
 

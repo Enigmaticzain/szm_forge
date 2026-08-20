@@ -1,6 +1,7 @@
 #pragma once
 
 #include "IMaterial.hpp"
+#include <filesystem>
 #include <unordered_map>
 #include <shared_mutex>
 #include <optional>
@@ -34,8 +35,15 @@ public:
     MaterialDatabase& operator=(const MaterialDatabase&) = delete;
 
     /// Load the built-in engineering material library.
-    /// Should be called once during application startup.
+    /// Tries data/knowledge/materials.json first; falls back to hardcoded defaults.
     void LoadStandardLibraries();
+
+    /// Load materials from a JSON knowledge-base file.
+    /// Returns number of materials loaded.
+    [[nodiscard]] std::size_t LoadFromFile(const std::filesystem::path& path);
+
+    /// Register hardcoded fallback materials (4 baseline grades).
+    void LoadBuiltinMaterials();
 
     /// Register a custom material. Returns false if the ID is already taken.
     bool AddCustomMaterial(const IMaterial& material);
