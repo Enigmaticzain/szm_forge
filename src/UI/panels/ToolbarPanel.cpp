@@ -60,6 +60,7 @@ void ToolbarPanel::DrawPlaybackControls() {
     if (SZM::UIStyleHelper::ModernButtonSecondary("Reset", WT::ToolbarReset, ImVec2(80.0f, 0.0f))) {
         engine.SetPaused(true);
         m_SimulationSpeed = 1.0f;
+        engine.SetTimeScale(1.0);
     }
     
     ImGui::PopID();
@@ -71,7 +72,7 @@ void ToolbarPanel::DrawSpeedControl() {
     ImGui::SetNextItemWidth(120.0f);
     
     if (ImGui::SliderFloat("Speed##sim", &m_SimulationSpeed, 0.1f, 2.0f, "%.1fx")) {
-        // Speed updated
+        engine.SetTimeScale(static_cast<double>(m_SimulationSpeed));
     }
     SZM::UITooltip::Hover(WT::ToolbarSpeed);
     

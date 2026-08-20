@@ -2,13 +2,17 @@
 #include "CouplingManager.hpp"
 #include "../Input/EventBus.hpp"
 #include "../Materials/MaterialDatabase.hpp"
+#include <httplib.h>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <algorithm>
+#include <execution>
 
 namespace SZM {
 
-SimulationEngine::SimulationEngine() {
-    m_Scheduler = std::make_unique<Scheduler>();
+SimulationEngine::SimulationEngine()
+    : m_Scheduler(std::make_unique<Scheduler>()),
+      m_Scene(std::make_unique<SceneGraph::Scene>()) {
 }
 
 void SimulationEngine::Init() {
@@ -29,39 +33,51 @@ void SimulationEngine::Tick(double deltaTime) {
         return;
     }
 
+    const double effectiveDelta = deltaTime * m_TimeScale;
+
     if (m_Scheduler) {
-        m_Scheduler->Tick(deltaTime);
+        m_Scheduler->Tick(effectiveDelta);
     }
     
     // Simple mechanics and thermal mock for demo purposes
-    for (auto& comp : m_Components) {
-        if (comp->area > 0.0f) {
-            comp->stress = comp->appliedForce / comp->area;
+    std::for_each(std::execution::par_unseq,
+                  m_Components.begin(), m_Components.end(),
+                  [this, effectiveDelta](const std::unique_ptr<SimulationComponent>& compPtr) {
+        auto& comp = *compPtr;
+        if (comp.area > 0.0f) {
+            comp.stress = comp.appliedForce / comp.area;
         }
-        
-        if (comp->area > 0.0f && comp->thickness > 0.0f && comp->density > 0.0f) {
-            float mass = comp->area * comp->thickness * comp->density;
-            float specificHeat = 900.0f; // approx for Aluminum/Steel
-            if (mass > 0.0f) {
-                float tempDelta = (comp->heatInput * deltaTime) / (mass * specificHeat);
-                comp->temperature += tempDelta;
+
+        // Dispatch to CalculiX bridge if force is applied and no job is in-flight
+        if (comp.appliedForce > 0.0f) {
+            std::lock_guard<std::mutex> lock(m_CcxMutex);
+            if (m_CcxThreads.find(comp.id) == m_CcxThreads.end()) {
+                DispatchCalculiXJob(comp.id);
             }
         }
         
-        // Dissipate heat towards ambient
-        if (comp->heatInput == 0.0f && comp->temperature > AMBIENT_TEMP_K) {
-            float cooling = (comp->temperature - AMBIENT_TEMP_K) * 0.1f * deltaTime;
-            comp->temperature -= cooling;
+        if (comp.area > 0.0f && comp.thickness > 0.0f && comp.density > 0.0f) {
+            float mass = comp.area * comp.thickness * comp.density;
+            float specificHeat = 900.0f;
+            if (mass > 0.0f) {
+                float tempDelta = static_cast<float>((comp.heatInput * effectiveDelta) / (mass * specificHeat));
+                comp.temperature += tempDelta;
+            }
+        }
+        
+        if (comp.heatInput == 0.0f && comp.temperature > AMBIENT_TEMP_K) {
+            float cooling = (comp.temperature - AMBIENT_TEMP_K) * 0.1f * static_cast<float>(effectiveDelta);
+            comp.temperature -= cooling;
         }
 
-        comp->stressRatio = (comp->yieldStrength > 0.0f) 
-            ? std::min(1.0f, comp->stress / comp->yieldStrength)
+        comp.stressRatio = (comp.yieldStrength > 0.0f) 
+            ? std::min(1.0f, comp.stress / comp.yieldStrength)
             : 0.0f;
-        comp->tempRatio = (MAX_TEMP_K > AMBIENT_TEMP_K)
-            ? std::min(1.0f, (comp->temperature - AMBIENT_TEMP_K) / (MAX_TEMP_K - AMBIENT_TEMP_K))
+        comp.tempRatio = (MAX_TEMP_K > AMBIENT_TEMP_K)
+            ? std::min(1.0f, (comp.temperature - AMBIENT_TEMP_K) / (MAX_TEMP_K - AMBIENT_TEMP_K))
             : 0.0f;
-        comp->isDangerous = (comp->stressRatio > 0.8f) || (comp->tempRatio > 0.8f);
-    }
+        comp.isDangerous = (comp.stressRatio > 0.8f) || (comp.tempRatio > 0.8f);
+    });
 
     // Publish event for UI/visualization
     EventBus::GetInstance().Publish("SimulationTick", std::any());
@@ -86,6 +102,13 @@ uint32_t SimulationEngine::AddComponent(const std::string& name) {
     }
 
     m_Components.push_back(std::move(comp));
+    
+    // Sync with new ECS Scene Graph
+    if (m_Scene) {
+        SceneGraph::Entity e = m_Scene->CreateEntity(name);
+        SceneGraph::PhysicsStateComponent physics;
+        m_Scene->AddComponent<SceneGraph::PhysicsStateComponent>(e, physics);
+    }
     
     std::cout << "[SZM Simulation] Added component: " << name 
               << " (ID: " << m_NextComponentId << ")\n";
@@ -173,6 +196,70 @@ void SimulationEngine::SetHeatInput(uint32_t id, float heat) {
     if (auto* comp = GetComponent(id)) {
         comp->heatInput = heat;
     }
+}
+
+void SimulationEngine::DispatchCalculiXJob(uint32_t componentId) {
+    // Must be called with m_CcxMutex held
+    auto* comp = GetComponent(componentId);
+    if (!comp) return;
+
+    const float force    = comp->appliedForce;
+    const float area     = comp->area;
+    const float thick    = comp->thickness;
+    const float E        = 210e9f; // default; override from material if available
+    const float yld      = comp->yieldStrength;
+    const float rho      = comp->density;
+    const uint32_t cid   = componentId;
+
+    m_CcxThreads[componentId] = std::thread([this, cid, force, area, thick, E, yld, rho]() {
+        try {
+            httplib::Client cli("127.0.0.1", 8003);
+            cli.set_connection_timeout(5);
+            cli.set_read_timeout(60);
+
+            nlohmann::json body = {
+                {"component_id",      cid},
+                {"force_n",           force},
+                {"area_m2",           area},
+                {"thickness_m",       thick},
+                {"youngs_modulus_pa", E},
+                {"yield_strength_pa", yld},
+                {"density_kg_m3",     rho}
+            };
+
+            auto res = cli.Post("/simulation/fea/run", body.dump(), "application/json");
+            if (res && res->status == 200) {
+                auto j = nlohmann::json::parse(res->body);
+                if (j.value("status", "") == "success") {
+                    auto* c = GetComponent(cid);
+                    if (c) {
+                        c->stress      = j.value("max_stress_pa", c->stress);
+                        c->stressRatio = j.value("stress_ratio",  c->stressRatio);
+                        c->isDangerous = j.value("is_dangerous",  c->isDangerous);
+                        std::cout << "[CalculiX] Component " << cid
+                                  << " stress=" << c->stress << " Pa"
+                                  << " engine=" << j.value("engine_used", "?")
+                                  << "\n";
+                        EventBus::GetInstance().Publish("SimulationTick", std::any());
+                    }
+                }
+            } else {
+                std::cerr << "[CalculiX] Bridge unreachable for component " << cid << "\n";
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[CalculiX] Exception: " << e.what() << "\n";
+        }
+
+        // Remove from in-flight map so next force change can re-dispatch
+        std::lock_guard<std::mutex> lock(m_CcxMutex);
+        auto it = m_CcxThreads.find(cid);
+        if (it != m_CcxThreads.end()) {
+            it->second.detach();
+            m_CcxThreads.erase(it);
+        }
+    });
+    m_CcxThreads[componentId].detach();
+    m_CcxThreads.erase(componentId); // thread is detached; remove handle
 }
 
 // Removed simple UpdateStress, UpdateTemperature, and UpdateDangerState 

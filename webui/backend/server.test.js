@@ -94,6 +94,43 @@ describe('SZM Forge backend integration routes', () => {
     ).toBe(true);
   });
 
+  test('synthesizes and promotes a chemistry-derived material candidate', async () => {
+    const synthesizeResponse = await invokeRoute('post', '/api/materials/synthesize', {
+      body: {
+        name: 'Synth Alpha Alloy',
+        family: 'alloy',
+        targetApplication: 'lightweight bracket',
+        manufacturingProcess: 'CNC machining',
+        addToCatalog: true,
+        constituents: [
+          { symbol: 'Al', fraction: 0.86 },
+          { symbol: 'Mg', fraction: 0.08 },
+          { symbol: 'Si', fraction: 0.06 },
+        ],
+      },
+    });
+
+    expect(synthesizeResponse.statusCode).toBe(201);
+    expect(synthesizeResponse.body).toMatchObject({
+      status: 'success',
+      viable: true,
+      promoted: true,
+      material: {
+        name: 'Synth Alpha Alloy',
+        family: 'Synthesized Alloy',
+      },
+    });
+    expect(synthesizeResponse.body.material.density).toBeGreaterThan(0);
+    expect(synthesizeResponse.body.scores.confidence).toBeGreaterThan(0.6);
+
+    const listResponse = await invokeRoute('get', '/api/materials', {
+      query: { filter: 'synth alpha' },
+    });
+
+    expect(listResponse.statusCode).toBe(200);
+    expect(listResponse.body.some((material) => material.name === 'Synth Alpha Alloy')).toBe(true);
+  });
+
   test('creates a workshop component, adds it to the assembly, and removes it again', async () => {
     const createComponent = await invokeRoute('post', '/api/components', {
       body: {
@@ -203,5 +240,33 @@ describe('SZM Forge backend integration routes', () => {
       },
       explodeDirection: expect.any(Array),
     });
+  });
+
+  test('generates CNC milling toolpath G-code and preview metadata', async () => {
+    const response = await invokeRoute('post', '/api/manufacturing/toolpath', {
+      body: {
+        componentName: 'Pocket Test Block',
+        operation: 'pocket',
+        bounds: { length: 0.12, width: 0.08, depth: 0.006 },
+        toolDiameterMm: 8,
+        stepdownMm: 2,
+        stepoverMm: 4,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toMatchObject({
+      status: 'success',
+      component: 'Pocket Test Block',
+      operation: 'pocket',
+      metrics: {
+        passes: 3,
+        toolDiameterMm: 8,
+      },
+    });
+    expect(response.body.gcode).toContain('G21');
+    expect(response.body.gcode).toContain('M30');
+    expect(response.body.previewPoints.length).toBeGreaterThan(0);
+    expect(response.body.metrics.cutLengthMm).toBeGreaterThan(0);
   });
 });

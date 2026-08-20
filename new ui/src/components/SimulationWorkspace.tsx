@@ -5,7 +5,7 @@ import { solverMetrics } from '../data/mockData';
 import {
   Cpu, Play, Settings,
   Grid3x3, Layers, CheckCircle,
-  Activity, Gauge, Clock
+  Activity, Gauge, Clock, Brain
 } from 'lucide-react';
 import { useForgeStore } from '../store/ForgeStoreContext';
 
@@ -26,10 +26,12 @@ const simTypes = [
 export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) => {
   const [activeSim, setActiveSim] = useState('static');
   const [convergenceData, setConvergenceData] = useState<number[]>([]);
+  const [optimizing, setOptimizing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { showToast } = useForgeStore();
 
   useEffect(() => {
+    if (optimizing) return;
     const initial = Array.from({ length: 30 }, (_, i) => Math.exp(-i * 0.1) * 100);
     setConvergenceData(initial);
     const interval = setInterval(() => {
@@ -42,7 +44,45 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
       });
     }, 500);
     return () => clearInterval(interval);
-  }, []);
+  }, [optimizing]);
+
+  const handleOptimize = async () => {
+    setOptimizing(true);
+    showToast('Initializing AI Shape Optimizer...');
+    setConvergenceData([]);
+    
+    try {
+      const res = await fetch('http://localhost:8000/api/simulation/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ iterations: 40 })
+      });
+      const data = await res.json();
+      
+      if (data.history) {
+        let i = 0;
+        const interval = setInterval(() => {
+          if (i < data.history.length) {
+            setConvergenceData(prev => {
+              const next = [...prev, data.history[i].stress_mpa];
+              if (next.length > 50) next.shift();
+              return next;
+            });
+            i++;
+          } else {
+            clearInterval(interval);
+            showToast(`Optimization complete! Final stress: ${data.final_stress} MPa`);
+            setTimeout(() => setOptimizing(false), 5000);
+          }
+        }, 100);
+      } else {
+        setOptimizing(false);
+      }
+    } catch (err) {
+      showToast('Optimization failed to connect.');
+      setOptimizing(false);
+    }
+  };
 
   // Draw convergence chart
   useEffect(() => {
@@ -133,6 +173,13 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
         </div>
 
         <div className="ml-auto flex items-center gap-2">
+          <button 
+            onClick={handleOptimize}
+            disabled={optimizing}
+            className="flex items-center gap-1 px-3 py-1 rounded text-[9px] font-mono bg-forge-purple/10 text-forge-purple border border-forge-purple/20 hover:bg-forge-purple/20 disabled:opacity-50 transition-colors"
+          >
+            <Brain size={10} /> {optimizing ? 'OPTIMIZING...' : 'AI OPTIMIZE'}
+          </button>
           <button className="flex items-center gap-1 px-3 py-1 rounded text-[9px] font-mono bg-forge-green/10 text-forge-green border border-forge-green/20 hover:bg-forge-green/20">
             <Play size={10} /> SOLVE
           </button>

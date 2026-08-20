@@ -4,7 +4,7 @@ import {
   Brain, Cpu, Activity, Target, Lightbulb,
   AlertTriangle, CheckCircle, Info, XCircle,
   TrendingUp, Gauge, Shield,
-  Zap, ArrowRight, ChevronRight
+  Zap, ArrowRight, ChevronRight, Eye, EyeOff
 } from 'lucide-react';
 import { AIChatBot } from './AIChatBot';
 import { Resizer } from './Resizer';
@@ -44,6 +44,9 @@ export const AIWorkspace: React.FC = () => {
   const [rightWidth, setRightWidth] = useState(380);
   const [agents, setAgents] = useState(initialAgentStatus);
   const [batchStatus, setBatchStatus] = useState('Idle');
+  
+  const [observationActive, setObservationActive] = useState(false);
+  const [obsStats, setObsStats] = useState({ total_actions: 0, total_patterns: 0 });
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -86,6 +89,36 @@ export const AIWorkspace: React.FC = () => {
     const interval = setInterval(pollStatus, 1500);
     return () => clearInterval(interval);
   }, []);
+
+  // Poll observation stats
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (observationActive) {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch('http://localhost:8000/api/ai/observe/stats');
+          if (res.ok) {
+            const data = await res.json();
+            setObsStats({
+              total_actions: data.total_actions || 0,
+              total_patterns: data.total_patterns_learned || 0
+            });
+          }
+        } catch {}
+      }, 1000);
+    }
+    return () => { if (interval) clearInterval(interval); };
+  }, [observationActive]);
+
+  const toggleObservation = async () => {
+    try {
+      const endpoint = observationActive ? 'stop' : 'start';
+      await fetch(`http://localhost:8000/api/ai/observe/${endpoint}`, { method: 'POST' });
+      setObservationActive(!observationActive);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const startBatchSimulation = async () => {
     try {
@@ -187,6 +220,19 @@ export const AIWorkspace: React.FC = () => {
           
           <div className="mt-auto pt-4 space-y-2">
              <div className="p-3 rounded border border-forge-border bg-forge-dark">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[9px] font-semibold text-forge-text-dim">PASSIVE OBSERVATION</div>
+                  <button onClick={toggleObservation} className={`p-1 rounded ${observationActive ? 'bg-forge-green/20 text-forge-green' : 'bg-forge-surface text-forge-text-muted'}`}>
+                    {observationActive ? <Eye size={12} /> : <EyeOff size={12} />}
+                  </button>
+                </div>
+                <div className="flex justify-between text-[10px] font-mono">
+                  <span className="text-forge-text-muted">ACTIONS: <span className="text-forge-accent">{obsStats.total_actions}</span></span>
+                  <span className="text-forge-text-muted">PATTERNS: <span className="text-forge-purple">{obsStats.total_patterns}</span></span>
+                </div>
+             </div>
+             
+             <div className="p-3 rounded border border-forge-border bg-forge-dark mt-2">
                 <div className="text-[9px] font-semibold text-forge-text-dim mb-1">BATCH SIMULATOR</div>
                 <div className="text-[10px] text-forge-accent font-mono truncate">{batchStatus}</div>
              </div>

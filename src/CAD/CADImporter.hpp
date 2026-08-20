@@ -61,6 +61,23 @@ namespace SZM::CAD {
         ImportResult ImportSTEP(const std::string& filePath, const ImportConfig& config);
 
         /**
+         * @brief Import via FreeCAD headless bridge — builds a parametric part
+         *        and imports the resulting STEP into the scene.
+         * @param shape  "box" | "cylinder" | "sphere"
+         * @param length/width/height  metres
+         * @param filletRadius  0 = no fillet
+         */
+        struct FreeCADParams {
+            std::string shape        = "box";
+            float length             = 0.1f;
+            float width              = 0.05f;
+            float height             = 0.02f;
+            float filletRadius       = 0.0f;
+            std::string outputPath   = "/tmp/szm_freecad_part.step";
+        };
+        ImportResult ImportFromFreeCAD(const FreeCADParams& params);
+
+        /**
          * @brief Import IGES file
          */
         ImportResult ImportIGES(const std::string& filePath, const ImportConfig& config);

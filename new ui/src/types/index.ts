@@ -1,6 +1,6 @@
-export type WorkspaceMode = 'command-center' | 'engineering' | 'simulation' | 'digital-twin' | 'manufacturing' | 'ai-assistant' | 'fleet-command' | 'designing' | 'physics' | 'chemistry-lab' | 'circuit-design';
+export type WorkspaceMode = 'command-center' | 'engineering' | 'simulation' | 'digital-twin' | 'manufacturing' | 'ai-assistant' | 'fleet-command' | 'designing' | 'physics' | 'chemistry-lab' | 'circuit-design' | 'node-programming' | 'text-to-cad';
 
-export type ViewportRenderMode = 'shaded' | 'wireframe' | 'xray' | 'thermal' | 'stress' | 'pressure' | 'electrical';
+export type ViewportRenderMode = 'shaded' | 'wireframe' | 'xray' | 'thermal' | 'stress' | 'pressure' | 'electrical' | 'raytraced';
 
 export type SimulationStatus = 'idle' | 'configuring' | 'meshing' | 'solving' | 'post-processing' | 'complete' | 'error';
 

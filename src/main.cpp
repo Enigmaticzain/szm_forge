@@ -53,6 +53,7 @@
 #include "AI/AIEngine.hpp"
 #include "AI/AIOperatingSystem.hpp"
 #include "AI/Predictions/FailurePredictor.hpp"
+#include "AI/MachineLearningSystem/MachineLearningSystem.hpp"
 #include "WebAPI/FastAPIBridge.hpp"
 
 namespace {
@@ -346,6 +347,7 @@ int main(int argc, char** argv) {
 
         SZM::DigitalTwinManager::GetInstance().Initialize();
         SZM::SensorTelemetry::GetInstance().Initialize();
+        SZM::AI::Machines::MachineLearningSystem::GetInstance().Initialize();
 
         std::cout << "[SZM Forge] Application initialized.\n";
         
@@ -358,6 +360,7 @@ int main(int argc, char** argv) {
 
         SZM::DigitalTwinManager::GetInstance().Shutdown();
         SZM::SensorTelemetry::GetInstance().Shutdown();
+        // MachineLearningSystem doesn't have Shutdown right now, leaving it.
         SZM::SimulationEngine::GetInstance().Shutdown();
         app.Shutdown();
 

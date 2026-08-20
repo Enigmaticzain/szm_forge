@@ -2,6 +2,7 @@ add_library(SZM_Core STATIC
     Application.cpp
     ApplicationModule.cpp
     Phase5PhysicsIntegration.cpp
+    ExternalEngineManager.cpp
 )
 
 target_include_directories(SZM_Core PUBLIC 

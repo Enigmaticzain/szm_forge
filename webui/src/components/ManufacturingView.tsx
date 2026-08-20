@@ -1,10 +1,43 @@
 import { useState, useEffect, useRef } from 'react';
 
+interface ToolpathPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface ToolpathResult {
+  status: string;
+  engineUsed?: string;
+  engine_used?: string;
+  component: string;
+  operation: string;
+  gcode: string;
+  previewPoints: ToolpathPoint[];
+  metrics: {
+    lineCount: number;
+    cutLengthMm: number;
+    passes: number;
+    boundsMm: { length: number; width: number; depth: number };
+    toolDiameterMm: number;
+    stepoverMm: number;
+    stepdownMm: number;
+    feedRateMmMin: number;
+    spindleSpeedRpm: number;
+    estimatedCycleTimeMin: number;
+  };
+  warnings: string[];
+}
+
 export default function ManufacturingView() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef(0);
   const [activeProcess, setActiveProcess] = useState('machining');
   const [processStep, setProcessStep] = useState(0);
+  const [cncOperation, setCncOperation] = useState<'pocket' | 'profile' | 'facing'>('pocket');
+  const [toolpathResult, setToolpathResult] = useState<ToolpathResult | null>(null);
+  const [toolpathError, setToolpathError] = useState<string | null>(null);
+  const [isGeneratingToolpath, setIsGeneratingToolpath] = useState(false);
 
   const processes = [
     { id: 'machining', label: 'CNC MACHINING', icon: '⚙', steps: ['Roughing', 'Semi-Finish', 'Finishing', 'Deburring'] },
@@ -74,19 +107,34 @@ export default function ManufacturingView() {
 
         // Toolpath lines
         const pathOffset = (t * 0.01) % 200;
-        for (let i = 0; i < 20; i++) {
-          const y = cy - 45 + i * 5;
-          const xStart = cx - 75;
-          const xEnd = cx + 75;
-          
+        if (toolpathResult?.previewPoints?.length) {
+          const bounds = toolpathResult.metrics.boundsMm;
           ctx.beginPath();
-          ctx.moveTo(xStart, y);
-          ctx.lineTo(xEnd, y);
-          ctx.strokeStyle = `rgba(0, 255, 136, ${0.15 + (i === Math.floor(pathOffset / 10) % 20 ? 0.4 : 0)})`;
-          ctx.lineWidth = i === Math.floor(pathOffset / 10) % 20 ? 1.5 : 0.3;
-          ctx.setLineDash(i === Math.floor(pathOffset / 10) % 20 ? [] : [2, 4]);
-          ctx.stroke();
+          toolpathResult.previewPoints.forEach((point, index) => {
+            const px = cx - 80 + (point.x / Math.max(bounds.length, 1)) * 160;
+            const py = cy - 50 + (point.y / Math.max(bounds.width, 1)) * 100;
+            if (index === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          });
+          ctx.strokeStyle = 'rgba(0, 255, 136, 0.58)';
+          ctx.lineWidth = 1.2;
           ctx.setLineDash([]);
+          ctx.stroke();
+        } else {
+          for (let i = 0; i < 20; i++) {
+            const y = cy - 45 + i * 5;
+            const xStart = cx - 75;
+            const xEnd = cx + 75;
+            
+            ctx.beginPath();
+            ctx.moveTo(xStart, y);
+            ctx.lineTo(xEnd, y);
+            ctx.strokeStyle = `rgba(0, 255, 136, ${0.15 + (i === Math.floor(pathOffset / 10) % 20 ? 0.4 : 0)})`;
+            ctx.lineWidth = i === Math.floor(pathOffset / 10) % 20 ? 1.5 : 0.3;
+            ctx.setLineDash(i === Math.floor(pathOffset / 10) % 20 ? [] : [2, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
         }
 
         // Tool head
@@ -269,9 +317,43 @@ export default function ManufacturingView() {
 
     animRef.current = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animRef.current);
-  }, [activeProcess, processStep]);
+  }, [activeProcess, processStep, toolpathResult]);
 
   const currentProcess = processes.find(p => p.id === activeProcess)!;
+
+  const generateToolpath = async () => {
+    setIsGeneratingToolpath(true);
+    setToolpathError(null);
+    try {
+      const response = await fetch('/api/manufacturing/toolpath', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          componentName: 'Actuated Bracket Demo Block',
+          operation: cncOperation,
+          bounds: { length: 0.16, width: 0.10, depth: 0.012 },
+          toolDiameterMm: 10,
+          stepdownMm: 2,
+          stepoverMm: 4,
+          feedRateMmMin: 1200,
+          plungeRateMmMin: 300,
+          spindleSpeedRpm: 8000,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Toolpath request failed (${response.status})`);
+      }
+
+      const payload = await response.json();
+      setToolpathResult(payload);
+      setActiveProcess('machining');
+    } catch (error) {
+      setToolpathError(error instanceof Error ? error.message : 'Toolpath generation failed');
+    } finally {
+      setIsGeneratingToolpath(false);
+    }
+  };
 
   return (
     <div className="flex h-full">
@@ -326,6 +408,66 @@ export default function ManufacturingView() {
       {/* Manufacturing metrics */}
       <div className="w-56 border-l border-forge-border bg-forge-surface overflow-y-auto p-2 space-y-2">
         <div className="text-[9px] font-bold text-forge-text tracking-wider px-1 mb-1">MFG METRICS</div>
+
+        <div className="glass-panel rounded-lg p-2.5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[8px] font-bold text-forge-accent tracking-wider">CNC TOOLPATH</div>
+            <span className="text-[7px] text-forge-text-muted">PLAN 22</span>
+          </div>
+
+          <label className="block text-[7px] text-forge-text-muted tracking-wider mb-1">OPERATION</label>
+          <select
+            value={cncOperation}
+            onChange={(event) => setCncOperation(event.target.value as 'pocket' | 'profile' | 'facing')}
+            className="w-full mb-2 bg-forge-panel border border-forge-border rounded px-2 py-1 text-[9px] text-forge-text font-mono"
+          >
+            <option value="pocket">Pocket roughing</option>
+            <option value="profile">Profile contour</option>
+            <option value="facing">Facing raster</option>
+          </select>
+
+          <button
+            type="button"
+            onClick={generateToolpath}
+            disabled={isGeneratingToolpath}
+            className="w-full rounded bg-forge-accent/15 border border-forge-accent/30 text-forge-accent hover:bg-forge-accent/25 disabled:opacity-50 px-2 py-1.5 text-[9px] font-bold tracking-wider"
+          >
+            {isGeneratingToolpath ? 'GENERATING…' : 'GENERATE G-CODE'}
+          </button>
+
+          {toolpathError && (
+            <div className="mt-2 text-[8px] text-forge-danger leading-relaxed">{toolpathError}</div>
+          )}
+
+          {toolpathResult && (
+            <div className="mt-2 space-y-1.5">
+              <div className="flex justify-between text-[8px]">
+                <span className="text-forge-text-muted">Engine</span>
+                <span className="text-forge-text font-mono text-right">{toolpathResult.engineUsed || toolpathResult.engine_used}</span>
+              </div>
+              <div className="flex justify-between text-[8px]">
+                <span className="text-forge-text-muted">Passes</span>
+                <span className="text-forge-green font-mono">{toolpathResult.metrics.passes}</span>
+              </div>
+              <div className="flex justify-between text-[8px]">
+                <span className="text-forge-text-muted">Cut Length</span>
+                <span className="text-forge-text font-mono">{toolpathResult.metrics.cutLengthMm.toFixed(1)} mm</span>
+              </div>
+              <div className="flex justify-between text-[8px]">
+                <span className="text-forge-text-muted">Lines</span>
+                <span className="text-forge-text font-mono">{toolpathResult.metrics.lineCount}</span>
+              </div>
+              <pre className="max-h-24 overflow-auto rounded bg-black/30 border border-forge-border/50 p-1.5 text-[7px] text-forge-green/80 font-mono">
+                {toolpathResult.gcode.split('\n').slice(0, 10).join('\n')}
+              </pre>
+              {toolpathResult.warnings.length > 0 && (
+                <div className="text-[8px] text-forge-warning">
+                  {toolpathResult.warnings[0]}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         
         {[
           { label: 'Cycle Time', value: '47.3 min', target: '50.0 min', status: 'good' },

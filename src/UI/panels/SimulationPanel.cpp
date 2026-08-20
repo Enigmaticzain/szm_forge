@@ -56,10 +56,15 @@ void SimulationPanel::DrawComponentBuilder() {
 }
 
 void SimulationPanel::DrawComponentList() {
-    const auto& components = SZM::SimulationEngine::GetInstance().GetComponents();
+    auto* scene = SZM::SimulationEngine::GetInstance().GetScene();
+    if (!scene) {
+        ImGui::TextDisabled("No scene available.");
+        return;
+    }
 
-    if (components.empty()) {
-        ImGui::TextDisabled("No components yet.");
+    auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent>();
+    if (entities.empty()) {
+        ImGui::TextDisabled("No physical components yet.");
         return;
     }
 
@@ -76,32 +81,38 @@ void SimulationPanel::DrawComponentList() {
     ImGui::TableSetupColumn("Status");
     ImGui::TableHeadersRow();
 
-    for (const auto& comp : components) {
-        ImGui::PushID(static_cast<int>(comp->id));
+    for (auto e : entities) {
+        auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+        std::string name = "Entity_" + std::to_string(e);
+        if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+            name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+        }
+
+        ImGui::PushID(static_cast<int>(e));
         ImGui::TableNextRow();
 
         ImGui::TableSetColumnIndex(0);
-        const std::string idText = std::to_string(comp->id);
-        if (ImGui::Selectable(idText.c_str(), m_SelectedComponentId == comp->id)) {
-            m_SelectedComponentId = comp->id;
-            m_SelectedForce = comp->appliedForce;
-            m_SelectedHeatInput = comp->heatInput;
+        const std::string idText = std::to_string(e);
+        if (ImGui::Selectable(idText.c_str(), m_SelectedComponentId == e)) {
+            m_SelectedComponentId = e;
+            m_SelectedForce = physics.appliedForce;
+            m_SelectedHeatInput = physics.heatInput;
         }
 
         ImGui::TableSetColumnIndex(1);
-        ImGui::TextUnformatted(comp->name.c_str());
+        ImGui::TextUnformatted(name.c_str());
 
         ImGui::TableSetColumnIndex(2);
-        ImGui::Text("%.2f", comp->stress / 1e6f);
+        ImGui::Text("%.2f", physics.stress / 1e6f);
 
         ImGui::TableSetColumnIndex(3);
-        ImGui::Text("%.1f", comp->temperature - 273.15f);
+        ImGui::Text("%.1f", physics.temperature - 273.15f);
 
         ImGui::TableSetColumnIndex(4);
-        const ImVec4 statusColor = comp->isDangerous
+        const ImVec4 statusColor = physics.isDangerous
             ? ImVec4(1.0f, 0.2f, 0.2f, 1.0f)
             : ImVec4(0.2f, 0.9f, 0.2f, 1.0f);
-        ImGui::TextColored(statusColor, "%s", comp->isDangerous ? "DANGER" : "OK");
+        ImGui::TextColored(statusColor, "%s", physics.isDangerous ? "DANGER" : "OK");
 
         ImGui::PopID();
     }

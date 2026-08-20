@@ -610,20 +610,42 @@ void Test_Camera() {
 }
 
 // =====================================================================
-//  T12 — MeshGenerator segment count
+//  T12 — MeshGenerator segment count + SolidBody tessellation
 // =====================================================================
 void Test_MeshGenerator() {
-    SZM_TEST("T12 — MeshGenerator CalculateSegmentCount");
+    SZM_TEST("T12 — MeshGenerator Tessellation");
 
-    // N = ceil(π / arccos(1 − ε/R)) × 2
-    // R=1, ε=0.01 → ratio=0.99 → arccos≈0.14107 → N≈ceil(44.4)×2 = 90
+    // N = ceil(π / arccos(1 − ε/R))
+    // R=1, ε=0.01 → ratio=0.99 → arccos≈0.14107 → N≈23
     uint32_t N = SZM::Graphics::MeshGenerator::CalculateSegmentCount(1.0, 0.01);
-    SZM_ASSERT(N >= 80 && N <= 120, "Segment count for R=1, ε=0.01 must be ~90");
+    SZM_ASSERT(N >= 20 && N <= 30, "Segment count for R=1, ε=0.01 must be ~23");
     SZM_ASSERT(N <= 1024,           "Segment count must not exceed VRAM-safety cap");
 
     // Degenerate: ε ≥ R → minimum 3
     uint32_t degenN = SZM::Graphics::MeshGenerator::CalculateSegmentCount(0.5, 2.0);
     SZM_ASSERT(degenN == 3, "Degenerate case (ε≥R) must return minimum 3 segments");
+
+    SZM::Geometry::Profile2D profile;
+    profile.Vertices = {
+        {-0.5,  0.5, 0.0},
+        { 0.5,  0.5, 0.0},
+        { 0.5, -0.5, 0.0},
+        {-0.5, -0.5, 0.0}
+    };
+    profile.Normal = {0.0, 0.0, 1.0};
+
+    SZM::Geometry::ExtrudeParams params;
+    params.Distance = 1.0;
+    params.Direction = {0.0, 0.0, 1.0};
+
+    const auto body = SZM::Geometry::Operations::LinearExtrude(profile, params);
+    SZM::Graphics::TessellationConfig config;
+    config.MaxTriangles = 1024;
+    const auto mesh = SZM::Graphics::MeshGenerator::TessellateSolid(body, config);
+
+    SZM_ASSERT(!mesh.Vertices.empty(), "Tessellated SolidBody must emit render vertices");
+    SZM_ASSERT(!mesh.Indices.empty(), "Tessellated SolidBody must emit triangle indices");
+    SZM_ASSERT(mesh.Indices.size() % 3 == 0, "Tessellated index buffer must contain triangles");
 }
 
 // =====================================================================

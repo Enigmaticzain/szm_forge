@@ -1,1 +1,10 @@
-#include "webview.h"\nint main() { webview::webview w(false, nullptr); return 0; }
+namespace Foo {
+    class Bar {
+    public:
+        void Baz();
+    };
+    void Bar::Baz() {
+        auto lam = [](int x){};
+        lam();
+    }
+}

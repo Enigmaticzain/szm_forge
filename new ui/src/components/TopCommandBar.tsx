@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WorkspaceMode, ViewportRenderMode } from '../types';
 import { useTooltips } from '../store/TooltipContext';
 import { tooltips } from '../data/tooltips';
@@ -6,7 +6,7 @@ import {
   Cpu, Layers, Box, Factory, Brain, Radio,
   Play, Pause, RotateCcw, Settings, Maximize2,
   Eye, Thermometer, Zap, Activity, Grid3x3,
-  ChevronDown, Hexagon, Shield, Bell, PenTool, Microscope, CircuitBoard, LayoutGrid
+  ChevronDown, Hexagon, Shield, Bell, PenTool, Microscope, CircuitBoard, LayoutGrid, Download, Aperture, BookMarked, GitMerge, Wand2
 } from 'lucide-react';
 
 interface Props {
@@ -18,6 +18,7 @@ interface Props {
   simulationRunning: boolean;
   onOpenNotifications?: () => void;
   onOpenSettings?: () => void;
+  onOpenWorkspaces?: () => void;
   onRunSimulation?: () => void;
   onPauseSimulation?: () => void;
   onResumeSimulation?: () => void;
@@ -39,6 +40,8 @@ const workspaceTabs: { id: WorkspaceMode; label: string; icon: React.ReactNode; 
   { id: 'chemistry-lab', label: 'CHEMISTRY LAB', icon: <Microscope size={13} />, tipKey: 'manufacturing' },
   { id: 'circuit-design', label: 'CIRCUIT DESIGN', icon: <CircuitBoard size={13} />, tipKey: 'manufacturing' },
   { id: 'ai-assistant', label: 'SZM AI ASSISTANCE', icon: <Brain size={13} />, tipKey: 'aiAssistant' },
+  { id: 'node-programming', label: 'NODE LOGIC', icon: <GitMerge size={13} />, tipKey: 'aiAssistant' },
+  { id: 'text-to-cad', label: 'TEXT → CAD', icon: <Wand2 size={13} />, tipKey: 'textToCAD' },
   { id: 'fleet-command', label: 'FLEET CMD', icon: <Radio size={13} />, tipKey: 'fleetCommand' },
 ];
 
@@ -49,12 +52,14 @@ const renderModes: { id: ViewportRenderMode; label: string; icon: React.ReactNod
   { id: 'thermal', label: 'Thermal', icon: <Thermometer size={12} />, tipKey: 'thermal' },
   { id: 'stress', label: 'Stress', icon: <Activity size={12} />, tipKey: 'stress' },
   { id: 'electrical', label: 'Electric', icon: <Zap size={12} />, tipKey: 'electrical' },
+  { id: 'raytraced', label: 'Raytraced', icon: <Aperture size={12} />, tipKey: 'shaded' },
 ];
 
 export const TopCommandBar: React.FC<Props> = ({
   workspace, setWorkspace, renderMode, setRenderMode, solverProgress, simulationRunning,
   onOpenNotifications,
   onOpenSettings,
+  onOpenWorkspaces,
   onRunSimulation,
   onPauseSimulation,
   onResumeSimulation,
@@ -65,6 +70,66 @@ export const TopCommandBar: React.FC<Props> = ({
   notificationCount = 0,
 }) => {
   const { t } = useTooltips();
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleRenderModeChange = async (modeId: ViewportRenderMode) => {
+    setRenderMode(modeId);
+    if (modeId === 'raytraced') {
+      try {
+        await fetch('http://localhost:8000/api/render/optix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_name: 'SZM_Forge_OptiX',
+            resolution: [1920, 1080],
+            samples: 256,
+            components: [],
+            materials: []
+          })
+        });
+      } catch (e) {
+        console.error('OptiX rendering dispatch failed:', e);
+      }
+    }
+  };
+
+  const handleExportUSD = async () => {
+    setIsExporting(true);
+    try {
+      const res = await fetch('http://localhost:8000/api/export/usd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_name: 'SZM_Forge_Export',
+          components: [
+            { name: 'Base_Plate', bbox: {w: 1, h: 0.1, d: 1}, position: [0, 0, 0], material_name: 'Aluminum' }
+          ],
+          materials: [
+            { name: 'Aluminum', base_color: [0.9, 0.9, 0.9], roughness: 0.2, metallic: 1.0 }
+          ]
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        const downloadFile = (filename: string, content: string) => {
+          const blob = new Blob([content], { type: 'text/plain' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        };
+        downloadFile('scene.usda', data.usda_data);
+        downloadFile('materials.mtlx', data.mtlx_data);
+      }
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+    setIsExporting(false);
+  };
 
   return (
     <div className="flex flex-col border-b border-forge-border/30 bg-forge-dark/80 backdrop-blur-xl relative z-50 shadow-lg">
@@ -144,7 +209,7 @@ export const TopCommandBar: React.FC<Props> = ({
           {renderModes.map(mode => (
             <button
               key={mode.id}
-              onClick={() => setRenderMode(mode.id)}
+              onClick={() => handleRenderModeChange(mode.id)}
               title={t(tooltips.viewport[mode.tipKey])}
               aria-label={t(tooltips.viewport[mode.tipKey])}
               className={`
@@ -210,6 +275,16 @@ export const TopCommandBar: React.FC<Props> = ({
 
         {/* Right side controls */}
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={handleExportUSD}
+            disabled={isExporting}
+            title="Export to USD / MaterialX"
+            className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-bold tracking-wider bg-forge-accent/20 text-forge-accent border border-forge-accent/40 hover:bg-forge-accent/40 transition-all disabled:opacity-50 mr-2"
+          >
+            <Download size={11} />
+            {isExporting ? 'EXPORTING...' : 'EXPORT USD'}
+          </button>
+          
           <button 
             onClick={onOpenNotifications}
             title="View notifications"
@@ -232,6 +307,15 @@ export const TopCommandBar: React.FC<Props> = ({
             }`}
           >
             PANEL
+          </button>
+          <button
+            type="button"
+            onClick={onOpenWorkspaces}
+            title="Manage workspace presets"
+            aria-label="Workspace Presets"
+            className="flex items-center gap-1 px-2 py-1 rounded text-[9px] font-mono text-forge-text-muted hover:text-forge-accent hover:bg-forge-accent/10 transition-all"
+          >
+            <BookMarked size={11} />
           </button>
           <button
             type="button"

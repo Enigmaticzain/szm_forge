@@ -17,6 +17,15 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
   const [isSnappingEnabled, setIsSnappingEnabled] = useState(false);
   const [deformBrushSize, setDeformBrushSize] = useState(120);
 
+  // Pending Creation State
+  const [pendingPrimitive, setPendingPrimitive] = useState<ShapeType | null>(null);
+  const [pendingSize, setPendingSize] = useState<{x:number, y:number, z:number}>({x: 100, y: 100, z: 100});
+
+  // Snip Solid State
+  const [markPointMode, setMarkPointMode] = useState(false);
+  const [markedPoint, setMarkedPoint] = useState<THREE.Vector3 | null>(null);
+  const [snipAxis, setSnipAxis] = useState<'x' | 'y' | 'z'>('x');
+
   // Undo/Redo State
   const [history, setHistory] = useState<SceneObject[][]>([objects]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -59,23 +68,29 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
     }
   };
 
-  const handleAddObject = (type: ShapeType) => {
-    const id = `obj_${Date.now()}`;
-    const name = `${type.charAt(0).toUpperCase() + type.slice(1)} ${objects.length + 1}`;
-    
+  const handleAddObjectClick = (type: ShapeType) => {
     let initialSize = { x: 100, y: 100, z: 100 };
     if (type === 'plate') {
       initialSize = { x: 200, y: 10, z: 200 };
     } else if (type === 'cylinder') {
       initialSize = { x: 50, y: 150, z: 50 };
     }
+    setPendingPrimitive(type);
+    setPendingSize(initialSize);
+  };
 
+  const handleConfirmAddObject = () => {
+    if (!pendingPrimitive) return;
+    const type = pendingPrimitive;
+    const id = `obj_${Date.now()}`;
+    const name = `${type.charAt(0).toUpperCase() + type.slice(1)} ${objects.length + 1}`;
+    
     const newObj: SceneObject = {
       id,
       name,
       type,
       position: { x: 0, y: 0, z: 0 },
-      size: initialSize,
+      size: pendingSize,
       bendAngle: 0
     };
 
@@ -83,6 +98,11 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
     setSelectedId(id);
     setBooleanToolMode(false);
     setDeformSelectionMode('object');
+    setPendingPrimitive(null);
+  };
+
+  const handleCancelAddObject = () => {
+    setPendingPrimitive(null);
   };
 
   const handleObjectChange = (id: string, newSize: {x:number, y:number, z:number}, newPos: {x:number, y:number, z:number}) => {
@@ -149,6 +169,19 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
     setBooleanToolMode(false);
   };
 
+  const handleSnipSolid = () => {
+    if (!selectedId || !markedPoint) return;
+    if (typeof (window as any)._performSnip === 'function') {
+      const resultGeo = (window as any)._performSnip(selectedId, markedPoint, snipAxis);
+      if (resultGeo) {
+        handleSetObjects(prev => prev.map(obj => 
+          obj.id === selectedId ? { ...obj, customGeometry: resultGeo } : obj
+        ));
+      }
+    }
+    setMarkedPoint(null);
+  };
+
   const handleApplyBend = () => {
     if (!selectedId) return;
     if (typeof (window as any)._bakeBend === 'function') {
@@ -193,10 +226,12 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
   const handleTransformMode = (mode: 'translate' | 'scale') => {
     setTransformMode(mode);
     setDeformSelectionMode('object');
+    setMarkPointMode(false);
   };
 
   const handleDeformSelectionMode = (mode: Exclude<DeformSelectionMode, 'object'>) => {
     setBooleanToolMode(false);
+    setMarkPointMode(false);
     setDeformSelectionMode(prev => prev === mode ? 'object' : mode);
   };
 
@@ -213,21 +248,21 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
           
           <div className="grid grid-cols-2 gap-2 mb-4">
             <button 
-              onClick={() => handleAddObject('box')}
+              onClick={() => handleAddObjectClick('box')}
               className="flex flex-col items-center justify-center gap-1 p-2 rounded bg-forge-surface/30 hover:bg-forge-surface text-forge-text-muted hover:text-forge-text transition-colors border border-forge-border/50 hover:border-forge-accent/50"
             >
               <Box size={14} className="text-forge-accent" />
               <span className="text-[9px] font-mono">Block</span>
             </button>
             <button 
-              onClick={() => handleAddObject('plate')}
+              onClick={() => handleAddObjectClick('plate')}
               className="flex flex-col items-center justify-center gap-1 p-2 rounded bg-forge-surface/30 hover:bg-forge-surface text-forge-text-muted hover:text-forge-text transition-colors border border-forge-border/50 hover:border-forge-accent/50"
             >
               <Box size={14} className="text-forge-purple" style={{ transform: 'scaleY(0.5)' }} />
               <span className="text-[9px] font-mono">Plate</span>
             </button>
             <button 
-              onClick={() => handleAddObject('cylinder')}
+              onClick={() => handleAddObjectClick('cylinder')}
               className="flex flex-col items-center justify-center gap-1 p-2 rounded bg-forge-surface/30 hover:bg-forge-surface text-forge-text-muted hover:text-forge-text transition-colors border border-forge-border/50 hover:border-forge-accent/50"
             >
               <Cylinder size={14} className="text-forge-green" />
@@ -240,6 +275,45 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
               <span className="text-[9px] font-mono">Custom</span>
             </button>
           </div>
+
+          {pendingPrimitive && (
+            <div className="mb-4 p-2 bg-forge-panel border border-forge-accent rounded shadow-lg">
+              <h4 className="text-[10px] font-bold tracking-widest text-forge-accent mb-2 uppercase">SET INITIAL SIZE</h4>
+              <div className="space-y-1.5 mb-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono text-forge-text-muted">WIDTH (X)</span>
+                  <input 
+                    type="number" 
+                    value={pendingSize.x} 
+                    onChange={(e) => setPendingSize(prev => ({...prev, x: parseFloat(e.target.value) || 1}))}
+                    className="w-16 bg-forge-dark border border-forge-border rounded px-1.5 py-0.5 text-[10px] font-mono text-forge-text focus:outline-none focus:border-forge-accent text-right"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono text-forge-text-muted">HEIGHT (Y)</span>
+                  <input 
+                    type="number" 
+                    value={pendingSize.y} 
+                    onChange={(e) => setPendingSize(prev => ({...prev, y: parseFloat(e.target.value) || 1}))}
+                    className="w-16 bg-forge-dark border border-forge-border rounded px-1.5 py-0.5 text-[10px] font-mono text-forge-text focus:outline-none focus:border-forge-accent text-right"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono text-forge-text-muted">DEPTH (Z)</span>
+                  <input 
+                    type="number" 
+                    value={pendingSize.z} 
+                    onChange={(e) => setPendingSize(prev => ({...prev, z: parseFloat(e.target.value) || 1}))}
+                    className="w-16 bg-forge-dark border border-forge-border rounded px-1.5 py-0.5 text-[10px] font-mono text-forge-text focus:outline-none focus:border-forge-accent text-right"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={handleConfirmAddObject} className="flex-1 py-1 bg-forge-accent/20 text-forge-accent border border-forge-accent/50 hover:bg-forge-accent/40 rounded text-[9px] font-bold font-mono transition-colors">SPAWN</button>
+                <button onClick={handleCancelAddObject} className="flex-1 py-1 bg-forge-surface/30 text-forge-text-muted border border-forge-border/50 hover:bg-forge-surface hover:text-forge-text rounded text-[9px] font-bold font-mono transition-colors">CANCEL</button>
+              </div>
+            </div>
+          )}
 
           <h3 className="text-[10px] font-bold tracking-widest text-forge-text-dim mb-3 px-1">OPERATIONS</h3>
           <button 
@@ -262,6 +336,48 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
              </div>
           )}
           
+          <button 
+            disabled={!selectedId}
+            onClick={() => {
+              setMarkPointMode(!markPointMode);
+              setBooleanToolMode(false);
+              setDeformSelectionMode('object');
+            }}
+            className={`w-full flex items-center justify-center gap-2 p-2 rounded transition-colors border mt-2
+              ${markPointMode 
+                ? 'bg-forge-yellow/20 text-forge-yellow border-forge-yellow/50' 
+                : !selectedId 
+                  ? 'bg-forge-surface/10 text-forge-text-muted/50 border-transparent cursor-not-allowed'
+                  : 'bg-forge-surface/30 hover:bg-forge-surface text-forge-text-muted hover:text-forge-text border-forge-border/50 hover:border-forge-yellow/50'
+              }`}
+          >
+            <Circle size={14} />
+            <span className="text-[9px] font-mono font-bold">MARK POINT (SNIP)</span>
+          </button>
+
+          {markedPoint && selectedId && (
+            <div className="mt-2 p-2 bg-forge-panel border border-forge-yellow/50 rounded shadow-lg">
+              <div className="text-[8px] font-mono text-forge-yellow mb-2 uppercase">Point: {markedPoint.x.toFixed(1)}, {markedPoint.y.toFixed(1)}, {markedPoint.z.toFixed(1)}</div>
+              <div className="flex gap-1 mb-2">
+                <button onClick={() => setSnipAxis('x')} className={`flex-1 py-1 text-[9px] font-mono font-bold rounded ${snipAxis === 'x' ? 'bg-forge-yellow text-forge-black' : 'bg-forge-dark text-forge-text-muted border border-forge-border'}`}>X</button>
+                <button onClick={() => setSnipAxis('y')} className={`flex-1 py-1 text-[9px] font-mono font-bold rounded ${snipAxis === 'y' ? 'bg-forge-yellow text-forge-black' : 'bg-forge-dark text-forge-text-muted border border-forge-border'}`}>Y</button>
+                <button onClick={() => setSnipAxis('z')} className={`flex-1 py-1 text-[9px] font-mono font-bold rounded ${snipAxis === 'z' ? 'bg-forge-yellow text-forge-black' : 'bg-forge-dark text-forge-text-muted border border-forge-border'}`}>Z</button>
+              </div>
+              <button 
+                onClick={handleSnipSolid}
+                className="w-full py-1.5 bg-forge-red/20 text-forge-red border border-forge-red/50 hover:bg-forge-red/40 rounded text-[9px] font-bold font-mono transition-colors flex items-center justify-center gap-1"
+              >
+                <Scissors size={12} /> SNIP SOLID
+              </button>
+              <button 
+                onClick={() => setMarkedPoint(null)}
+                className="w-full mt-1 py-1 bg-forge-surface/30 text-forge-text-muted border border-forge-border/50 hover:text-forge-text rounded text-[9px] font-bold font-mono transition-colors"
+              >
+                CLEAR POINT
+              </button>
+            </div>
+          )}
+
           <button 
             disabled={!selectedId}
             onClick={handleDuplicate}
@@ -393,6 +509,11 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
             onGeometryChange={handleGeometryChange}
             onSelect={setSelectedId}
             onPerformCut={handlePerformCut}
+            markPointMode={markPointMode}
+            onMarkPoint={(point) => {
+              setMarkedPoint(point);
+              setMarkPointMode(false);
+            }}
           />
         </div>
         
@@ -556,10 +677,10 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
         <div className="absolute bottom-4 left-4 h-[32px] bg-forge-panel border border-forge-border rounded flex items-center px-4 justify-between z-20 shadow-lg">
           <div className="flex items-center gap-4">
             <span className="text-[9px] font-mono text-forge-text-muted">
-              {booleanToolMode ? 'CSG MODE: SELECT TOOL SHAPE' : deformSelectionMode === 'object' ? 'SELECT: CLICK' : `HOLD + DRAG ${deformSelectionMode.toUpperCase()}`}
+              {markPointMode ? 'CLICK ON OBJECT TO MARK POINT' : booleanToolMode ? 'CSG MODE: SELECT TOOL SHAPE' : deformSelectionMode === 'object' ? 'SELECT: CLICK' : `HOLD + DRAG ${deformSelectionMode.toUpperCase()}`}
             </span>
-            <span className={`text-[9px] font-mono ${booleanToolMode ? 'text-forge-red' : 'text-forge-accent'}`}>
-              MODE: {booleanToolMode ? 'BOOLEAN CUT' : deformSelectionMode === 'object' ? transformMode.toUpperCase() : deformSelectionMode.toUpperCase()}
+            <span className={`text-[9px] font-mono ${markPointMode || booleanToolMode ? 'text-forge-red' : 'text-forge-accent'}`}>
+              MODE: {markPointMode ? 'MARK POINT' : booleanToolMode ? 'BOOLEAN CUT' : deformSelectionMode === 'object' ? transformMode.toUpperCase() : deformSelectionMode.toUpperCase()}
             </span>
           </div>
         </div>

@@ -167,18 +167,19 @@ void Application::Init(const WindowConfig& config) {
     m_Phase5PhysicsIntegration.Initialize();
     Workshop3D::WorkshopManager::GetInstance().Init();
 
-    WebAPI::APIManager::GetInstance().Initialize(8000);
+    // --- Calculate React UI Path ---
+    std::string reactUIPath = config.ThemePath.empty() ? std::string(SZM_REACT_UI_PATH) : config.ThemePath;
+
+    WebAPI::APIManager::GetInstance().Initialize(8000, reactUIPath + "/dist");
     AI::AIEngine::GetInstance().Init();
     Thermal::ThermalSolver::GetInstance().Init();
     Electrical::CircuitSolver::GetInstance().Init();
-
 
     // --- New UI (new ui/) — Theme 1 Classic + Theme 2 Modern with 3D visualization ---
 #if defined(SZM_USE_REACT_WEBVIEW)
     std::cout << "[SZM Forge] Initializing new React UI (new ui/)...\n";
     WebViewer::ReactUIManager& reactUI = WebViewer::ReactUIManager::GetInstance();
-    std::string reactUIPath = config.ThemePath.empty() ? std::string(SZM_REACT_UI_PATH) : config.ThemePath;
-
+    
     if (reactUI.Initialize(reactUIPath)) {
         if (reactUI.Build()) {
             std::cout << "[SZM Forge] React UI built successfully\n";
@@ -318,10 +319,7 @@ void Application::Run() {
         // 2. OS Events
         glfwPollEvents();
 
-        // 3. System Tick (Physics 200-Series, CEA AI, etc. hook here)
-        TickSystems();
-
-        // 4. ImGui + Render (OpenGL path)
+        // 3a. ImGui frame and UI update (OpenGL path)
         if (!m_UseVulkan && m_ImGuiInitialized) {
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
@@ -339,7 +337,16 @@ void Application::Run() {
                 m_UIManager.RenderUI();
             }
             ImGui::Render();
+        }
 
+        // 3b. System Tick (Physics 200-Series, CEA AI, etc. hook here)
+        // Run after UI has had a chance to update controls so that toolbar
+        // play/pause and other immediate UI-driven state changes affect
+        // the same frame rather than the next one.
+        TickSystems();
+
+        // 4. ImGui draw (render draw lists created above)
+        if (!m_UseVulkan && m_ImGuiInitialized) {
             int display_w = 0;
             int display_h = 0;
             glfwGetFramebufferSize(m_WindowHandle, &display_w, &display_h);
@@ -410,14 +417,20 @@ void Application::Shutdown() {
 
 // --------------------------------------------------------- TickSystems ----
 void Application::TickSystems() {
-    SimulationEngine::GetInstance().Tick(m_DeltaTime);
-    m_Phase5PhysicsIntegration.PrePhysicsStep(m_DeltaTime);
-    Physics::PhysicsEngine::GetInstance().Tick(m_DeltaTime);
-    m_Phase5PhysicsIntegration.PostPhysicsStep();
-
     auto& engine = SimulationEngine::GetInstance();
-    static double apiSimTime = 0.0;
-    apiSimTime += m_DeltaTime;
+
+    // If the simulation is paused, skip ticking simulation/physics/solvers.
+    if (!engine.IsPaused()) {
+        // Engine.Tick handles its own time scaling internally.
+        engine.Tick(m_DeltaTime);
+
+        const double scaledDt = m_DeltaTime * engine.GetTimeScale();
+        m_Phase5PhysicsIntegration.PrePhysicsStep(scaledDt);
+        Physics::PhysicsEngine::GetInstance().Tick(scaledDt);
+        m_Phase5PhysicsIntegration.PostPhysicsStep();
+
+        static double apiSimTime = 0.0;
+        apiSimTime += scaledDt;
     for (const auto& compPtr : engine.GetComponents()) {
         if (!compPtr) {
             continue;
@@ -432,8 +445,10 @@ void Application::TickSystems() {
             apiSimTime
         );
     }
-    Thermal::ThermalSolver::GetInstance().SolveTransient(m_DeltaTime);
-    Electrical::CircuitSolver::GetInstance().SolveTransient(m_DeltaTime);
+        Thermal::ThermalSolver::GetInstance().SolveTransient(scaledDt);
+        Electrical::CircuitSolver::GetInstance().SolveTransient(scaledDt);
+    }
+    // When paused: do not advance simulation or solvers, keep UI reactive.
     // TODO (AI):         CEAAssistant::Update();
 }
 

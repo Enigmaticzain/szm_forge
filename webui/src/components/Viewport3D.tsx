@@ -29,23 +29,32 @@ export default function Viewport3D({ mode }: Viewport3DProps) {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let canvasWidth = 0;
+    let canvasHeight = 0;
+    let dpr = window.devicePixelRatio || 1;
+
     const resize = () => {
       const rect = canvas.parentElement?.getBoundingClientRect();
-      if (rect) {
-        canvas.width = rect.width * window.devicePixelRatio;
-        canvas.height = rect.height * window.devicePixelRatio;
-        canvas.style.width = `${rect.width}px`;
-        canvas.style.height = `${rect.height}px`;
-        ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-      }
+      if (!rect) return;
+      dpr = window.devicePixelRatio || 1;
+      canvasWidth = Math.max(1, Math.floor(rect.width));
+      canvasHeight = Math.max(1, Math.floor(rect.height));
+      canvas.width = canvasWidth * dpr;
+      canvas.height = canvasHeight * dpr;
+      canvas.style.width = `${canvasWidth}px`;
+      canvas.style.height = `${canvasHeight}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
-    window.addEventListener('resize', resize);
+
+    const parent = canvas.parentElement;
+    const resizeObserver = new ResizeObserver(() => resize());
+    if (parent) resizeObserver.observe(parent);
 
     // Initialize particles
     particlesRef.current = Array.from({ length: 50 }, () => ({
-      x: Math.random() * canvas.width / window.devicePixelRatio,
-      y: Math.random() * canvas.height / window.devicePixelRatio,
+      x: Math.random() * canvasWidth,
+      y: Math.random() * canvasHeight,
       z: Math.random(),
       vx: (Math.random() - 0.5) * 0.5,
       vy: (Math.random() - 0.5) * 0.3,
@@ -55,8 +64,8 @@ export default function Viewport3D({ mode }: Viewport3DProps) {
       color: mode === 'stress' ? '#ff3344' : mode === 'thermal' ? '#ff6600' : mode === 'electrical' ? '#00eeff' : '#00c2ff',
     }));
 
-    const w = () => canvas.width / window.devicePixelRatio;
-    const h = () => canvas.height / window.devicePixelRatio;
+    const w = () => canvasWidth;
+    const h = () => canvasHeight;
 
     const drawGrid = (t: number) => {
       const gridSize = 40;
@@ -384,10 +393,10 @@ export default function Viewport3D({ mode }: Viewport3DProps) {
 
     const render = (timestamp: number) => {
       timeRef.current = timestamp;
-      const cw = canvas.width / window.devicePixelRatio;
-      const ch = canvas.height / window.devicePixelRatio;
+      const cw = canvasWidth;
+      const ch = canvasHeight;
 
-      ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       
       // Background
       ctx.fillStyle = '#0a0c10';
@@ -413,7 +422,7 @@ export default function Viewport3D({ mode }: Viewport3DProps) {
 
     return () => {
       cancelAnimationFrame(animRef.current);
-      window.removeEventListener('resize', resize);
+      resizeObserver.disconnect();
     };
   }, [mode]);
 

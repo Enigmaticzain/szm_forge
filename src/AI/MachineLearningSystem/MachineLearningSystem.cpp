@@ -7,6 +7,10 @@
 #include <filesystem>
 #include <iostream>
 
+#include "Simulation/SimulationEngine.hpp"
+#include "Scene/Scene.hpp"
+#include "Scene/Components.hpp"
+
 namespace SZM::AI::Machines {
 
 MachineLearningSystem& MachineLearningSystem::GetInstance() {
@@ -984,6 +988,37 @@ bool MachineLearningSystem::IntegrateMachineIntoApp(GeneratedMachine& machine) {
     // 2. Update CMakeLists.txt
     // 3. Trigger rebuild
     // 4. Load the new machine component dynamically
+    
+    // ECS Integration:
+    // Instantiate the Generated Machine as SceneGraph Entities
+    auto* scene = SZM::SimulationEngine::GetInstance().GetScene();
+    if (scene) {
+        auto machineEntity = scene->CreateEntity(machine.name);
+        scene->AddComponent<SZM::SceneGraph::TransformComponent>(machineEntity, SZM::SceneGraph::TransformComponent{});
+        
+        for (const auto& comp : machine.specification.components) {
+            auto compEntity = scene->CreateEntity(comp.name);
+            
+            SZM::SceneGraph::TransformComponent xform;
+            xform.parentEntity = machineEntity;
+            scene->AddComponent<SZM::SceneGraph::TransformComponent>(compEntity, xform);
+            
+            SZM::SceneGraph::PhysicsStateComponent phys;
+            for (const auto& param : comp.parameters) {
+                if (param.name == "power" || param.name == "max_torque") {
+                    phys.appliedForce = param.current_value;
+                }
+            }
+            scene->AddComponent<SZM::SceneGraph::PhysicsStateComponent>(compEntity, phys);
+            
+            SZM::SceneGraph::MeshComponent mesh;
+            mesh.meshId = "primitive_cube"; // Placeholder
+            scene->AddComponent<SZM::SceneGraph::MeshComponent>(compEntity, mesh);
+        }
+        std::cout << "[MachineLearningSystem] Instantiated '" << machine.name << "' as ECS Entities." << std::endl;
+    } else {
+        std::cerr << "[MachineLearningSystem] No active Scene found for instantiation." << std::endl;
+    }
     
     std::cout << "[MachineLearningSystem] Machine '" << machine.name << "' integrated successfully!" << std::endl;
     

@@ -117,6 +117,7 @@ export default function CircuitDesigner() {
   const [simulationTime, setSimulationTime] = useState(0);
   const [circuitErrors, setCircuitErrors] = useState<string[]>([]);
   const [motorRPMs, setMotorRPMs] = useState<Record<string, number>>({});
+  const isSimulatingRef = useRef(false);
 
   const snapToGrid = useCallback((value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE, []);
   const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -873,25 +874,32 @@ export default function CircuitDesigner() {
     
     // Set motor RPMs based on connected power
     const newRPMs: Record<string, number> = {};
-    motors.forEach((motor, i) => {
+    motors.forEach((motor) => {
       newRPMs[motor.id] = vccCount > 0 ? (motor.rpm || 1500) * (0.8 + Math.random() * 0.4) : 0;
     });
     setMotorRPMs(newRPMs);
     setIsSimulating(true);
+    isSimulatingRef.current = true;
     
     let time = 0;
     const simulate = () => {
       time += 0.016;
       setSimulationTime(time);
-      if (isSimulating) simRef.current = requestAnimationFrame(simulate);
+      if (isSimulatingRef.current) {
+        simRef.current = requestAnimationFrame(simulate);
+      }
     };
     simRef.current = requestAnimationFrame(simulate);
   };
 
   const stopSimulation = () => {
     setIsSimulating(false);
+    isSimulatingRef.current = false;
     setMotorRPMs({});
-    cancelAnimationFrame(simRef.current);
+    if (simRef.current) {
+      cancelAnimationFrame(simRef.current);
+      simRef.current = 0;
+    }
   };
 
   const clearAll = () => {
@@ -904,7 +912,6 @@ export default function CircuitDesigner() {
   };
 
   const selectedCompData = components.find(c => c.id === selectedComponent);
-  const allComponents = [...ELECTRICAL_COMPONENTS, ...MOTOR_COMPONENTS, ...MECHANICAL_COMPONENTS];
   const filteredComponents = selectedCategory === 'electrical' ? ELECTRICAL_COMPONENTS 
     : selectedCategory === 'motors' ? MOTOR_COMPONENTS 
     : MECHANICAL_COMPONENTS;

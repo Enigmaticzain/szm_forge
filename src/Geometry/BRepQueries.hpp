@@ -33,6 +33,33 @@ namespace SZM::Geometry {
         /// Returns a list of lists, where each inner list contains face indices belonging to one shell.
         [[nodiscard]] static std::vector<std::vector<uint32_t>> ExtractShells(const SolidBody& body);
 
+        // ----------------------------------------------------------------
+        //  BRep sub-element picking (ray casting)
+        // ----------------------------------------------------------------
+
+        struct RayHit {
+            uint32_t index    = UINT32_MAX; ///< Face/edge/vertex index; UINT32_MAX = no hit
+            double   distance = 0.0;
+            Vector3  point;
+        };
+
+        [[nodiscard]] static RayHit RaycastFace(
+            const SolidBody& body,
+            const Vector3& rayOrigin,
+            const Vector3& rayDir);
+
+        [[nodiscard]] static RayHit RaycastEdge(
+            const SolidBody& body,
+            const Vector3& rayOrigin,
+            const Vector3& rayDir,
+            double screenRadius = 0.005);
+
+        [[nodiscard]] static RayHit RaycastVertex(
+            const SolidBody& body,
+            const Vector3& rayOrigin,
+            const Vector3& rayDir,
+            double screenRadius = 0.005);
+
     private:
         /// Helper for closest point to triangle
         static Vector3 ClosestPointOnTriangle(const Vector3& p, const Vector3& a, const Vector3& b, const Vector3& c);

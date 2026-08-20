@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Factory, Package, Settings, CheckCircle,
-  Ruler, Cpu,
+  Ruler, Cpu, Printer,
   ArrowRight, Clock, Shield, Code, Download
 } from 'lucide-react';
 
@@ -36,6 +36,10 @@ export const ManufacturingDashboard: React.FC = () => {
   const [dfmResults, setDfmResults] = useState<any[]>([]);
   const [gcode, setGcode] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const [slicerGcode, setSlicerGcode] = useState<string | null>(null);
+  const [isSlicing, setIsSlicing] = useState(false);
+  const [slicerStats, setSlicerStats] = useState<{layers: number, time_s: number} | null>(null);
 
   useEffect(() => {
     // Fetch DFM validation
@@ -74,6 +78,33 @@ export const ManufacturingDashboard: React.FC = () => {
       console.error(e);
     }
     setIsGenerating(false);
+  };
+
+  const handleRunSlicer = async () => {
+    setIsSlicing(true);
+    try {
+      // Forward via the C++ WebAPI bridge
+      const res = await fetch('http://localhost:8000/api/manufacturing/slicer/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          component_id: 101,
+          component_name: 'AI Hub Assembly',
+          layer_height_mm: 0.2,
+          infill_density_percent: 20.0,
+          print_speed_mm_s: 60.0,
+          bounding_box: { length: 0.8, width: 0.4, height: 0.15 }
+        })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setSlicerGcode(data.gcode);
+        setSlicerStats({ layers: data.layer_count, time_s: data.print_time_estimate_s });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setIsSlicing(false);
   };
 
   return (
@@ -190,7 +221,7 @@ export const ManufacturingDashboard: React.FC = () => {
         </div>
 
         {/* Bottom Grid */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-4 gap-4">
           {/* DFM Analysis */}
           <div className="p-4 rounded-lg border border-forge-border bg-forge-panel">
             <div className="flex items-center gap-1.5 mb-3">
@@ -277,6 +308,47 @@ export const ManufacturingDashboard: React.FC = () => {
               </div>
             )}
           </div>
+
+          {/* 3D Print Slicer */}
+          <div className="p-4 rounded-lg border border-forge-border bg-forge-panel flex flex-col">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <Printer size={11} className="text-forge-accent" />
+                <span className="text-[9px] font-semibold tracking-widest text-forge-text-dim">3D PRINT SLICER</span>
+              </div>
+              {slicerGcode && (
+                <button className="text-[10px] text-forge-purple hover:text-forge-purple/80 transition-colors flex items-center gap-1">
+                  <Download size={10} />
+                  <span>.GCODE</span>
+                </button>
+              )}
+            </div>
+            
+            {!slicerGcode ? (
+              <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-forge-border rounded bg-forge-dark/50 p-4">
+                <button
+                  onClick={handleRunSlicer}
+                  disabled={isSlicing}
+                  className="px-4 py-2 bg-forge-blue text-white rounded font-semibold text-[10px] hover:bg-forge-blue/80 transition-colors disabled:opacity-50"
+                >
+                  {isSlicing ? 'SLICING...' : 'GENERATE 3D G-CODE'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col gap-2">
+                <div className="flex justify-between items-center px-2 py-1 bg-forge-dark rounded border border-forge-border">
+                  <div className="text-[8px] font-mono text-forge-text-muted">LAYERS: <span className="text-forge-text">{slicerStats?.layers}</span></div>
+                  <div className="text-[8px] font-mono text-forge-text-muted">EST TIME: <span className="text-forge-text">{Math.round((slicerStats?.time_s ?? 0) / 60)} min</span></div>
+                </div>
+                <div className="flex-1 bg-forge-dark rounded border border-forge-border p-2 overflow-y-auto">
+                  <pre className="text-[8px] font-mono text-forge-green select-text">
+                    {slicerGcode}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </div>
+
         </div>
       </div>
     </div>

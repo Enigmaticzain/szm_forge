@@ -74,6 +74,8 @@ interface Props {
   onGeometryChange?: (id: string, geometry: THREE.BufferGeometry, newSize: GeometrySize) => void;
   onSelect: (id: string | null) => void;
   onPerformCut?: (targetId: string, toolId: string) => void;
+  markPointMode?: boolean;
+  onMarkPoint?: (point: THREE.Vector3) => void;
 }
 
 interface DeformDragState {
@@ -321,7 +323,9 @@ export const InteractivePartEditor: React.FC<Props> = ({
   onObjectChange,
   onGeometryChange,
   onSelect,
-  onPerformCut
+  onPerformCut,
+  markPointMode,
+  onMarkPoint
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -347,6 +351,8 @@ export const InteractivePartEditor: React.FC<Props> = ({
   const onGeometryChangeRef = useRef(onGeometryChange);
   const onSelectRef = useRef(onSelect);
   const onPerformCutRef = useRef(onPerformCut);
+  const markPointModeRef = useRef(markPointMode);
+  const onMarkPointRef = useRef(onMarkPoint);
 
   objectsRef.current = objects;
   selectedIdRef.current = selectedId;
@@ -357,6 +363,8 @@ export const InteractivePartEditor: React.FC<Props> = ({
   onGeometryChangeRef.current = onGeometryChange;
   onSelectRef.current = onSelect;
   onPerformCutRef.current = onPerformCut;
+  markPointModeRef.current = markPointMode;
+  onMarkPointRef.current = onMarkPoint;
 
   const getSnapPoints = (mesh: THREE.Mesh): THREE.Vector3[] => {
     mesh.updateMatrixWorld();
@@ -606,7 +614,7 @@ export const InteractivePartEditor: React.FC<Props> = ({
       const meshes = Array.from(meshMapRef.current.values());
       const intersects = raycasterRef.current.intersectObjects(meshes, false);
 
-      if (deformSelectionModeRef.current !== 'object' && selectedIdRef.current && !booleanToolModeRef.current) {
+      if (deformSelectionModeRef.current !== 'object' && selectedIdRef.current && !booleanToolModeRef.current && !markPointModeRef.current) {
         const selectedMesh = meshMapRef.current.get(selectedIdRef.current);
         if (selectedMesh) {
           const selectedIntersects = raycasterRef.current.intersectObject(selectedMesh, false);
@@ -619,6 +627,11 @@ export const InteractivePartEditor: React.FC<Props> = ({
       }
       
       if (intersects.length > 0) {
+        if (markPointModeRef.current) {
+          onMarkPointRef.current?.(intersects[0].point.clone());
+          return;
+        }
+
         const clickedMesh = intersects[0].object as THREE.Mesh;
         let clickedId: string | null = null;
         meshMapRef.current.forEach((mesh, id) => {
@@ -901,7 +914,7 @@ export const InteractivePartEditor: React.FC<Props> = ({
     transform.setMode(transformMode);
     
     // Hide transform handles during boolean tool selection or sub-object deformation.
-    if (booleanToolMode || deformSelectionMode !== 'object') {
+    if (booleanToolMode || deformSelectionMode !== 'object' || markPointMode) {
       transform.detach();
       return;
     }
@@ -914,11 +927,11 @@ export const InteractivePartEditor: React.FC<Props> = ({
     } else {
       transform.detach();
     }
-  }, [selectedId, transformMode, booleanToolMode, deformSelectionMode]);
+  }, [selectedId, transformMode, booleanToolMode, deformSelectionMode, markPointMode]);
 
   useEffect(() => {
     rebuildDeformHandles();
-  }, [deformSelectionMode, selectedId, booleanToolMode, rebuildDeformHandles]);
+  }, [deformSelectionMode, selectedId, booleanToolMode, markPointMode, rebuildDeformHandles]);
   
   // Expose CSG and bend helpers for the parent panel.
   useEffect(() => {
@@ -946,6 +959,39 @@ export const InteractivePartEditor: React.FC<Props> = ({
       return finalGeo;
     };
     
+    (window as any)._performSnip = (targetId: string, point: {x:number, y:number, z:number}, axis: 'x'|'y'|'z') => {
+      const targetMesh = meshMapRef.current.get(targetId);
+      if (!targetMesh) return null;
+
+      targetMesh.updateMatrixWorld();
+      const brush1 = new Brush(targetMesh.geometry, targetMesh.material as THREE.Material);
+      brush1.matrix.copy(targetMesh.matrixWorld);
+
+      // Create a huge slicing box
+      const boxGeo = new THREE.BoxGeometry(10000, 10000, 10000);
+      const boxMesh = new THREE.Mesh(boxGeo, new THREE.MeshBasicMaterial());
+      
+      // Position the edge of the box exactly at the marked point along the chosen axis
+      boxMesh.position.set(point.x, point.y, point.z);
+      if (axis === 'x') boxMesh.position.x += 5000;
+      if (axis === 'y') boxMesh.position.y += 5000;
+      if (axis === 'z') boxMesh.position.z += 5000;
+      
+      boxMesh.updateMatrixWorld();
+      
+      const brush2 = new Brush(boxMesh.geometry, boxMesh.material as THREE.Material);
+      brush2.matrix.copy(boxMesh.matrixWorld);
+
+      const evaluator = new Evaluator();
+      const result = evaluator.evaluate(brush1, brush2, SUBTRACTION);
+      const finalGeo = result.geometry.clone();
+      
+      const inverseMatrix = new THREE.Matrix4().copy(targetMesh.matrixWorld).invert();
+      finalGeo.applyMatrix4(inverseMatrix);
+      
+      return finalGeo;
+    };
+
     (window as any)._bakeBend = (targetId: string) => {
       const targetMesh = meshMapRef.current.get(targetId);
       if (!targetMesh) return null;
@@ -957,11 +1003,12 @@ export const InteractivePartEditor: React.FC<Props> = ({
     
     return () => {
       delete (window as any)._performCSG;
+      delete (window as any)._performSnip;
       delete (window as any)._bakeBend;
     };
   }, []);
 
-  const cursorClass = deformSelectionMode === 'object' ? 'cursor-crosshair' : 'cursor-grab';
+  const cursorClass = markPointMode ? 'cursor-crosshair' : deformSelectionMode === 'object' ? 'cursor-crosshair' : 'cursor-grab';
 
   return <div ref={containerRef} className={`w-full h-full ${cursorClass}`} />;
 };

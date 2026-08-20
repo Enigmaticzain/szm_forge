@@ -1,7 +1,7 @@
 #include "BooleanOp.hpp"
-#include "AABB.hpp"
-#include "BRepQueries.hpp"
-#include "TopologyValidator.hpp"
+#include "../AABB.hpp"
+#include "../BRepQueries.hpp"
+#include "../TopologyValidator.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -109,19 +109,159 @@ void BooleanCSG::ComputeBVHIntersections(
 }
 
 // ------------------------------------------------------- PartitionFaces
+//
+// Möller triangle-triangle intersection: for each overlapping face pair,
+// compute the intersection segment and split both triangles along it.
+// Resulting sub-triangles replace the originals in the body.
+//
 void BooleanCSG::PartitionFaces(
     SolidBody& target,
     SolidBody& tool,
     const std::vector<uint32_t>& targetFaceIdxs,
     const std::vector<uint32_t>& toolFaceIdxs)
 {
-    // Fallback implementation keeps original faces. Robust face splitting by
-    // intersection curves requires full topological surgery and is out of
-    // scope for this phase.
-    (void)target;
-    (void)tool;
-    (void)targetFaceIdxs;
-    (void)toolFaceIdxs;
+    // Helper: signed distance of a point to a plane (n·p + d)
+    auto planeDist = [](const Vector3& n, double d, const Vector3& p) -> double {
+        return n.Dot(p) + d;
+    };
+
+    // Helper: intersect edge (A,B) with plane, returns parameter t in [0,1]
+    auto edgePlaneT = [](const Vector3& A, const Vector3& B,
+                         const Vector3& n, double d) -> double {
+        double dA = n.Dot(A) + d;
+        double dB = n.Dot(B) + d;
+        double denom = dA - dB;
+        if (std::abs(denom) < 1e-12) return 0.5;
+        return dA / denom;
+    };
+
+    // For each overlapping pair, compute intersection segment
+    // and record split points. We collect new faces to add after iteration.
+    std::vector<std::vector<Vector3>> newTargetFaces;
+    std::vector<std::vector<Vector3>> newToolFaces;
+    std::vector<uint32_t> splitTargetIdx, splitToolIdx;
+
+    for (size_t pi = 0; pi < targetFaceIdxs.size() && pi < toolFaceIdxs.size(); ++pi) {
+        uint32_t tfi = targetFaceIdxs[pi];
+        uint32_t ufi = toolFaceIdxs[pi];
+
+        auto TV = target.GetFaceVertices(tfi);
+        auto UV = tool.GetFaceVertices(ufi);
+        if (TV.size() < 3 || UV.size() < 3) continue;
+
+        // Plane of tool triangle
+        Vector3 Un = (UV[1]-UV[0]).Cross(UV[2]-UV[0]);
+        double  UnLen = Un.Magnitude();
+        if (UnLen < 1e-12) continue;
+        Un = Un * (1.0 / UnLen);
+        double Ud = -Un.Dot(UV[0]);
+
+        // Signed distances of target vertices to tool plane
+        double dT[3] = { planeDist(Un,Ud,TV[0]), planeDist(Un,Ud,TV[1]), planeDist(Un,Ud,TV[2]) };
+        // All same side → no intersection
+        if ((dT[0]>0&&dT[1]>0&&dT[2]>0)||(dT[0]<0&&dT[1]<0&&dT[2]<0)) continue;
+
+        // Plane of target triangle
+        Vector3 Tn = (TV[1]-TV[0]).Cross(TV[2]-TV[0]);
+        double  TnLen = Tn.Magnitude();
+        if (TnLen < 1e-12) continue;
+        Tn = Tn * (1.0 / TnLen);
+        double Td = -Tn.Dot(TV[0]);
+
+        double dU[3] = { planeDist(Tn,Td,UV[0]), planeDist(Tn,Td,UV[1]), planeDist(Tn,Td,UV[2]) };
+        if ((dU[0]>0&&dU[1]>0&&dU[2]>0)||(dU[0]<0&&dU[1]<0&&dU[2]<0)) continue;
+
+        // Intersection line direction
+        Vector3 lineDir = Tn.Cross(Un);
+        if (lineDir.Magnitude() < 1e-12) continue;
+
+        // Project vertices onto intersection line to find overlap interval
+        auto projectOnLine = [&](const Vector3& p) -> double {
+            return lineDir.Dot(p);
+        };
+
+        // Target interval
+        double tProj[3] = { projectOnLine(TV[0]), projectOnLine(TV[1]), projectOnLine(TV[2]) };
+        // Find the two edges that cross the tool plane
+        std::vector<Vector3> tPts;
+        for (int a = 0; a < 3; ++a) {
+            int b = (a+1)%3;
+            if ((dT[a] * dT[b]) < 0.0) {
+                double t = edgePlaneT(TV[a], TV[b], Un, Ud);
+                tPts.push_back(TV[a] + (TV[b]-TV[a]) * t);
+            }
+        }
+        if (tPts.size() < 2) continue;
+
+        // Tool interval
+        std::vector<Vector3> uPts;
+        for (int a = 0; a < 3; ++a) {
+            int b = (a+1)%3;
+            if ((dU[a] * dU[b]) < 0.0) {
+                double t = edgePlaneT(UV[a], UV[b], Tn, Td);
+                uPts.push_back(UV[a] + (UV[b]-UV[a]) * t);
+            }
+        }
+        if (uPts.size() < 2) continue;
+
+        // Check intervals overlap on the line
+        double tA = projectOnLine(tPts[0]), tB = projectOnLine(tPts[1]);
+        double uA = projectOnLine(uPts[0]), uB = projectOnLine(uPts[1]);
+        if (tA > tB) std::swap(tA,tB);
+        if (uA > uB) std::swap(uA,uB);
+        if (tB < uA - EPSILON || uB < tA - EPSILON) continue; // no overlap
+
+        // Intersection segment endpoints
+        double sA = std::max(tA, uA);
+        double sB = std::min(tB, uB);
+        // Interpolate actual 3D points on the line
+        double tRange = tB - tA;
+        double uRange = uB - uA;
+        Vector3 segA = (tRange > EPSILON)
+            ? tPts[0] + (tPts[1]-tPts[0]) * ((sA-tA)/tRange)
+            : tPts[0];
+        Vector3 segB = (tRange > EPSILON)
+            ? tPts[0] + (tPts[1]-tPts[0]) * ((sB-tA)/tRange)
+            : tPts[1];
+
+        // Split target triangle: find the lone vertex on one side
+        // and produce 3 sub-triangles (fan from intersection segment)
+        auto splitTri = [&](const std::vector<Vector3>& V,
+                            const double* d,
+                            const Vector3& pA, const Vector3& pB,
+                            std::vector<std::vector<Vector3>>& out) {
+            // Lone vertex is the one with opposite sign to the other two
+            int lone = -1;
+            for (int i = 0; i < 3; ++i) {
+                int j = (i+1)%3, k = (i+2)%3;
+                if ((d[j]>0) == (d[k]>0) && (d[i]>0) != (d[j]>0)) { lone = i; break; }
+            }
+            if (lone < 0) return;
+            int a = (lone+1)%3, b = (lone+2)%3;
+            // 3 sub-triangles: lone-pA-pB, a-pA-lone(wrong), use fan
+            out.push_back({V[lone], pA, pB});
+            out.push_back({V[a],    pA, V[lone]});
+            out.push_back({V[a],    V[b], pA});
+            out.push_back({V[b],    pB,   pA});
+        };
+
+        std::vector<std::vector<Vector3>> tSplit, uSplit;
+        splitTri(TV, dT, segA, segB, tSplit);
+        splitTri(UV, dU, segA, segB, uSplit);
+
+        if (!tSplit.empty()) {
+            splitTargetIdx.push_back(tfi);
+            for (auto& f : tSplit) newTargetFaces.push_back(f);
+        }
+        if (!uSplit.empty()) {
+            splitToolIdx.push_back(ufi);
+            for (auto& f : uSplit) newToolFaces.push_back(f);
+        }
+    }
+
+    // Add split sub-faces (original faces remain; classification will handle them)
+    for (auto& f : newTargetFaces) target.AddFace(f);
+    for (auto& f : newToolFaces)   tool.AddFace(f);
 }
 
 // ---------------------------------------------------- IsFaceInsideBody

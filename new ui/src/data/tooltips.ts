@@ -19,6 +19,7 @@ export const tooltips = {
     aiAssistant: 'AI Engine — Design suggestions using local knowledge base + codes/ ML bundles.',
     fleetCommand: 'Fleet Command — Multi-asset monitoring across deployed machines.',
     designing: 'Designing — Dedicated sub-system layout and conceptual design (Body, Circuit, etc).',
+    textToCAD: 'Text → CAD — Describe a part in natural language and generate a 3D geometry + STEP file.',
   },
   viewport: {
     shaded: 'Shaded — PBR-style solid rendering with lighting.',

@@ -591,6 +591,187 @@ function normalizeTags(value) {
   ).slice(0, 8);
 }
 
+const elementPropertyTable = {
+  Al: { density: 2700, youngs: 69, thermal: 237, cte: 23.1e-6, melt: 660 },
+  Ti: { density: 4507, youngs: 116, thermal: 21.9, cte: 8.6e-6, melt: 1668 },
+  Fe: { density: 7874, youngs: 211, thermal: 80, cte: 11.8e-6, melt: 1538 },
+  Ni: { density: 8908, youngs: 200, thermal: 90.9, cte: 13.4e-6, melt: 1455 },
+  Cr: { density: 7190, youngs: 279, thermal: 93.9, cte: 4.9e-6, melt: 1907 },
+  Cu: { density: 8960, youngs: 117, thermal: 401, cte: 16.5e-6, melt: 1085 },
+  C: { density: 2260, youngs: 70, thermal: 140, cte: 2.0e-6, melt: 3550 },
+  Si: { density: 2330, youngs: 130, thermal: 149, cte: 2.6e-6, melt: 1414 },
+  Mg: { density: 1738, youngs: 45, thermal: 156, cte: 26e-6, melt: 650 },
+  Mn: { density: 7470, youngs: 198, thermal: 7.8, cte: 21.7e-6, melt: 1246 },
+  Mo: { density: 10280, youngs: 329, thermal: 138, cte: 4.8e-6, melt: 2623 },
+  W: { density: 19250, youngs: 411, thermal: 174, cte: 4.5e-6, melt: 3422 },
+  V: { density: 6110, youngs: 128, thermal: 30.7, cte: 8.4e-6, melt: 1910 },
+  B: { density: 2340, youngs: 400, thermal: 27, cte: 6e-6, melt: 2076 },
+  O: { density: 1140, youngs: 3, thermal: 0.026, cte: 50e-6, melt: -219 },
+  H: { density: 0.09, youngs: 0.001, thermal: 0.18, cte: 200e-6, melt: -259 },
+};
+
+function normalizeElementSymbol(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+  return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+}
+
+function normalizeConstituents(rawConstituents) {
+  const input = Array.isArray(rawConstituents) ? rawConstituents : [];
+  let constituents = input
+    .map((item) => ({
+      symbol: normalizeElementSymbol(item.symbol || item.element || item.name),
+      fraction: Math.max(0, toFiniteNumber(item.fraction ?? item.percent, 0)),
+    }))
+    .filter((item) => item.symbol && elementPropertyTable[item.symbol]);
+
+  if (!constituents.length) {
+    constituents = [
+      { symbol: 'Fe', fraction: 0.7 },
+      { symbol: 'C', fraction: 0.02 },
+      { symbol: 'Cr', fraction: 0.18 },
+      { symbol: 'Ni', fraction: 0.1 },
+    ];
+  }
+
+  const total = constituents.reduce((sum, item) => sum + item.fraction, 0);
+  if (total <= 0) {
+    const equalFraction = 1 / constituents.length;
+    return constituents.map((item) => ({ ...item, fraction: equalFraction }));
+  }
+  return constituents.map((item) => ({ ...item, fraction: item.fraction / total }));
+}
+
+function weightedConstituentProperty(constituents, propertyName) {
+  return constituents.reduce(
+    (sum, item) => sum + elementPropertyTable[item.symbol][propertyName] * item.fraction,
+    0,
+  );
+}
+
+function materialFamilyFactors(family) {
+  const normalized = String(family || '').toLowerCase();
+  if (normalized.includes('composite')) return { stiffness: 1.18, strength: 1.22, ductility: 0.72 };
+  if (normalized.includes('ceramic')) return { stiffness: 1.45, strength: 0.85, ductility: 0.55 };
+  if (normalized.includes('polymer')) return { stiffness: 0.08, strength: 0.12, ductility: 0.35 };
+  if (normalized.includes('alloy') || normalized.includes('metal')) return { stiffness: 1.0, strength: 1.0, ductility: 1.0 };
+  return { stiffness: 0.85, strength: 0.9, ductility: 0.8 };
+}
+
+function scoreManufacturingProcess(process, properties) {
+  const normalized = String(process || '').toLowerCase();
+  let score = 0.65;
+  if (normalized.includes('cnc') || normalized.includes('machin')) {
+    score += properties.youngsModulus < 220 ? 0.20 : 0.06;
+    score += properties.thermalConductivity > 20 ? 0.08 : -0.04;
+    score += properties.density < 9000 ? 0.04 : -0.03;
+  } else if (normalized.includes('additive') || normalized.includes('print')) {
+    score += properties.meltPointC < 1700 ? 0.15 : 0.03;
+    score += properties.density < 6000 ? 0.08 : -0.03;
+  } else if (normalized.includes('cast')) {
+    score += properties.meltPointC < 1600 ? 0.18 : 0.04;
+    score += properties.thermalConductivity > 40 ? 0.06 : 0;
+  } else if (normalized.includes('injection')) {
+    score += properties.youngsModulus < 20 ? 0.22 : -0.10;
+  }
+  return clamp(score, 0, 0.98);
+}
+
+function buildSynthesizedMaterial(payload = {}) {
+  const name = String(payload.name || 'Synthesized Material').trim() || 'Synthesized Material';
+  const family = String(payload.family || 'alloy').trim() || 'alloy';
+  const process = String(payload.manufacturingProcess || payload.manufacturing_process || 'CNC machining');
+  const targetApplication = String(payload.targetApplication || payload.target_application || 'general manufacturing');
+  const constituents = normalizeConstituents(payload.constituents);
+  const factors = materialFamilyFactors(family);
+
+  const density = weightedConstituentProperty(constituents, 'density');
+  const youngsModulus = Math.max(0.5, weightedConstituentProperty(constituents, 'youngs') * factors.stiffness);
+  const thermalConductivity = Math.max(0.01, weightedConstituentProperty(constituents, 'thermal'));
+  const thermalExpansion = Math.max(0.1e-6, weightedConstituentProperty(constituents, 'cte'));
+  const meltPointC = weightedConstituentProperty(constituents, 'melt');
+  const carbonFraction = constituents.find((item) => item.symbol === 'C')?.fraction || 0;
+  const refractoryFraction = constituents
+    .filter((item) => ['W', 'Mo', 'V', 'Ti'].includes(item.symbol))
+    .reduce((sum, item) => sum + item.fraction, 0);
+  const alloyingBonus = Math.min(1.35, 1 + Math.max(0, constituents.length - 1) * 0.045);
+  let yieldStrength = (0.42 * youngsModulus * 1000) / 2.8;
+  yieldStrength *= factors.strength * alloyingBonus;
+  yieldStrength *= 1 + Math.min(0.30, carbonFraction * 2) + Math.min(0.22, refractoryFraction * 0.35);
+  const ultimateStrength = yieldStrength * (1.22 + factors.ductility * 0.18);
+  const poissonsRatio = family.toLowerCase().includes('polymer')
+    ? 0.38
+    : family.toLowerCase().includes('ceramic')
+      ? 0.23
+      : 0.31;
+
+  const props = {
+    density,
+    youngsModulus,
+    thermalConductivity,
+    thermalExpansion,
+    meltPointC,
+  };
+  const manufacturingScore = scoreManufacturingProcess(process, props);
+  const performanceScore = clamp(
+    (yieldStrength / 900) * 0.45 + (youngsModulus / 220) * 0.25 + manufacturingScore * 0.30,
+    0,
+    0.99,
+  );
+  const recommendations = [];
+  if (thermalConductivity < 15 && (process.toLowerCase().includes('cnc') || process.toLowerCase().includes('machin'))) {
+    recommendations.push('Use flood coolant and conservative feeds; low conductivity may localize heat.');
+  }
+  if (density > 8500) recommendations.push('Review mass budget; candidate is heavy for mobile assemblies.');
+  if (yieldStrength < 250) recommendations.push('Increase strengthening phase or choose a higher-strength base system.');
+  if (meltPointC > 1700 && (process.toLowerCase().includes('cast') || process.toLowerCase().includes('print'))) {
+    recommendations.push('High melting point raises process energy and equipment requirements.');
+  }
+  if (!recommendations.length) recommendations.push('Candidate is viable for first-pass coupon testing and DFM review.');
+
+  const baseMaterialId = `MAT-SYNTH-${slugify(name).replace(/_/g, '-').toUpperCase()}`;
+  const material = {
+    id: baseMaterialId,
+    name,
+    family: `Synthesized ${family.charAt(0).toUpperCase()}${family.slice(1)}`,
+    density: round(density, 2),
+    youngs_modulus: round(youngsModulus, 3),
+    poissons_ratio: round(poissonsRatio, 3),
+    yield_strength: round(yieldStrength, 2),
+    ultimate_strength: round(ultimateStrength, 2),
+    thermal_conductivity: round(thermalConductivity, 3),
+    thermal_expansion: thermalExpansion,
+    tags: ['Synthesized', family, process],
+    composition: constituents.map((item) => ({
+      symbol: item.symbol,
+      fraction: round(item.fraction, 4),
+      percent: round(item.fraction * 100, 2),
+    })),
+  };
+
+  return {
+    status: 'success',
+    engineUsed: 'Node deterministic material synthesis',
+    targetApplication,
+    manufacturingProcess: process,
+    viable: manufacturingScore >= 0.62 && performanceScore >= 0.42,
+    scores: {
+      manufacturing: round(manufacturingScore, 3),
+      performance: round(performanceScore, 3),
+      confidence: round(Math.min(0.92, 0.62 + 0.04 * constituents.length), 3),
+    },
+    material,
+    recommendations,
+    optionalDependencyNotes: {
+      rdkit: 'Optional molecular featurization for polymers and organic additives.',
+      pymatgen: 'Optional crystal/composition analysis for alloys and ceramics.',
+      matminer: 'Optional featurizers and dataset-backed property models.',
+    },
+  };
+}
+
 function getMaterialById(materialId) {
   return materials.find((material) => material.id === materialId) || null;
 }
@@ -1233,6 +1414,134 @@ function geometryForPayload(shape, payload) {
   };
 }
 
+function boundsToMillimeters(bounds = {}) {
+  const unit = String(bounds.unit || 'm').toLowerCase();
+  const scale = ['mm', 'millimeter', 'millimeters'].includes(unit) ? 1 : 1000;
+  return {
+    length: Math.max(1, toFiniteNumber(bounds.length, 1) * scale),
+    width: Math.max(1, toFiniteNumber(bounds.width, 0.5) * scale),
+    depth: Math.max(0.1, toFiniteNumber(bounds.depth ?? bounds.height, 0.05) * scale),
+  };
+}
+
+function formatGCodeMove(command, fields = {}, comment = '') {
+  const words = [command];
+  if (fields.x !== undefined) words.push(`X${fields.x.toFixed(3)}`);
+  if (fields.y !== undefined) words.push(`Y${fields.y.toFixed(3)}`);
+  if (fields.z !== undefined) words.push(`Z${fields.z.toFixed(3)}`);
+  if (fields.feed !== undefined) words.push(`F${fields.feed.toFixed(1)}`);
+  return comment ? `${words.join(' ')} (${comment})` : words.join(' ');
+}
+
+function buildCncToolpath(payload = {}) {
+  const componentName = String(payload.componentName || payload.component_name || 'Workshop Part');
+  const operationRaw = String(payload.operation || 'pocket').toLowerCase();
+  const operation = ['profile', 'pocket', 'facing'].includes(operationRaw) ? operationRaw : 'pocket';
+  const bounds = boundsToMillimeters(payload.bounds || {});
+  const toolDiameter = Math.max(0.5, toFiniteNumber(payload.toolDiameterMm ?? payload.tool_diameter_mm, 10));
+  const stepdown = Math.max(0.1, toFiniteNumber(payload.stepdownMm ?? payload.stepdown_mm, 2));
+  const stepover = Math.max(0.1, toFiniteNumber(payload.stepoverMm ?? payload.stepover_mm, toolDiameter * 0.4));
+  const feed = Math.max(1, toFiniteNumber(payload.feedRateMmMin ?? payload.feed_rate_mm_min, 1200));
+  const plunge = Math.max(1, toFiniteNumber(payload.plungeRateMmMin ?? payload.plunge_rate_mm_min, 300));
+  const spindle = Math.max(500, Math.round(toFiniteNumber(payload.spindleSpeedRpm ?? payload.spindle_speed_rpm, 8000)));
+  const safeZ = Math.max(1, toFiniteNumber(payload.safeZMm ?? payload.safe_z_mm, 15));
+  const passes = Math.max(1, Math.ceil(bounds.depth / stepdown));
+  const xMin = toolDiameter / 2;
+  const yMin = toolDiameter / 2;
+  const xMax = Math.max(xMin, bounds.length - toolDiameter / 2);
+  const yMax = Math.max(yMin, bounds.width - toolDiameter / 2);
+
+  const lines = [
+    `(Program for: ${componentName})`,
+    `(Operation: ${operation})`,
+    `(Tool: ${toolDiameter.toFixed(3)} mm flat end mill)`,
+    'G21 (Metric units)',
+    'G90 (Absolute positioning)',
+    'G17 (XY plane)',
+    'G54 (Work offset)',
+    `S${spindle} M03 (Spindle on clockwise)`,
+    formatGCodeMove('G00', { z: safeZ }, 'safe height'),
+  ];
+  const previewPoints = [];
+  let cutLength = 0;
+  let lastPoint = [xMin, yMin, safeZ];
+
+  function addCut(x, y, z, comment) {
+    const [lx, ly, lz] = lastPoint;
+    cutLength += Math.sqrt((x - lx) ** 2 + (y - ly) ** 2 + (z - lz) ** 2);
+    lastPoint = [x, y, z];
+    previewPoints.push({ x: round(x, 3), y: round(y, 3), z: round(z, 3) });
+    lines.push(formatGCodeMove('G01', { x, y, z, feed }, comment));
+  }
+
+  for (let passIndex = 1; passIndex <= passes; passIndex += 1) {
+    const z = -Math.min(passIndex * stepdown, bounds.depth);
+    lines.push(`(Pass ${passIndex}/${passes} Z${z.toFixed(3)})`);
+    lines.push(formatGCodeMove('G00', { x: xMin, y: yMin }, 'rapid to start'));
+    lines.push(formatGCodeMove('G01', { z, feed: plunge }, 'plunge'));
+    lastPoint = [xMin, yMin, z];
+    previewPoints.push({ x: round(xMin, 3), y: round(yMin, 3), z: round(z, 3) });
+
+    if (operation === 'profile') {
+      addCut(xMax, yMin, z, 'profile +X');
+      addCut(xMax, yMax, z, 'profile +Y');
+      addCut(xMin, yMax, z, 'profile -X');
+      addCut(xMin, yMin, z, 'profile -Y');
+    } else {
+      let y = yMin;
+      let row = 0;
+      while (y <= yMax + 1e-6) {
+        addCut(row % 2 === 0 ? xMax : xMin, y, z, 'raster cut');
+        const nextY = y + stepover;
+        if (nextY <= yMax + 1e-6) {
+          addCut(row % 2 === 0 ? xMax : xMin, nextY, z, 'stepover');
+        }
+        y = nextY;
+        row += 1;
+      }
+    }
+  }
+
+  lines.push(formatGCodeMove('G00', { z: safeZ }, 'retract'));
+  lines.push('M05 (Spindle stop)');
+  lines.push('M30 (End program)');
+
+  const warnings = [];
+  if (toolDiameter > Math.min(bounds.length, bounds.width)) {
+    warnings.push('Tool diameter exceeds the smallest workpiece dimension.');
+  }
+  if (stepdown > toolDiameter) {
+    warnings.push('Stepdown is larger than tool diameter; reduce for conservative milling.');
+  }
+
+  return {
+    status: 'success',
+    engineUsed: 'Node deterministic CNC fallback',
+    component: componentName,
+    operation,
+    gcode: lines.join('\n'),
+    previewPoints: previewPoints.slice(0, 2000),
+    metrics: {
+      lineCount: lines.length,
+      cutLengthMm: round(cutLength, 3),
+      passes,
+      boundsMm: {
+        length: round(bounds.length, 3),
+        width: round(bounds.width, 3),
+        depth: round(bounds.depth, 3),
+      },
+      toolDiameterMm: round(toolDiameter, 3),
+      stepoverMm: round(stepover, 3),
+      stepdownMm: round(stepdown, 3),
+      feedRateMmMin: round(feed, 3),
+      plungeRateMmMin: round(plunge, 3),
+      spindleSpeedRpm: spindle,
+      estimatedCycleTimeMin: round(cutLength / Math.max(feed, 1), 3),
+    },
+    warnings,
+  };
+}
+
 async function probeAiService(force = false) {
   const maxAgeMs = 15000;
   if (!force && Date.now() - aiProbeCache.checkedAt < maxAgeMs) {
@@ -1594,6 +1903,40 @@ app.post('/api/materials', (req, res) => {
   });
 });
 
+app.post('/api/materials/synthesize', (req, res) => {
+  const result = buildSynthesizedMaterial(req.body);
+  let promoted = false;
+
+  if (req.body.addToCatalog || req.body.promoteToCatalog) {
+    const baseId = result.material.id;
+    const material = {
+      ...result.material,
+      id: materials.some((item) => item.id === baseId)
+        ? `${baseId}-${materials.length + 1}`
+        : baseId,
+    };
+    result.material = material;
+
+    if (!materials.some((item) => item.name.toLowerCase() === material.name.toLowerCase())) {
+      materials.push(material);
+      promoted = true;
+      io.emit('material:created', material);
+    }
+  }
+
+  io.emit('material:synthesized', {
+    material: result.material,
+    scores: result.scores,
+    viable: result.viable,
+    promoted,
+  });
+
+  return res.status(promoted ? 201 : 200).json({
+    ...result,
+    promoted,
+  });
+});
+
 app.get('/api/materials/:materialId', (req, res) => {
   const material = getMaterialById(req.params.materialId);
   if (!material) {
@@ -1750,6 +2093,17 @@ app.get('/api/workshop/overview', (req, res) => {
 
 app.get('/api/scene', (req, res) => {
   res.json(buildScene());
+});
+
+app.post('/api/manufacturing/toolpath', (req, res) => {
+  const result = buildCncToolpath(req.body);
+  io.emit('manufacturing:toolpath', {
+    component: result.component,
+    operation: result.operation,
+    metrics: result.metrics,
+    warnings: result.warnings,
+  });
+  res.json(result);
 });
 
 app.get('/api/simulation/templates', (req, res) => {

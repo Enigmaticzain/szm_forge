@@ -6,8 +6,41 @@
 
 namespace SZM {
 
+// ============================================================================
+// ThreadPool
+// ============================================================================
+
+ThreadPool::ThreadPool(size_t numThreads) {
+    for (size_t i = 0; i < numThreads; ++i) {
+        m_Workers.emplace_back([this]() {
+            while (true) {
+                std::function<void()> task;
+                {
+                    std::unique_lock<std::mutex> lock(m_Mutex);
+                    m_CV.wait(lock, [this]{ return m_Stop || !m_Queue.empty(); });
+                    if (m_Stop && m_Queue.empty()) return;
+                    task = std::move(m_Queue.front());
+                    m_Queue.pop();
+                }
+                task();
+            }
+        });
+    }
+}
+
+ThreadPool::~ThreadPool() {
+    m_Stop = true;
+    m_CV.notify_all();
+    for (auto& w : m_Workers) {
+        if (w.joinable()) w.join();
+    }
+}
+
 Scheduler::Scheduler() {
     m_CouplingManager = std::make_unique<CouplingManager>();
+    const size_t hw = std::thread::hardware_concurrency();
+    m_ThreadPool = std::make_unique<ThreadPool>(hw > 1 ? hw - 1 : 1);
+    std::cout << "[Scheduler] Thread pool: " << (hw > 1 ? hw - 1 : 1) << " workers\n";
 }
 
 Scheduler::~Scheduler() {
@@ -84,29 +117,55 @@ void Scheduler::SortSolvers() {
 void Scheduler::Tick(double globalDt) {
     if (!m_IsInitialized) return;
 
-    // 1. Pre-step coupling (Map boundary conditions to solvers)
     m_CouplingManager->PreStepCoupling(globalDt);
 
-    // 2. Execute Solvers (Operator Splitting)
-    for (auto& solver : m_Solvers) {
-        double maxDt = solver->GetMaxAllowedTimeStep();
-        
-        if (globalDt <= maxDt) {
-            solver->Step(globalDt);
-        } else {
-            // Sub-stepping required
-            int steps = static_cast<int>(std::ceil(globalDt / maxDt));
-            double subDt = globalDt / steps;
-            for (int i = 0; i < steps; ++i) {
-                solver->Step(subDt);
-            }
+    // Group solvers by priority level — same-priority solvers run in parallel,
+    // different-priority groups run sequentially (operator splitting order).
+    auto getPriority = [](SolverType type) -> int {
+        switch (type) {
+            case SolverType::FluidDynamics:    return 0;
+            case SolverType::Thermal:          return 1;
+            case SolverType::Electrical:       return 2;
+            case SolverType::MechanicalFEA:    return 3;
+            case SolverType::RigidBodyPhysics: return 4;
+            default: return 99;
         }
+    };
+
+    int currentPriority = -1;
+    std::vector<std::future<void>> batch;
+
+    auto flushBatch = [&]() {
+        for (auto& f : batch) f.get();
+        batch.clear();
+    };
+
+    for (auto& solver : m_Solvers) {
+        int p = getPriority(solver->GetType());
+        if (p != currentPriority) {
+            flushBatch(); // wait for previous priority group
+            currentPriority = p;
+        }
+        double maxDt = solver->GetMaxAllowedTimeStep();
+        auto s = solver; // capture by value for thread safety
+        batch.push_back(m_ThreadPool->Submit([s, globalDt, maxDt]() {
+            if (globalDt <= maxDt) {
+                s->Step(globalDt);
+            } else {
+                int steps = static_cast<int>(std::ceil(globalDt / maxDt));
+                double subDt = globalDt / steps;
+                for (int i = 0; i < steps; ++i) s->Step(subDt);
+            }
+        }));
     }
+    flushBatch();
 
-    // 3. Post-step coupling (Map resulting fields back)
     m_CouplingManager->PostStepCoupling(globalDt);
-
     m_GlobalTime += globalDt;
+}
+
+size_t Scheduler::GetThreadCount() const {
+    return m_ThreadPool ? m_ThreadPool->Size() : 0;
 }
 
 } // namespace SZM

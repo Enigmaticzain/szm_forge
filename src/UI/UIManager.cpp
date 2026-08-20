@@ -193,6 +193,10 @@ namespace SZM {
         // 3. Menu Bar
         if (ImGui::BeginMenuBar()) {
             if (ImGui::BeginMenu("File")) {
+                if (ImGui::MenuItem("Export Scene to USD (Omniverse)")) {
+                    WebAPI::APIManager::GetInstance().GetExportAPI().ExportSceneUSD();
+                }
+                ImGui::Separator();
                 if (ImGui::MenuItem("Exit")) {
                     if (GLFWwindow* window = glfwGetCurrentContext()) {
                         glfwSetWindowShouldClose(window, GLFW_TRUE);

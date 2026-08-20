@@ -97,7 +97,7 @@ endif()
 # EnTT — Header-only Entity Component System
 if(SZM_ENABLE_ENTT_ECS)
     set(ENTT_DIR ${CMAKE_SOURCE_DIR}/external/entt)
-    if(EXISTS "${ENTT_DIR}/single_include/entt.hpp")
+    if(EXISTS "${ENTT_DIR}/single_include/entt/entt.hpp")
         message(STATUS "EnTT found at ${ENTT_DIR}")
         add_library(entt INTERFACE)
         target_include_directories(entt INTERFACE ${ENTT_DIR}/single_include)

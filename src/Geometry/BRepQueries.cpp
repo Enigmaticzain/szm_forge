@@ -253,4 +253,107 @@ std::vector<std::vector<uint32_t>> BRepQueries::ExtractShells(const SolidBody& b
     return shells;
 }
 
+// ================================================================
+//  RaycastFace
+// ================================================================
+
+BRepQueries::RayHit BRepQueries::RaycastFace(
+    const SolidBody& body,
+    const Vector3& rayOrigin,
+    const Vector3& rayDir)
+{
+    RayHit best;
+    for (uint32_t fi = 0; fi < static_cast<uint32_t>(body.GetFaceCount()); ++fi) {
+        auto verts = body.GetFaceVertices(fi);
+        if (verts.size() < 3) continue;
+        const Vector3& v0 = verts[0];
+        for (size_t i = 1; i + 1 < verts.size(); ++i) {
+            double t = 0.0;
+            if (RayIntersectsTriangle(rayOrigin, rayDir, v0, verts[i], verts[i+1], t)) {
+                if (best.index == UINT32_MAX || t < best.distance) {
+                    best.index    = fi;
+                    best.distance = t;
+                    best.point    = rayOrigin + rayDir * t;
+                }
+            }
+        }
+    }
+    return best;
+}
+
+// ================================================================
+//  RaycastEdge  (closest unique edge whose midpoint is near the ray)
+// ================================================================
+
+BRepQueries::RayHit BRepQueries::RaycastEdge(
+    const SolidBody& body,
+    const Vector3& rayOrigin,
+    const Vector3& rayDir,
+    double screenRadius)
+{
+    RayHit best;
+    const auto& halfEdges = body.GetHalfEdges();
+    const auto& vertices  = body.GetVertices();
+
+    // Iterate canonical half-edges (he < twin to avoid duplicates)
+    for (uint32_t hi = 0; hi < static_cast<uint32_t>(halfEdges.size()); ++hi) {
+        uint32_t twin = halfEdges[hi].twin;
+        if (twin != NullHandle && hi > twin) continue; // process each edge once
+        uint32_t vi0 = halfEdges[hi].vertex;
+        uint32_t vi1 = (twin != NullHandle) ? halfEdges[twin].vertex : NullHandle;
+        if (vi0 == NullHandle || vi1 == NullHandle) continue;
+        if (vi0 >= vertices.size() || vi1 >= vertices.size()) continue;
+
+        const Vector3& A = vertices[vi0].position;
+        const Vector3& B = vertices[vi1].position;
+        Vector3 mid = (A + B) * 0.5;
+
+        // Distance from midpoint to ray
+        Vector3 toMid = mid - rayOrigin;
+        double tProj  = toMid.Dot(rayDir);
+        if (tProj < 0.0) continue;
+        Vector3 closest = rayOrigin + rayDir * tProj;
+        double dist = (mid - closest).Magnitude();
+
+        if (dist < screenRadius) {
+            if (best.index == UINT32_MAX || tProj < best.distance) {
+                best.index    = hi;
+                best.distance = tProj;
+                best.point    = closest;
+            }
+        }
+    }
+    return best;
+}
+
+// ================================================================
+//  RaycastVertex
+// ================================================================
+
+BRepQueries::RayHit BRepQueries::RaycastVertex(
+    const SolidBody& body,
+    const Vector3& rayOrigin,
+    const Vector3& rayDir,
+    double screenRadius)
+{
+    RayHit best;
+    const auto& vertices = body.GetVertices();
+    for (uint32_t vi = 0; vi < static_cast<uint32_t>(vertices.size()); ++vi) {
+        const Vector3& pos = vertices[vi].position;
+        Vector3 toV  = pos - rayOrigin;
+        double tProj = toV.Dot(rayDir);
+        if (tProj < 0.0) continue;
+        Vector3 closest = rayOrigin + rayDir * tProj;
+        double dist = (pos - closest).Magnitude();
+        if (dist < screenRadius) {
+            if (best.index == UINT32_MAX || tProj < best.distance) {
+                best.index    = vi;
+                best.distance = tProj;
+                best.point    = closest;
+            }
+        }
+    }
+    return best;
+}
+
 } // namespace SZM::Geometry

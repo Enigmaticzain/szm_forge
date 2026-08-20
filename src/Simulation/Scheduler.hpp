@@ -4,6 +4,13 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <functional>
+#include <queue>
+#include <future>
+#include <atomic>
 
 namespace SZM {
 
@@ -37,6 +44,37 @@ namespace SZM {
     class CouplingManager;
 
     /**
+     * @class ThreadPool
+     * @brief Minimal fixed-size thread pool for parallel solver dispatch.
+     */
+    class ThreadPool {
+    public:
+        explicit ThreadPool(size_t numThreads);
+        ~ThreadPool();
+
+        template<typename F>
+        std::future<void> Submit(F&& f) {
+            auto task = std::make_shared<std::packaged_task<void()>>(std::forward<F>(f));
+            std::future<void> fut = task->get_future();
+            {
+                std::lock_guard<std::mutex> lock(m_Mutex);
+                m_Queue.push([task]() { (*task)(); });
+            }
+            m_CV.notify_one();
+            return fut;
+        }
+
+        size_t Size() const { return m_Workers.size(); }
+
+    private:
+        std::vector<std::thread>          m_Workers;
+        std::queue<std::function<void()>> m_Queue;
+        std::mutex                        m_Mutex;
+        std::condition_variable           m_CV;
+        std::atomic<bool>                 m_Stop{false};
+    };
+
+    /**
      * @class Scheduler
      * @brief Orchestrates multi-physics integration using operator-splitting.
      *        Executes solvers in a defined sequence and coordinates data exchange via CouplingManager.
@@ -60,15 +98,17 @@ namespace SZM {
 
         double GetGlobalTime() const { return m_GlobalTime; }
 
+        /// Number of worker threads used for parallel solver dispatch
+        size_t GetThreadCount() const;
+
     private:
         std::vector<std::shared_ptr<ISolver>> m_Solvers;
         std::unique_ptr<CouplingManager>      m_CouplingManager;
+        std::unique_ptr<ThreadPool>           m_ThreadPool;
 
         double m_GlobalTime = 0.0;
         bool   m_IsInitialized = false;
 
-        // Sequence of execution for operator splitting
-        // Typically: Fluid -> Thermal -> Mechanical -> Physics
         void SortSolvers();
     };
 

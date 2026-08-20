@@ -2,19 +2,21 @@ import React, { useState } from 'react';
 import {
   Settings, X, Monitor, Cpu, Bell,
   Cloud, Keyboard, Palette, Accessibility,
-  Sun, Moon, Zap, HardDrive, Wifi, Globe
+  Sun, Moon, Zap, HardDrive, Wifi, Globe, LayoutGrid
 } from 'lucide-react';
 import { useTheme } from '../store/ThemeContext';
 import { useTooltips } from '../store/TooltipContext';
 import { HelpHint } from './ui/HelpHint';
 import { tooltips } from '../data/tooltips';
+import { useWorkspacePresets } from '../store/useWorkspacePresets';
+import { useForgeStore } from '../store/ForgeStoreContext';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'appearance' | 'display' | 'accessibility' | 'solver' | 'performance' | 'notifications' | 'sync' | 'shortcuts' | 'evolution';
+type SettingsTab = 'appearance' | 'display' | 'accessibility' | 'solver' | 'performance' | 'notifications' | 'sync' | 'shortcuts' | 'evolution' | 'workspaces';
 
 const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'appearance', label: 'Appearance', icon: <Palette size={14} /> },
@@ -26,6 +28,7 @@ const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
   { id: 'sync', label: 'Sync & Cloud', icon: <Cloud size={14} /> },
   { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard size={14} /> },
   { id: 'evolution', label: 'Self-Evolution', icon: <Zap size={14} /> },
+  { id: 'workspaces', label: 'Workspaces', icon: <LayoutGrid size={14} /> },
 ];
 
 const Toggle: React.FC<{ enabled: boolean; onChange: () => void }> = ({ enabled, onChange }) => (
@@ -43,6 +46,9 @@ export const SettingsPanel: React.FC<Props> = ({ isOpen, onClose }) => {
   const [isMutating, setIsMutating] = useState(false);
   const { activeTheme, setTheme } = useTheme();
   const { showTooltips, setShowTooltips, t } = useTooltips();
+  const store = useForgeStore();
+  const { presets, savePreset, deletePreset } = useWorkspacePresets();
+  const [newWsName, setNewWsName] = useState('');
   const [fontSize, setFontSize] = useState(12);
   const [highContrast, setHighContrast] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -466,6 +472,61 @@ export const SettingsPanel: React.FC<Props> = ({ isOpen, onClose }) => {
                               {key}
                             </span>
                           ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'workspaces' && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg border border-forge-border/50 bg-forge-surface/10">
+                  <span className="text-[9px] font-semibold tracking-widest text-forge-text-dim">SAVE CURRENT LAYOUT</span>
+                  <div className="flex gap-2 mt-3">
+                    <input
+                      value={newWsName}
+                      onChange={e => setNewWsName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          savePreset({ name: newWsName.trim() || `Workspace ${presets.length + 1}`, workspace: store.workspace, renderMode: store.renderMode, leftPanelWidth: store.leftPanelWidth, rightPanelWidth: store.rightPanelWidth, timelineHeight: store.timelineHeight, showAIPanel: store.showAIPanel, showTimeline: store.showTimeline });
+                          setNewWsName('');
+                        }
+                      }}
+                      placeholder={`Workspace ${presets.length + 1}`}
+                      className="flex-1 px-3 py-1.5 rounded bg-forge-surface border border-forge-border text-[11px] text-forge-text placeholder-forge-text-muted focus:outline-none focus:border-forge-accent/50"
+                    />
+                    <button
+                      onClick={() => { savePreset({ name: newWsName.trim() || `Workspace ${presets.length + 1}`, workspace: store.workspace, renderMode: store.renderMode, leftPanelWidth: store.leftPanelWidth, rightPanelWidth: store.rightPanelWidth, timelineHeight: store.timelineHeight, showAIPanel: store.showAIPanel, showTimeline: store.showTimeline }); setNewWsName(''); }}
+                      className="px-3 py-1.5 rounded bg-forge-accent/15 text-forge-accent border border-forge-accent/30 text-[10px] font-semibold hover:bg-forge-accent/25 transition-all"
+                    >
+                      SAVE
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4 rounded-lg border border-forge-border/50 bg-forge-surface/10">
+                  <span className="text-[9px] font-semibold tracking-widest text-forge-text-dim">SAVED PRESETS</span>
+                  <div className="mt-3 space-y-2">
+                    {presets.length === 0 && (
+                      <p className="text-[9px] text-forge-text-muted">No presets saved yet.</p>
+                    )}
+                    {presets.map(p => (
+                      <div key={p.id} className="flex items-center justify-between py-1.5 border-b border-forge-border/20">
+                        <div>
+                          <div className="text-[10px] font-medium text-forge-text">{p.name}</div>
+                          <div className="text-[8px] text-forge-text-muted font-mono">{p.workspace} · {p.renderMode}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { store.setWorkspace(p.workspace); store.setRenderMode(p.renderMode); store.setLeftPanelWidth(p.leftPanelWidth); store.setRightPanelWidth(p.rightPanelWidth); store.setTimelineHeight(p.timelineHeight); if (p.showAIPanel !== store.showAIPanel) store.toggleAIPanel(); if (p.showTimeline !== store.showTimeline) store.toggleTimeline(); store.showToast(`Loaded: ${p.name}`); onClose(); }}
+                            className="px-2 py-0.5 rounded text-[9px] font-mono bg-forge-accent/10 text-forge-accent border border-forge-accent/20 hover:bg-forge-accent/20 transition-all"
+                          >
+                            LOAD
+                          </button>
+                          <button onClick={() => deletePreset(p.id)} className="p-1 rounded text-forge-text-muted hover:text-forge-red hover:bg-forge-red/10 transition-all">
+                            <X size={11} />
+                          </button>
                         </div>
                       </div>
                     ))}

@@ -42,8 +42,8 @@ void LearningIntegration::Initialize() {
     m_IsInitialized = true;
     m_IsActive = true;
     
-    // Start with passive learning mode
-    SetLearningMode(LearningMode::PASSIVE);
+    // Start with active learning mode
+    SetLearningMode(LearningMode::ACTIVE);
     
     std::cout << "[LearningIntegration] Initialized successfully" << std::endl;
 }

@@ -39,6 +39,7 @@ namespace SZM::Graphics {
         double MaxChordalError = 0.01;  ///< ε max deviation from true curve [m]
         bool   EnableDynamicLOD = true; ///< Scale ε by camera distance
         double CameraDistance   = 1.0;  ///< Distance from camera [m]
+        uint32_t MaxTriangles   = 250000; ///< Safety budget for massive assemblies
     };
 
     // ----------------------------------------------------------------
@@ -74,6 +75,17 @@ namespace SZM::Graphics {
         [[nodiscard]] static uint32_t CalculateSegmentCount(
             double radius,
             double chordalError
+        );
+
+        /**
+         * @brief Resolve dynamic LOD into the effective chordal-error tolerance.
+         *
+         * Farther camera distances intentionally permit a larger error tolerance,
+         * reducing segment counts for massive assemblies while preserving close-up
+         * detail.
+         */
+        [[nodiscard]] static double ResolveChordalError(
+            const TessellationConfig& config
         );
     };
 

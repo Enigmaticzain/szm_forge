@@ -3,7 +3,7 @@ import { periodicElements, type ElementData } from '../data/periodicTable';
 
 // Types
 type BondType = 'single' | 'double' | 'triple' | 'hydrogen';
-type ViewMode = 'molecular' | 'periodic' | 'reactions' | 'equations';
+type ViewMode = 'molecular' | 'periodic' | 'reactions' | 'equations' | 'synthesis';
 
 interface Atom {
   id: string;
@@ -27,6 +27,34 @@ interface Molecule {
   atoms: Atom[];
   bonds: Bond[];
   color: string;
+}
+
+interface MaterialSynthesisResult {
+  status: string;
+  engineUsed?: string;
+  engine_used?: string;
+  targetApplication?: string;
+  manufacturingProcess?: string;
+  viable: boolean;
+  promoted?: boolean;
+  scores: {
+    manufacturing: number;
+    performance: number;
+    confidence: number;
+  };
+  material: {
+    id: string;
+    name: string;
+    family: string;
+    density: number;
+    youngs_modulus: number;
+    yield_strength: number;
+    ultimate_strength: number;
+    thermal_conductivity: number;
+    thermal_expansion: number;
+    composition?: Array<{ symbol: string; percent: number; fraction: number }>;
+  };
+  recommendations: string[];
 }
 
 // Category colors for periodic table
@@ -198,10 +226,76 @@ export default function ChemistryLabView() {
   const [showBondLabels, setShowBondLabels] = useState(true);
   const [balancedEquation, setBalancedEquation] = useState('');
   const [equationError, setEquationError] = useState('');
+  const [synthesisName, setSynthesisName] = useState('ChemLab Candidate Alloy');
+  const [synthesisFamily, setSynthesisFamily] = useState<'alloy' | 'composite' | 'polymer' | 'ceramic'>('alloy');
+  const [synthesisProcess, setSynthesisProcess] = useState('CNC machining');
+  const [targetApplication, setTargetApplication] = useState('lightweight structural bracket');
+  const [promoteToCatalog, setPromoteToCatalog] = useState(true);
+  const [synthesisResult, setSynthesisResult] = useState<MaterialSynthesisResult | null>(null);
+  const [synthesisError, setSynthesisError] = useState('');
+  const [isSynthesizing, setIsSynthesizing] = useState(false);
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
   
   const snapToGrid = useCallback((value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE, []);
+
+  const deriveConstituentsFromAtoms = useCallback(() => {
+    const counts = atoms.reduce<Record<string, number>>((acc, atom) => {
+      acc[atom.element.symbol] = (acc[atom.element.symbol] || 0) + 1;
+      return acc;
+    }, {});
+    const total = Object.values(counts).reduce((sum, count) => sum + count, 0);
+
+    if (total === 0) {
+      return [
+        { symbol: 'Al', fraction: 0.86 },
+        { symbol: 'Mg', fraction: 0.08 },
+        { symbol: 'Si', fraction: 0.06 },
+      ];
+    }
+
+    return Object.entries(counts).map(([symbol, count]) => ({
+      symbol,
+      fraction: count / total,
+    }));
+  }, [atoms]);
+
+  const synthesizeMaterial = useCallback(async () => {
+    setIsSynthesizing(true);
+    setSynthesisError('');
+    try {
+      const response = await fetch('/api/materials/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: synthesisName,
+          family: synthesisFamily,
+          targetApplication,
+          manufacturingProcess: synthesisProcess,
+          addToCatalog: promoteToCatalog,
+          constituents: deriveConstituentsFromAtoms(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Synthesis failed (${response.status})`);
+      }
+
+      const payload = await response.json();
+      setSynthesisResult(payload);
+    } catch (error) {
+      setSynthesisError(error instanceof Error ? error.message : 'Material synthesis failed');
+    } finally {
+      setIsSynthesizing(false);
+    }
+  }, [
+    deriveConstituentsFromAtoms,
+    promoteToCatalog,
+    synthesisFamily,
+    synthesisName,
+    synthesisProcess,
+    targetApplication,
+  ]);
 
   // Calculate molecular properties
   useEffect(() => {
@@ -434,20 +528,22 @@ export default function ChemistryLabView() {
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
       canvas.width = rect.width;
       canvas.height = rect.height;
     };
     resize();
 
+    const resizeObserver = new ResizeObserver(() => resize());
+    resizeObserver.observe(container);
+
     const render = (animTime: number) => {
       const w = canvas.width;
       const h = canvas.height;
 
-      // Clear
       ctx.fillStyle = '#0a0c10';
       ctx.fillRect(0, 0, w, h);
 
-      // Grid
       ctx.strokeStyle = 'rgba(30, 34, 48, 0.4)';
       ctx.lineWidth = 0.5;
       for (let x = 0; x < w; x += GRID_SIZE) {
@@ -463,10 +559,8 @@ export default function ChemistryLabView() {
         ctx.stroke();
       }
 
-      // Draw bonds first (under atoms)
       bonds.forEach(bond => drawBond(ctx, bond, animTime));
 
-      // Draw in-progress wire
       if (wireStartAtom) {
         const startAtom = getAtomById(wireStartAtom);
         if (startAtom) {
@@ -481,7 +575,6 @@ export default function ChemistryLabView() {
         }
       }
 
-      // Draw atoms
       atoms.forEach(atom => {
         drawAtom(ctx, atom, animTime, selectedAtomId === atom.id);
       });
@@ -490,7 +583,10 @@ export default function ChemistryLabView() {
     };
 
     animRef.current = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animRef.current);
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      resizeObserver.disconnect();
+    };
   }, [atoms, bonds, selectedAtomId, wireStartAtom, mousePos, showAtomLabels, showBondLabels]);
 
   // Mouse handlers
@@ -612,6 +708,7 @@ export default function ChemistryLabView() {
             { id: 'periodic', label: 'ELEMENTS', icon: '◆' },
             { id: 'reactions', label: 'REACT', icon: '⚗' },
             { id: 'equations', label: 'EQUATION', icon: '⚖' },
+            { id: 'synthesis', label: 'SYNTH', icon: '◇' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -885,6 +982,131 @@ export default function ChemistryLabView() {
               </div>
             </>
           )}
+
+          {/* MATERIAL SYNTHESIS MODE */}
+          {viewMode === 'synthesis' && (
+            <>
+              <div className="glass-panel rounded-lg p-2">
+                <div className="text-[8px] font-bold text-forge-accent tracking-wider mb-2">MATERIAL SYNTHESIS</div>
+                <div className="space-y-2">
+                  <input
+                    value={synthesisName}
+                    onChange={(e) => setSynthesisName(e.target.value)}
+                    placeholder="Candidate name"
+                    className="w-full rounded border border-forge-border bg-forge-panel/50 px-2 py-1.5 text-[10px] text-forge-text outline-none focus:border-forge-accent"
+                  />
+                  <select
+                    value={synthesisFamily}
+                    onChange={(e) => setSynthesisFamily(e.target.value as 'alloy' | 'composite' | 'polymer' | 'ceramic')}
+                    className="w-full rounded border border-forge-border bg-forge-panel/50 px-2 py-1.5 text-[10px] text-forge-text outline-none focus:border-forge-accent"
+                  >
+                    <option value="alloy">Alloy</option>
+                    <option value="composite">Composite</option>
+                    <option value="polymer">Polymer</option>
+                    <option value="ceramic">Ceramic</option>
+                  </select>
+                  <select
+                    value={synthesisProcess}
+                    onChange={(e) => setSynthesisProcess(e.target.value)}
+                    className="w-full rounded border border-forge-border bg-forge-panel/50 px-2 py-1.5 text-[10px] text-forge-text outline-none focus:border-forge-accent"
+                  >
+                    <option value="CNC machining">CNC machining</option>
+                    <option value="additive manufacturing">Additive manufacturing</option>
+                    <option value="casting">Casting</option>
+                    <option value="injection molding">Injection molding</option>
+                  </select>
+                  <input
+                    value={targetApplication}
+                    onChange={(e) => setTargetApplication(e.target.value)}
+                    placeholder="Target application"
+                    className="w-full rounded border border-forge-border bg-forge-panel/50 px-2 py-1.5 text-[10px] text-forge-text outline-none focus:border-forge-accent"
+                  />
+                  <label className="flex items-center gap-2 py-1">
+                    <input
+                      type="checkbox"
+                      checked={promoteToCatalog}
+                      onChange={(e) => setPromoteToCatalog(e.target.checked)}
+                      className="w-3 h-3 accent-forge-accent"
+                    />
+                    <span className="text-[9px] text-forge-text-dim">Promote to material catalog</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="glass-panel rounded-lg p-2">
+                <div className="text-[8px] font-bold text-forge-accent tracking-wider mb-2">CURRENT FORMULATION</div>
+                <div className="space-y-1">
+                  {deriveConstituentsFromAtoms().map((item) => (
+                    <div key={item.symbol} className="flex items-center justify-between text-[9px]">
+                      <span className="text-forge-text">{item.symbol}</span>
+                      <span className="text-forge-green font-mono">{(item.fraction * 100).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+                {atoms.length === 0 && (
+                  <div className="text-[7px] text-forge-text-muted mt-2">
+                    No atoms on canvas; using Al-Mg-Si demo alloy.
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={synthesizeMaterial}
+                disabled={isSynthesizing}
+                className="w-full px-3 py-2 rounded bg-forge-accent/20 text-forge-accent text-[9px] font-bold hover:bg-forge-accent/30 disabled:opacity-50 transition-all"
+              >
+                {isSynthesizing ? '◇ SYNTHESIZING…' : '◇ SYNTHESIZE MATERIAL'}
+              </button>
+
+              {synthesisError && (
+                <div className="text-[8px] text-forge-danger">{synthesisError}</div>
+              )}
+
+              {synthesisResult && (
+                <div className="glass-panel rounded-lg p-2.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-[8px] font-bold text-forge-accent tracking-wider">CANDIDATE</div>
+                    <span className={`text-[7px] font-bold ${synthesisResult.viable ? 'text-forge-green' : 'text-forge-warning'}`}>
+                      {synthesisResult.viable ? 'VIABLE' : 'REVIEW'}
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-bold text-forge-text">{synthesisResult.material.name}</div>
+                  <div className="text-[8px] text-forge-text-muted mb-2">{synthesisResult.material.id}</div>
+                  <div className="space-y-1 text-[8px]">
+                    <div className="flex justify-between">
+                      <span className="text-forge-text-muted">Density</span>
+                      <span className="text-forge-text font-mono">{synthesisResult.material.density.toFixed(0)} kg/m³</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-forge-text-muted">E</span>
+                      <span className="text-forge-text font-mono">{synthesisResult.material.youngs_modulus.toFixed(1)} GPa</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-forge-text-muted">Yield</span>
+                      <span className="text-forge-green font-mono">{synthesisResult.material.yield_strength.toFixed(0)} MPa</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-forge-text-muted">k</span>
+                      <span className="text-forge-text font-mono">{synthesisResult.material.thermal_conductivity.toFixed(1)} W/mK</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-forge-text-muted">MFG score</span>
+                      <span className="text-forge-accent font-mono">{Math.round(synthesisResult.scores.manufacturing * 100)}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-forge-text-muted">Promoted</span>
+                      <span className={synthesisResult.promoted ? 'text-forge-green' : 'text-forge-text-muted'}>
+                        {synthesisResult.promoted ? 'Yes' : 'Preview only'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[8px] text-forge-text-muted leading-relaxed">
+                    {synthesisResult.recommendations[0]}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -1032,6 +1254,34 @@ export default function ChemistryLabView() {
                   .map(([symbol, count]) => count === 1 ? symbol : `${symbol}${count}`)
                   .join('');
               })()}
+            </div>
+          </div>
+        )}
+
+        {synthesisResult && (
+          <div className="mt-4 glass-panel rounded-lg p-3">
+            <div className="text-[8px] font-bold text-forge-accent tracking-wider mb-2">MANUFACTURING MATERIAL</div>
+            <div className="text-[10px] font-bold text-forge-text">{synthesisResult.material.name}</div>
+            <div className="text-[8px] text-forge-text-muted mb-2">
+              {synthesisResult.material.family} • {synthesisResult.manufacturingProcess || synthesisProcess}
+            </div>
+            <div className="space-y-1 text-[8px]">
+              <div className="flex justify-between">
+                <span className="text-forge-text-muted">Viability</span>
+                <span className={synthesisResult.viable ? 'text-forge-green' : 'text-forge-warning'}>
+                  {synthesisResult.viable ? 'Ready' : 'Review'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-forge-text-muted">Performance</span>
+                <span className="text-forge-accent font-mono">{Math.round(synthesisResult.scores.performance * 100)}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-forge-text-muted">Catalog</span>
+                <span className={synthesisResult.promoted ? 'text-forge-green' : 'text-forge-text-muted'}>
+                  {synthesisResult.promoted ? 'Registered' : 'Preview'}
+                </span>
+              </div>
             </div>
           </div>
         )}

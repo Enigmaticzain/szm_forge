@@ -5,6 +5,10 @@
 #include <memory>
 #include <cstdint>
 #include <functional>
+#include <unordered_map>
+#include <mutex>
+#include <atomic>
+#include <thread>
 
 namespace SZM::WebAPI {
 
@@ -68,6 +72,10 @@ namespace SZM::WebAPI {
         bool m_IsRunning = false;
         uint32_t m_QueuedJobs = 0;
         uint32_t m_RunningJobs = 0;
+        std::unordered_map<std::string, JobResult> m_Jobs;
+        std::vector<std::thread> m_JobThreads;
+        std::mutex m_JobMutex;
+        std::atomic<bool> m_Shutdown = false;
         void* m_FastAPIContext = nullptr;
     };
 
@@ -133,6 +141,11 @@ namespace SZM::WebAPI {
         std::string ExportSceneThreeJS();
 
         /**
+         * @brief Export scene to Pixar USD (via Python Bridge)
+         */
+        std::string ExportSceneUSD(const std::string& outputPath = "/tmp/workspace_export.usda");
+
+        /**
          * @brief Export report as PDF
          */
         std::string ExportReportPDF(const std::string& jobId);
@@ -158,6 +171,7 @@ namespace SZM::WebAPI {
             std::string status = "SAFE";
         };
         std::vector<ComponentSnap> components;
+        std::unordered_map<std::string, size_t> indexByName;
     };
 
     /**
@@ -167,7 +181,7 @@ namespace SZM::WebAPI {
     public:
         static APIManager& GetInstance();
 
-        bool Initialize(uint16_t basePort = 8000);
+        bool Initialize(uint16_t basePort = 8000, const std::string& uiDistPath = "new ui/dist");
         void Shutdown();
 
         SimulationAPI& GetSimulationAPI() { return m_SimulationAPI; }
@@ -201,6 +215,7 @@ namespace SZM::WebAPI {
         SimulationAPI m_SimulationAPI;
         AnalysisAPI m_AnalysisAPI;
         ExportAPI m_ExportAPI;
+        uint16_t m_Port = 8000;
         bool m_AuthRequired = false;
         bool m_IsReady = false;
     };

@@ -1,22 +1,89 @@
+import { useState, useEffect } from 'react';
 import { SensorData } from '../hooks/useSimulationData';
+import { useTelemetryAPI, TelemetryDataPoint } from '../hooks/useTelemetryAPI';
 
 interface TelemetryPanelProps {
   sensors: SensorData[];
+  streamId?: string;
 }
 
-export default function TelemetryPanel({ sensors }: TelemetryPanelProps) {
+export default function TelemetryPanel({ sensors, streamId }: TelemetryPanelProps) {
+  const { queryData, getStreamStatus } = useTelemetryAPI();
+  const [liveData, setLiveData] = useState<TelemetryDataPoint[]>([]);
+  const [streamStatus, setStreamStatus] = useState<any>(null);
+  const [useRealData, setUseRealData] = useState(!!streamId);
+
+  useEffect(() => {
+    if (!streamId) return;
+
+    const fetchData = async () => {
+      // Fetch latest data
+      const result = await queryData(streamId, { timeWindowSeconds: 300 }); // Last 5 minutes
+      if (result) {
+        setLiveData(result.dataPoints);
+      }
+
+      // Fetch stream status
+      const status = await getStreamStatus(streamId);
+      setStreamStatus(status);
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 2000); // Update every 2 seconds
+    return () => clearInterval(interval);
+  }, [streamId, queryData, getStreamStatus]);
+
+  // Group live data by sensor type
+  const sensorDataMap = new Map<string, TelemetryDataPoint[]>();
+  liveData.forEach(point => {
+    if (!sensorDataMap.has(point.sensor_type)) {
+      sensorDataMap.set(point.sensor_type, []);
+    }
+    sensorDataMap.get(point.sensor_type)!.push(point);
+  });
+
+  const displaySensors = useRealData && liveData.length > 0 ? 
+    Array.from(sensorDataMap.keys()).map((sensorType, idx) => {
+      const data = sensorDataMap.get(sensorType)!;
+      const latestValue = data[data.length - 1]?.value || 0;
+      const min = Math.min(...data.map(p => p.value));
+      const max = Math.max(...data.map(p => p.value));
+      return {
+        id: `live-${sensorType}`,
+        name: sensorType,
+        value: latestValue,
+        unit: '',
+        min,
+        max,
+        status: 'normal' as const,
+        history: data.map(p => ({ time: p.timestamp * 1000, value: p.value })),
+      };
+    })
+    : sensors;
+
   return (
     <div className="h-full flex flex-col bg-forge-surface overflow-hidden">
       <div className="px-3 py-2 border-b border-forge-border flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-forge-green animate-pulse-glow" />
-          <span className="text-[10px] font-bold text-forge-text tracking-wider">LIVE TELEMETRY</span>
+          <div className={`w-1.5 h-1.5 rounded-full ${useRealData && streamId ? 'bg-forge-green' : 'bg-forge-yellow'} animate-pulse-glow`} />
+          <span className="text-[10px] font-bold text-forge-text tracking-wider">
+            {useRealData && streamId ? 'LIVE TELEMETRY' : 'DEMO TELEMETRY'}
+          </span>
         </div>
-        <span className="text-[8px] text-forge-text-muted font-mono">8 CHANNELS ACTIVE</span>
+        <span className="text-[8px] text-forge-text-muted font-mono">
+          {displaySensors.length} CHANNELS
+          {streamStatus && ` • ${streamStatus.data_points} DATA POINTS`}
+        </span>
       </div>
+
+      {useRealData && streamId && (
+        <div className="px-3 py-1.5 bg-forge-accent/10 border-b border-forge-accent/20">
+          <p className="text-[8px] text-forge-accent-muted font-mono">Stream: {streamId}</p>
+        </div>
+      )}
       
       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-        {sensors.map(sensor => (
+        {displaySensors.map(sensor => (
           <SensorCard key={sensor.id} sensor={sensor} />
         ))}
       </div>

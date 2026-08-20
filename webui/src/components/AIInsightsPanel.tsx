@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface AIInsight {
   id: string;
@@ -75,12 +75,26 @@ export default function AIInsightsPanel() {
   const [expandedId, setExpandedId] = useState<string | null>('ai-4');
   const [aiProcessing, setAiProcessing] = useState(false);
 
+  const timeoutRef = useRef<number | null>(null);
+
   useEffect(() => {
-    const interval = setInterval(() => {
+    const interval = window.setInterval(() => {
       setAiProcessing(true);
-      setTimeout(() => setAiProcessing(false), 800);
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+      timeoutRef.current = window.setTimeout(() => {
+        setAiProcessing(false);
+        timeoutRef.current = null;
+      }, 800);
     }, 8000);
-    return () => clearInterval(interval);
+
+    return () => {
+      window.clearInterval(interval);
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {

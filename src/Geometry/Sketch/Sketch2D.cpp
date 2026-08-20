@@ -1,6 +1,7 @@
 #include "Sketch2D.hpp"
 #include "ConstraintSolver2D.hpp"
 #include <cmath>
+#include <nlohmann/json.hpp>
 
 namespace SZM::Geometry {
 
@@ -125,6 +126,170 @@ const SketchEntity* Sketch2D::GetEntity(uint32_t id) const {
         if (ent->ID == id) return ent.get();
     }
     return nullptr;
+}
+
+uint32_t Sketch2D::AddArc(double cx, double cy, double r,
+                           double startAngleRad, double endAngleRad) {
+    auto ent = std::make_unique<SketchEntity>();
+    ent->ID   = m_NextEntityID++;
+    ent->Type = SketchEntityType::Arc;
+    ent->P1[0] = cx; ent->P1[1] = cy;                                    // center
+    ent->P2[0] = cx + r * std::cos(startAngleRad);                       // start point
+    ent->P2[1] = cy + r * std::sin(startAngleRad);
+    ent->P3[0] = cx + r * std::cos(endAngleRad);                         // end point
+    ent->P3[1] = cy + r * std::sin(endAngleRad);
+    m_Entities.push_back(std::move(ent));
+    return m_NextEntityID - 1;
+}
+
+int Sketch2D::GetDOFCount() const {
+    int dof = 0;
+    for (const auto& e : m_Entities) {
+        switch (e->Type) {
+            case SketchEntityType::Point:  dof += 2; break;
+            case SketchEntityType::Line:   dof += 4; break;
+            case SketchEntityType::Circle: dof += 4; break;
+            case SketchEntityType::Arc:    dof += 6; break;
+        }
+    }
+    // Each constraint removes ~1 DOF on average
+    dof -= static_cast<int>(m_Constraints.size());
+    return dof;
+}
+
+static std::string EntityTypeName(SketchEntityType t) {
+    switch (t) {
+        case SketchEntityType::Point:  return "point";
+        case SketchEntityType::Line:   return "line";
+        case SketchEntityType::Circle: return "circle";
+        case SketchEntityType::Arc:    return "arc";
+    }
+    return "unknown";
+}
+
+static std::string ConstraintTypeName(ConstraintType t) {
+    switch (t) {
+        case ConstraintType::Coincident:    return "coincident";
+        case ConstraintType::Horizontal:    return "horizontal";
+        case ConstraintType::Vertical:      return "vertical";
+        case ConstraintType::Tangent:       return "tangent";
+        case ConstraintType::Parallel:      return "parallel";
+        case ConstraintType::Perpendicular: return "perpendicular";
+        case ConstraintType::Concentric:    return "concentric";
+        case ConstraintType::EqualLength:   return "equal_length";
+        case ConstraintType::EqualRadius:   return "equal_radius";
+        case ConstraintType::Distance:      return "distance";
+        case ConstraintType::Angle:         return "angle";
+        case ConstraintType::Fixed:         return "fixed";
+    }
+    return "unknown";
+}
+
+nlohmann::json Sketch2D::ToJSON() const {
+    nlohmann::json j;
+    j["plane"] = {
+        {"origin", {m_PlaneOrigin.x, m_PlaneOrigin.y, m_PlaneOrigin.z}},
+        {"normal", {m_PlaneNormal.x, m_PlaneNormal.y, m_PlaneNormal.z}}
+    };
+    j["dof"] = GetDOFCount();
+
+    auto entities = nlohmann::json::array();
+    for (const auto& e : m_Entities) {
+        nlohmann::json ej;
+        ej["id"]           = e->ID;
+        ej["type"]         = EntityTypeName(e->Type);
+        ej["construction"] = e->IsConstruction;
+        ej["p1"] = {e->P1[0], e->P1[1]};
+        if (e->Type != SketchEntityType::Point)
+            ej["p2"] = {e->P2[0], e->P2[1]};
+        if (e->Type == SketchEntityType::Arc)
+            ej["p3"] = {e->P3[0], e->P3[1]};
+        entities.push_back(ej);
+    }
+    j["entities"] = entities;
+
+    auto constraints = nlohmann::json::array();
+    for (const auto& c : m_Constraints) {
+        constraints.push_back({
+            {"id",          c.ID},
+            {"type",        ConstraintTypeName(c.Type)},
+            {"entity1",     c.Entity1ID},
+            {"entity2",     c.Entity2ID},
+            {"sub1",        c.SubEntity1},
+            {"sub2",        c.SubEntity2},
+            {"dimension_id",c.DimensionID}
+        });
+    }
+    j["constraints"] = constraints;
+
+    auto dims = nlohmann::json::array();
+    for (const auto& d : m_Dimensions) {
+        dims.push_back({{"id",d.ID},{"name",d.Name},{"value",d.Value},{"expression",d.Expression}});
+    }
+    j["dimensions"] = dims;
+    return j;
+}
+
+Sketch2D Sketch2D::FromJSON(const nlohmann::json& j) {
+    Vector3 origin{0,0,0}, normal{0,0,1};
+    if (j.contains("plane")) {
+        auto& p = j["plane"];
+        if (p.contains("origin")) { origin.x=p["origin"][0]; origin.y=p["origin"][1]; origin.z=p["origin"][2]; }
+        if (p.contains("normal")) { normal.x=p["normal"][0]; normal.y=p["normal"][1]; normal.z=p["normal"][2]; }
+    }
+    Sketch2D sk(origin, normal);
+
+    static const std::unordered_map<std::string, SketchEntityType> typeMap = {
+        {"point",SketchEntityType::Point},{"line",SketchEntityType::Line},
+        {"circle",SketchEntityType::Circle},{"arc",SketchEntityType::Arc}
+    };
+    static const std::unordered_map<std::string, ConstraintType> cTypeMap = {
+        {"coincident",ConstraintType::Coincident},{"horizontal",ConstraintType::Horizontal},
+        {"vertical",ConstraintType::Vertical},{"tangent",ConstraintType::Tangent},
+        {"parallel",ConstraintType::Parallel},{"perpendicular",ConstraintType::Perpendicular},
+        {"concentric",ConstraintType::Concentric},{"equal_length",ConstraintType::EqualLength},
+        {"equal_radius",ConstraintType::EqualRadius},{"distance",ConstraintType::Distance},
+        {"angle",ConstraintType::Angle},{"fixed",ConstraintType::Fixed}
+    };
+
+    for (const auto& ej : j.value("entities", nlohmann::json::array())) {
+        std::string t = ej.value("type", "point");
+        auto it = typeMap.find(t);
+        if (it == typeMap.end()) continue;
+        auto ent = std::make_unique<SketchEntity>();
+        ent->ID           = ej.value("id", sk.m_NextEntityID);
+        ent->Type         = it->second;
+        ent->IsConstruction = ej.value("construction", false);
+        if (ej.contains("p1")) { ent->P1[0]=ej["p1"][0]; ent->P1[1]=ej["p1"][1]; }
+        if (ej.contains("p2")) { ent->P2[0]=ej["p2"][0]; ent->P2[1]=ej["p2"][1]; }
+        if (ej.contains("p3")) { ent->P3[0]=ej["p3"][0]; ent->P3[1]=ej["p3"][1]; }
+        sk.m_NextEntityID = std::max(sk.m_NextEntityID, ent->ID + 1);
+        sk.m_Entities.push_back(std::move(ent));
+    }
+    for (const auto& cj : j.value("constraints", nlohmann::json::array())) {
+        SketchConstraint c{};
+        c.ID         = cj.value("id", sk.m_NextConstraintID);
+        auto ct = cTypeMap.find(cj.value("type", ""));
+        if (ct == cTypeMap.end()) continue;
+        c.Type       = ct->second;
+        c.Entity1ID  = cj.value("entity1", 0u);
+        c.Entity2ID  = cj.value("entity2", 0u);
+        c.SubEntity1 = cj.value("sub1", -1);
+        c.SubEntity2 = cj.value("sub2", -1);
+        c.DimensionID= cj.value("dimension_id", 0u);
+        sk.m_NextConstraintID = std::max(sk.m_NextConstraintID, c.ID + 1);
+        sk.m_Constraints.push_back(c);
+    }
+    for (const auto& dj : j.value("dimensions", nlohmann::json::array())) {
+        ParametricDimension d{};
+        d.ID         = dj.value("id", sk.m_NextDimensionID);
+        d.Name       = dj.value("name", "");
+        d.Value      = dj.value("value", 0.0);
+        d.Expression = dj.value("expression", "");
+        sk.m_NextDimensionID = std::max(sk.m_NextDimensionID, d.ID + 1);
+        sk.m_Dimensions.push_back(d);
+    }
+    return sk;
 }
 
 } // namespace SZM::Geometry

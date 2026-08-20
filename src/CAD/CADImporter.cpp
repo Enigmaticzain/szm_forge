@@ -5,6 +5,8 @@
 #include <chrono>
 #include <algorithm>
 #include <vector>
+#include <httplib.h>
+#include <nlohmann/json.hpp>
 #include "STEPLoader.hpp"
 #include "IGESLoader.hpp"
 
@@ -94,6 +96,19 @@ CADImporter::ImportResult CADImporter::ImportSTEP(const std::string& filePath, c
         std::cout << "  - Author: " << metadata.author << "\n";
         std::cout << "  - Org: " << metadata.organization << "\n";
         std::cout << "  - Entities: " << metadata.entityCount << "\n";
+
+        // Parse full assembly hierarchy via Python bridge
+        auto assemblyRoot = STEPLoader::ParseAssembly(filePath);
+        if (!assemblyRoot.name.empty()) {
+            std::function<void(const STEPAssemblyNode&, int)> printTree;
+            printTree = [&](const STEPAssemblyNode& node, int depth) {
+                std::cout << std::string(depth * 2, ' ') << "- " << node.name << "\n";
+                for (const auto& child : node.children) printTree(child, depth + 1);
+            };
+            std::cout << "[CADImporter] Assembly hierarchy:\n";
+            printTree(assemblyRoot, 1);
+            result.assemblyCount = static_cast<uint32_t>(assemblyRoot.children.size());
+        }
 
         // Generate Mock Body
         auto body = STEPLoader::GenerateMockBody(filePath);
@@ -264,6 +279,57 @@ CADImporter::ImportResult CADImporter::ImportSTL(const std::string& filePath, co
     }
 }
 
+CADImporter::ImportResult CADImporter::ImportFromFreeCAD(const FreeCADParams& params) {
+    auto startTime = std::chrono::high_resolution_clock::now();
+    ImportResult result;
+
+    try {
+        httplib::Client cli("127.0.0.1", 8003);
+        cli.set_connection_timeout(5);
+        cli.set_read_timeout(60);
+
+        nlohmann::json body = {
+            {"shape",         params.shape},
+            {"length",        params.length},
+            {"width",         params.width},
+            {"height",        params.height},
+            {"fillet_radius", params.filletRadius},
+            {"output_path",   params.outputPath}
+        };
+
+        auto res = cli.Post("/freecad/parametric", body.dump(), "application/json");
+        if (!res || res->status != 200) {
+            result.errorMessage = "FreeCAD bridge unreachable (port 8003)";
+            return result;
+        }
+
+        auto j = nlohmann::json::parse(res->body);
+        const std::string engine = j.value("engine_used", "unknown");
+        std::cout << "[CADImporter] FreeCAD engine: " << engine << "\n";
+
+        // If FreeCAD produced a STEP file, import it
+        const std::string stepPath = j.value("step_path", "");
+        if (!stepPath.empty()) {
+            result = ImportSTEP(stepPath, m_CurrentConfig);
+        } else {
+            // Analytical fallback: use feature_tree geometry data
+            auto& ft = j["feature_tree"];
+            result.success       = true;
+            result.componentCount = 1;
+            result.meshCount     = 1;
+            std::cout << "[CADImporter] FreeCAD fallback — volume="
+                      << ft.value("volume_m3", 0.0) << " m³, area="
+                      << ft.value("area_m2", 0.0) << " m²\n";
+        }
+    } catch (const std::exception& e) {
+        result.errorMessage = std::string("FreeCAD import error: ") + e.what();
+    }
+
+    auto endTime = std::chrono::high_resolution_clock::now();
+    result.importTimeMs = std::chrono::duration<float, std::milli>(endTime - startTime).count();
+    return result;
+}
+
 uint32_t CADImporter::ProcessShape(void* mayoShape, const std::string& name) {
     // Placeholder for shape processing
     std::cout << "[CADImporter] Processing shape: " << name << "\n";
@@ -356,6 +422,43 @@ std::shared_ptr<Geometry::SolidBody> STEPLoader::GenerateMockBody(const std::str
     };
     body->AddFace(verts);
     return body;
+}
+
+static STEPAssemblyNode JsonToNode(const nlohmann::json& j) {
+    STEPAssemblyNode node;
+    node.id       = j.value("id",     "");
+    node.name     = j.value("name",   "");
+    node.isCyclic = j.value("cyclic", false);
+    if (j.contains("children") && j["children"].is_array()) {
+        for (const auto& child : j["children"])
+            node.children.push_back(JsonToNode(child));
+    }
+    return node;
+}
+
+STEPAssemblyNode STEPLoader::ParseAssembly(const std::string& filePath, uint16_t bridgePort) {
+    STEPAssemblyNode root;
+    try {
+        httplib::Client cli("127.0.0.1", static_cast<int>(bridgePort));
+        cli.set_connection_timeout(5);
+        cli.set_read_timeout(30);
+
+        nlohmann::json body = {{"file_path", filePath}};
+        auto res = cli.Post("/step/assembly/parse", body.dump(), "application/json");
+        if (!res || res->status != 200) {
+            std::cerr << "[STEPLoader] Bridge unreachable for assembly parse\n";
+            return root;
+        }
+        auto j = nlohmann::json::parse(res->body);
+        if (j.value("status", "") == "success" && j.contains("tree")) {
+            root = JsonToNode(j["tree"]);
+            std::cout << "[STEPLoader] Assembly parsed: " << j.value("part_count", 0)
+                      << " parts, engine=" << j.value("engine", "?") << "\n";
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "[STEPLoader] ParseAssembly error: " << e.what() << "\n";
+    }
+    return root;
 }
 
 IGESLoader::IgesMetadata IGESLoader::ParseHeader(const std::string& filePath) {

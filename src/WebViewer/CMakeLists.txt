@@ -18,6 +18,7 @@ target_compile_features(SZM_WebViewer_Module PUBLIC cxx_std_20)
 target_link_libraries(SZM_WebViewer_Module PUBLIC 
     nlohmann_json::nlohmann_json
     httplib::httplib
+    entt
 )
 
 # Three.js integration

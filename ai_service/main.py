@@ -7,12 +7,12 @@ Integrates: Knowledge Graphs, Causal Reasoning, Training Loops, Data Ingestion
 
 import os
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import json
 import logging
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import numpy as np
 
 # Import AI modules
@@ -24,9 +24,11 @@ from agentic_system import Agent, Tool, ToolType, Memory
 from neo4j_client import Neo4jKnowledgeGraph
 from simulation_integration import SimulationEngine, SimulationInputs, SolverType, SimulationOutputs
 from batch_simulator import AutonomousBatchSimulator
-from manufacturing_pipeline import ManufacturabilityValidator, GCodeExporter
+from manufacturing_pipeline import ManufacturabilityValidator, GCodeExporter, CNCToolpathGenerator
+from material_synthesis import MaterialSynthesisEngine
 from benchmarking import AIBenchmarker
 from sandbox import EvolutionSandbox
+from auth_routes import router as auth_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +78,14 @@ class MaterialEstimationRequest(BaseModel):
     known_properties: Dict[str, float]
     material_category: str  # "metal", "composite", "polymer", etc
 
+class MaterialSynthesisRequest(BaseModel):
+    """Request to synthesize a viable manufacturing material from chemistry inputs"""
+    name: str = "Synthesized Material"
+    family: str = "alloy"
+    target_application: str = "general manufacturing"
+    manufacturing_process: str = "CNC machining"
+    constituents: List[Dict[str, Any]] = Field(default_factory=list)
+
 # New models for AI reasoning system
 class ReasoningRequest(BaseModel):
     """Request for reasoning about a design problem"""
@@ -116,6 +126,19 @@ class GCodeExportRequest(BaseModel):
     """Request to export G-Code"""
     component_name: str
     bounds: Dict[str, float]
+
+class CNCToolpathRequest(BaseModel):
+    """Request to generate a CNC milling toolpath"""
+    component_name: str
+    bounds: Dict[str, float]
+    operation: str = "pocket"
+    tool_diameter_mm: float = 10.0
+    stepover_mm: Optional[float] = None
+    stepdown_mm: float = 2.0
+    feed_rate_mm_min: float = 1200.0
+    plunge_rate_mm_min: float = 300.0
+    spindle_speed_rpm: int = 8000
+    safe_z_mm: float = 15.0
 
 class GraphRAGRequest(BaseModel):
     """Request for GraphRAG query against Neo4j"""
@@ -623,6 +646,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
+
 # Initialize services
 szm_ai = SZMForgeAIService()  # New integrated AI service
 legacy_ai = AIService()  # Legacy service for backward compatibility
@@ -752,6 +777,22 @@ async def export_gcode(request: GCodeExportRequest):
     gcode = GCodeExporter.export_gcode(request.component_name, request.bounds)
     return {"gcode": gcode}
 
+@app.post("/api/manufacturability/cnc-toolpath")
+async def generate_cnc_toolpath(request: CNCToolpathRequest):
+    """Generate CNC milling G-code and preview path metadata"""
+    return CNCToolpathGenerator.generate_rectangular_milling_job(
+        component_name=request.component_name,
+        bounds=request.bounds,
+        operation=request.operation,
+        tool_diameter_mm=request.tool_diameter_mm,
+        stepover_mm=request.stepover_mm,
+        stepdown_mm=request.stepdown_mm,
+        feed_rate_mm_min=request.feed_rate_mm_min,
+        plunge_rate_mm_min=request.plunge_rate_mm_min,
+        spindle_speed_rpm=request.spindle_speed_rpm,
+        safe_z_mm=request.safe_z_mm,
+    )
+
 # ======================== Evolution Endpoints ========================
 
 @app.post("/api/evolution/benchmark")
@@ -795,6 +836,21 @@ async def export_training(filepath: str = "/tmp/training_data.json"):
     return szm_ai.export_training_data(filepath)
 
 # ======================== Legacy Endpoints (backward compatibility) ========================
+
+@app.post("/api/materials/synthesize")
+async def synthesize_material(request: MaterialSynthesisRequest):
+    """Synthesize a manufacturing-ready material candidate from chemistry inputs"""
+    try:
+        return MaterialSynthesisEngine.synthesize({
+            "name": request.name,
+            "family": request.family,
+            "target_application": request.target_application,
+            "manufacturing_process": request.manufacturing_process,
+            "constituents": request.constituents,
+        })
+    except Exception as e:
+        logger.error(f"Error synthesizing material: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/estimate-materials")
 async def estimate_materials(request: MaterialEstimationRequest):

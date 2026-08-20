@@ -4,6 +4,7 @@
 #include "ParametricDimension.hpp"
 #include "SketchProfile.hpp"
 #include "../MathTypes.hpp"
+#include <nlohmann/json.hpp>
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -45,6 +46,7 @@ namespace SZM::Geometry {
         uint32_t AddPoint(double x, double y);
         uint32_t AddLine(double x1, double y1, double x2, double y2);
         uint32_t AddCircle(double cx, double cy, double r);
+        uint32_t AddArc(double cx, double cy, double r, double startAngleRad, double endAngleRad);
 
         // Constraints
         uint32_t AddConstraint(const SketchConstraint& constraint);
@@ -52,6 +54,13 @@ namespace SZM::Geometry {
 
         // Solving
         bool Solve(int maxIterations = 50, double tolerance = 1e-6);
+
+        // Serialization
+        nlohmann::json ToJSON() const;
+        static Sketch2D FromJSON(const nlohmann::json& j);
+
+        // DOF analysis
+        int GetDOFCount() const;
 
         // Output
         SketchProfile GenerateProfile() const;

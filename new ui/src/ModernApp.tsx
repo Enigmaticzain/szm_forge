@@ -17,20 +17,28 @@ import { PhysicsWorkspace } from './components/PhysicsWorkspace';
 import ChemistryLabView from './components/ChemistryLabView';
 import CircuitDesigner from './components/CircuitDesigner';
 import { CommandCenterWorkspace } from './components/CommandCenterWorkspace';
+import { NodeProgrammingWorkspace } from './components/NodeProgrammingWorkspace';
+import { TextToCADPanel } from './components/TextToCADPanel';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SettingsPanel } from './components/SettingsPanel';
+import { DockingWorkspaceManager } from './components/DockingWorkspaceManager';
 import { Resizer } from './components/Resizer';
 import { WorkspaceLayout } from './components/WorkspaceLayout';
 import { useBackend } from './store/BackendContext';
 import { useProject } from './store/ProjectContext';
 import { useTooltips } from './store/TooltipContext';
 import { tooltips } from './data/tooltips';
+import { useAuth } from './store/AuthContext';
+import { LoginScreen } from './components/LoginScreen';
+import { ActionObserver } from './components/ActionObserver';
 
 const ModernApp: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showWorkspaces, setShowWorkspaces] = useState(false);
   const store = useForgeStore();
+  const { user, logout } = useAuth();
   const { connected, refresh } = useBackend();
   const {
     project,
@@ -175,6 +183,22 @@ const ModernApp: React.FC = () => {
             showRight={false}
           />
         );
+      case 'node-programming':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<NodeProgrammingWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'text-to-cad':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<TextToCADPanel />}
+            showRight={false}
+          />
+        );
       case 'command-center':
         return (
           <WorkspaceLayout
@@ -201,8 +225,13 @@ const ModernApp: React.FC = () => {
     return <LoadingScreen onComplete={handleLoadComplete} />;
   }
 
+  if (!user) {
+    return <LoginScreen />;
+  }
+
   return (
     <div className="w-full h-full flex flex-col bg-forge-black overflow-hidden">
+      <ActionObserver />
       <TopCommandBar
         workspace={store.workspace}
         setWorkspace={store.setWorkspace}
@@ -213,6 +242,7 @@ const ModernApp: React.FC = () => {
         simulationPaused={store.simulationPaused}
         onOpenNotifications={() => setShowNotifications(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenWorkspaces={() => setShowWorkspaces(true)}
         onRunSimulation={runSolver}
         onPauseSimulation={store.pauseSimulation}
         onResumeSimulation={store.resumeSimulation}
@@ -269,6 +299,18 @@ const ModernApp: React.FC = () => {
             {hasModel ? 'MODEL LIVE' : 'NO MODEL'}
           </span>
           <span className="text-[9px] font-mono text-forge-green">● 60 FPS</span>
+          {user && (
+            <>
+              <span className="text-[9px] font-mono text-forge-accent">{user.username.toUpperCase()}</span>
+              <button
+                onClick={logout}
+                className="text-[8px] font-mono text-forge-text-muted hover:text-forge-red transition-colors"
+                title="Sign out"
+              >
+                SIGN OUT
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -280,6 +322,7 @@ const ModernApp: React.FC = () => {
 
       <NotificationCenter isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
       <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <DockingWorkspaceManager isOpen={showWorkspaces} onClose={() => setShowWorkspaces(false)} />
     </div>
   );
 };

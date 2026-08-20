@@ -34,7 +34,7 @@ private:
     void OnSimulationTick();
     
     // Color mapping
-    SZM::Geometry::Vector3 GetComponentColor(const SZM::SimulationComponent& comp) const;
+    SZM::Geometry::Vector3 GetComponentColor(const SZM::SceneGraph::PhysicsStateComponent& comp) const;
     SZM::Geometry::Vector3 MapStressToColor(float ratio) const;
     SZM::Geometry::Vector3 MapTemperatureToColor(float ratio) const;
     SZM::Geometry::Vector3 MapDangerToColor(bool isDangerous) const;
@@ -44,9 +44,11 @@ private:
     void DrawCameraControls();
     
     // Component rendering
-    void DrawComponentCube(const SZM::SimulationComponent& comp, ImDrawList* drawList, 
-                          const ImVec2& viewportPos, const ImVec2& viewportSize);
-    void DrawComponentDetails(const SZM::SimulationComponent& comp);
+    void DrawComponentCube(SZM::SceneGraph::Entity e, const SZM::SceneGraph::PhysicsStateComponent& physics,
+                           const SZM::SceneGraph::TransformComponent& transform, const std::string& name,
+                           ImDrawList* drawList, const ImVec2& viewportPos, const ImVec2& viewportSize);
+    void DrawComponentDetails(SZM::SceneGraph::Entity e, const SZM::SceneGraph::PhysicsStateComponent& physics,
+                              const SZM::SceneGraph::TransformComponent& transform, const std::string& name);
 
 private:
     // Camera state

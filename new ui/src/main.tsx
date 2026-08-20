@@ -8,19 +8,22 @@ import { TooltipProvider } from "./store/TooltipContext";
 import { BackendProvider } from "./store/BackendContext";
 import { ProjectProvider } from "./store/ProjectContext";
 import { ForgeStoreProvider } from "./store/ForgeStoreContext";
+import { AuthProvider } from "./store/AuthContext";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ForgeStoreProvider>
-      <ThemeProvider>
-        <TooltipProvider>
-          <BackendProvider>
-            <ProjectProvider>
-              <App />
-            </ProjectProvider>
-          </BackendProvider>
-        </TooltipProvider>
-      </ThemeProvider>
-    </ForgeStoreProvider>
+    <AuthProvider>
+      <ForgeStoreProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            <BackendProvider>
+              <ProjectProvider>
+                <App />
+              </ProjectProvider>
+            </BackendProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </ForgeStoreProvider>
+    </AuthProvider>
   </StrictMode>
 );

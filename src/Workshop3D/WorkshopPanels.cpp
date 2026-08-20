@@ -11,6 +11,8 @@ namespace WT = SZM::WorkshopTooltips;
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
+#include <iomanip>
 #include <imgui.h>
 #include <limits>
 #include <sstream>
@@ -40,6 +42,89 @@ float DensityFromMaterial(const std::string& materialName) {
     if (material.find("titanium") != std::string::npos) return 4500.0f;
     if (material.find("copper") != std::string::npos) return 8960.0f;
     return 1600.0f;
+}
+
+std::string BuildCncGCodePreview(
+    const std::string& partName,
+    const char* operation,
+    double lengthMm,
+    double widthMm,
+    double depthMm,
+    double toolDiameterMm,
+    double stepdownMm,
+    double stepoverMm,
+    double feedRateMmMin,
+    double spindleRpm,
+    int& outPasses,
+    float& outCutLengthMm
+) {
+    const double safeZ = 15.0;
+    const double tool = std::max(0.5, toolDiameterMm);
+    const double stepdown = std::max(0.1, stepdownMm);
+    const double stepover = std::max(0.1, stepoverMm);
+    const double feed = std::max(1.0, feedRateMmMin);
+    const double xMin = tool * 0.5;
+    const double yMin = tool * 0.5;
+    const double xMax = std::max(xMin, lengthMm - tool * 0.5);
+    const double yMax = std::max(yMin, widthMm - tool * 0.5);
+
+    outPasses = std::max(1, static_cast<int>(std::ceil(std::max(0.1, depthMm) / stepdown)));
+    double cutLength = 0.0;
+    Vector3 last(xMin, yMin, safeZ);
+
+    std::ostringstream gcode;
+    gcode << std::fixed << std::setprecision(3);
+    gcode << "(Program for: " << partName << ")\n";
+    gcode << "(Operation: " << operation << ")\n";
+    gcode << "(Tool: " << tool << " mm flat end mill)\n";
+    gcode << "G21 (Metric units)\n";
+    gcode << "G90 (Absolute positioning)\n";
+    gcode << "G17 (XY plane)\n";
+    gcode << "G54 (Work offset)\n";
+    gcode << "S" << static_cast<int>(std::round(spindleRpm)) << " M03 (Spindle on clockwise)\n";
+    gcode << "G00 Z" << safeZ << " (safe height)\n";
+
+    const auto addCut = [&](double x, double y, double z, const char* comment) {
+        const Vector3 next(x, y, z);
+        cutLength += (next - last).Magnitude();
+        last = next;
+        gcode << "G01 X" << x << " Y" << y << " Z" << z << " F" << feed
+              << " (" << comment << ")\n";
+    };
+
+    for (int pass = 1; pass <= outPasses; ++pass) {
+        const double z = -std::min(static_cast<double>(pass) * stepdown, depthMm);
+        gcode << "(Pass " << pass << "/" << outPasses << " Z" << z << ")\n";
+        gcode << "G00 X" << xMin << " Y" << yMin << " (rapid to start)\n";
+        gcode << "G01 Z" << z << " F" << std::max(1.0, feed * 0.25) << " (plunge)\n";
+        last = Vector3(xMin, yMin, z);
+
+        if (std::string(operation) == "profile") {
+            addCut(xMax, yMin, z, "profile +X");
+            addCut(xMax, yMax, z, "profile +Y");
+            addCut(xMin, yMax, z, "profile -X");
+            addCut(xMin, yMin, z, "profile -Y");
+        } else {
+            double y = yMin;
+            int row = 0;
+            while (y <= yMax + 1e-6) {
+                addCut((row % 2 == 0) ? xMax : xMin, y, z, "raster cut");
+                const double nextY = y + stepover;
+                if (nextY <= yMax + 1e-6) {
+                    addCut((row % 2 == 0) ? xMax : xMin, nextY, z, "stepover");
+                }
+                y = nextY;
+                ++row;
+            }
+        }
+    }
+
+    gcode << "G00 Z" << safeZ << " (retract)\n";
+    gcode << "M05 (Spindle stop)\n";
+    gcode << "M30 (End program)\n";
+
+    outCutLengthMm = static_cast<float>(cutLength);
+    return gcode.str();
 }
 
 void CreatePrimitiveBox(SZM::Workshop3D::Part& part, const Vector3& halfExtents) {
@@ -485,6 +570,47 @@ namespace SZM::Workshop3D {
         Hover(WT::EditorPartName);
         ImGui::InputText("Material", m_MaterialName, sizeof(m_MaterialName));
         Hover(WT::EditorMaterial);
+
+        if (ImGui::CollapsingHeader("Material Synthesis (Plan 25)")) {
+            const char* recipes[] = {
+                "Al-Mg-Si CNC Alloy",
+                "Ti-C Lightweight Composite",
+                "Fe-Cr-Ni Heat Resistant Alloy"
+            };
+            ImGui::Combo("Recipe", &m_SynthesisPreset, recipes, IM_ARRAYSIZE(recipes));
+
+            const char* synthName = "Synth Al-Mg-Si CNC Alloy";
+            const char* composition = "Al 86% / Mg 8% / Si 6%";
+            m_SynthDensity = 2730.0f;
+            m_SynthYieldStrengthMPa = 355.0f;
+            m_SynthThermalConductivity = 155.0f;
+
+            if (m_SynthesisPreset == 1) {
+                synthName = "Synth Ti-C Lightweight Composite";
+                composition = "Ti 78% / C 18% / Al 4%";
+                m_SynthDensity = 4110.0f;
+                m_SynthYieldStrengthMPa = 720.0f;
+                m_SynthThermalConductivity = 38.0f;
+            } else if (m_SynthesisPreset == 2) {
+                synthName = "Synth Fe-Cr-Ni Heat Alloy";
+                composition = "Fe 62% / Cr 22% / Ni 16%";
+                m_SynthDensity = 7900.0f;
+                m_SynthYieldStrengthMPa = 540.0f;
+                m_SynthThermalConductivity = 24.0f;
+            }
+
+            ImGui::TextDisabled("%s", composition);
+            ImGui::BulletText("Density: %.0f kg/m^3", m_SynthDensity);
+            ImGui::BulletText("Yield: %.0f MPa", m_SynthYieldStrengthMPa);
+            ImGui::BulletText("Thermal k: %.1f W/(m*K)", m_SynthThermalConductivity);
+            ImGui::Checkbox("Use Synthesized Material For New Block", &m_UseSynthesizedMaterial);
+
+            if (ImGui::Button("Synthesize & Apply Material", ImVec2(-1, 0))) {
+                std::snprintf(m_MaterialName, sizeof(m_MaterialName), "%s", synthName);
+                m_UseSynthesizedMaterial = true;
+            }
+        }
+
         ImGui::InputTextMultiline("Description", m_Description, sizeof(m_Description), ImVec2(-1, 70));
         Hover(WT::EditorDescription);
         ImGui::DragFloat3("Size (m)", m_Size, 0.01f, 0.05f, 5.0f, "%.2f");
@@ -501,7 +627,7 @@ namespace SZM::Workshop3D {
             props.category = "Custom";
             props.analysisType = "Workshop";
             props.sourcePath = "Generated in app";
-            props.density = DensityFromMaterial(m_MaterialName);
+            props.density = m_UseSynthesizedMaterial ? m_SynthDensity : DensityFromMaterial(m_MaterialName);
             props.color = 0xFFD49B54U;
             part->SetProperties(props);
 

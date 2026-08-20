@@ -38,6 +38,11 @@ namespace SZM::Workshop3D {
         char m_Description[192] = "Simple workshop placeholder component";
         float m_Size[3] = { 0.5f, 0.18f, 0.24f };
         bool m_AddToAssemblyAfterCreate = true;
+        int m_SynthesisPreset = 0;
+        bool m_UseSynthesizedMaterial = false;
+        float m_SynthDensity = 2730.0f;
+        float m_SynthYieldStrengthMPa = 355.0f;
+        float m_SynthThermalConductivity = 155.0f;
     };
 
     class AssemblyPanel : public IPanel {
@@ -104,6 +109,7 @@ namespace SZM::Workshop3D {
 
     private:
         void DrawSimulationSetup();
+        void DrawCNCToolpathSetup();
         void DrawSelectedInstanceLoads();
         void DrawSimulationResults();
 
@@ -112,6 +118,15 @@ namespace SZM::Workshop3D {
         float m_AppliedForce = 1500.0f;
         float m_HeatInput = 250.0f;
         int m_VisualizationMode = 0;
+        int m_CncOperation = 0;
+        float m_CncToolDiameterMm = 10.0f;
+        float m_CncStepdownMm = 2.0f;
+        float m_CncStepoverMm = 4.0f;
+        float m_CncFeedRateMmMin = 1200.0f;
+        float m_CncSpindleRpm = 8000.0f;
+        int m_CncPasses = 0;
+        float m_CncCutLengthMm = 0.0f;
+        std::string m_CncGCodePreview;
     };
 
 } // namespace SZM::Workshop3D

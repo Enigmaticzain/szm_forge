@@ -46,14 +46,14 @@ void AssistantInterface::Initialize() {
         m_ConversationHistory.push_back(msg);
     });
     
-    // Start in passive mode
-    m_Learning.SetLearningMode(Learning::LearningMode::PASSIVE);
-    m_State.learning_mode = Learning::LearningMode::PASSIVE;
+    // Start in active mode
+    m_Learning.SetLearningMode(Learning::LearningMode::ACTIVE);
+    m_State.learning_mode = Learning::LearningMode::ACTIVE;
     
     // Add welcome message
     AddMessage(MessageRole::SYSTEM, 
-        "AI Assistant ready. I'm watching and learning from your actions.\n"
-        "Switch to TEACHING mode to demonstrate tasks, or ACTIVE mode for suggestions.");
+        "AI Assistant ready. I am actively suggesting actions and learning from your workflows.\n"
+        "Switch to TEACHING mode to demonstrate tasks.");
     
     std::cout << "[AssistantInterface] Initialized successfully" << std::endl;
 }

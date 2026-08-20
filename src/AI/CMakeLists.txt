@@ -23,13 +23,15 @@ add_library(SZM_AI_Module STATIC
     
     # Machine Learning System - Learn from machines and generate new capabilities
     MachineLearningSystem/MachineLearningSystem.cpp
-    
-    # Assistant Interface - User-facing AI UI
-    AssistantInterface/AssistantInterface.cpp
 )
+
+if(SZM_BUILD_FULL_DESKTOP)
+    target_sources(SZM_AI_Module PRIVATE AssistantInterface/AssistantInterface.cpp)
+endif()
 
 target_include_directories(SZM_AI_Module PUBLIC 
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/src
 )
 
 target_compile_features(SZM_AI_Module PUBLIC cxx_std_20)
@@ -51,5 +53,9 @@ endif()
 target_link_libraries(SZM_AI_Module PUBLIC 
     Threads::Threads 
     nlohmann_json::nlohmann_json
-    imgui
+    entt
 )
+
+if(SZM_BUILD_FULL_DESKTOP)
+    target_link_libraries(SZM_AI_Module PUBLIC imgui)
+endif()

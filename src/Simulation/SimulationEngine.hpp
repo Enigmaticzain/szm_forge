@@ -2,9 +2,14 @@
 
 #include "SimulationComponent.hpp"
 #include "Scheduler.hpp"
+#include "../Scene/Scene.hpp"
 #include <vector>
 #include <memory>
 #include <cstdint>
+#include <atomic>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
 
 namespace SZM {
 
@@ -48,12 +53,18 @@ public:
         return m_Components;
     }
     
+    /// Access the new ECS hierarchical scene graph
+    SceneGraph::Scene* GetScene() { return m_Scene.get(); }
+    
     bool SetComponentMaterial(uint32_t id, const std::string& materialId);
     bool SetComponentGeometry(uint32_t id, float area, float thickness);
 
     // Setters for testing
     void SetForce(uint32_t id, float force);
     void SetHeatInput(uint32_t id, float heat);
+
+    // Dispatch an async FEA job to the Python bridge (port 8003)
+    void DispatchCalculiXJob(uint32_t componentId);
 
     // Access to scheduler
     Scheduler& GetScheduler() { return *m_Scheduler; }
@@ -62,6 +73,10 @@ public:
     bool IsPaused() const { return m_IsPaused; }
     void SetPaused(bool paused) { m_IsPaused = paused; }
 
+    // Time scale for simulation speed control (1.0 = realtime)
+    void SetTimeScale(double scale) { m_TimeScale = std::max(0.0, scale); }
+    double GetTimeScale() const { return m_TimeScale; }
+
 private:
     SimulationEngine();
     ~SimulationEngine() = default;
@@ -69,9 +84,15 @@ private:
 private:
     std::vector<std::unique_ptr<SimulationComponent>> m_Components;
     std::unique_ptr<Scheduler> m_Scheduler;
+    std::unique_ptr<SceneGraph::Scene> m_Scene;
     uint32_t m_NextComponentId = 1;
     bool m_IsInitialized = false;
     bool m_IsPaused = false;
+    double m_TimeScale = 1.0;
+
+    // CalculiX async dispatch: tracks which component IDs have a job in-flight
+    std::unordered_map<uint32_t, std::thread> m_CcxThreads;
+    std::mutex m_CcxMutex;
     
     // Constants
     static constexpr float MAX_TEMP_K = 373.15f; // 100°C

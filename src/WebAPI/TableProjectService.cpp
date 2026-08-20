@@ -29,35 +29,40 @@ TableProjectService& TableProjectService::GetInstance() {
 
 namespace {
 
-nlohmann::json componentRow(const SimulationComponent& comp) {
+nlohmann::json componentRow(SZM::SceneGraph::Entity e, const std::string& name, const SZM::SceneGraph::PhysicsStateComponent& physics) {
     return {
-        {"name", comp.name},
-        {"stress_MPa", comp.stress / 1e6f},
-        {"yield_MPa", comp.yieldStrength / 1e6f},
-        {"temperature_C", comp.temperature - 273.15f},
-        {"stressRatio", comp.stressRatio},
-        {"tempRatio", comp.tempRatio},
-        {"status", comp.stressRatio >= 1.0f ? "FAIL" : (comp.isDangerous ? "WARN" : "SAFE")},
-        {"force_N", comp.appliedForce},
-        {"material", comp.materialName}
+        {"name", name},
+        {"stress_MPa", physics.stress / 1e6f},
+        {"yield_MPa", physics.yieldStrength / 1e6f},
+        {"temperature_C", physics.temperature - 273.15f},
+        {"stressRatio", physics.stressRatio},
+        {"tempRatio", physics.tempRatio},
+        {"status", physics.stressRatio >= 1.0f ? "FAIL" : (physics.isDangerous ? "WARN" : "SAFE")},
+        {"force_N", physics.appliedForce},
+        {"material", "Unknown (ECS)"} // We would map this via MaterialComponent in full migration
     };
 }
 
 } // namespace
 
 void TableProjectService::pushSnapshots(double simTime) {
-    auto& engine = SimulationEngine::GetInstance();
-    for (const auto& compPtr : engine.GetComponents()) {
-        if (!compPtr) {
-            continue;
+    auto* scene = SimulationEngine::GetInstance().GetScene();
+    if (!scene) return;
+
+    auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent>();
+    for (auto e : entities) {
+        auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+        std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+        if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+            name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
         }
-        const auto& c = *compPtr;
+
         APIManager::GetInstance().PushComponentSnapshot(
-            c.name,
-            c.stress / 1e6f,
-            c.temperature - 273.15f,
-            c.stressRatio,
-            c.tempRatio,
+            name,
+            physics.stress / 1e6f,
+            physics.temperature - 273.15f,
+            physics.stressRatio,
+            physics.tempRatio,
             simTime);
     }
 }
@@ -189,9 +194,16 @@ nlohmann::json TableProjectService::CreateFurniture(const std::string& type,
     applyLoad(m_LoadKg);
 
     nlohmann::json parts = nlohmann::json::array();
-    for (const auto& compPtr : engine.GetComponents()) {
-        if (compPtr) {
-            parts.push_back(componentRow(*compPtr));
+    auto* scene = engine.GetScene();
+    if (scene) {
+        auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent>();
+        for (auto e : entities) {
+            std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+            if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+                name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+            }
+            const auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+            parts.push_back(componentRow(e, name, physics));
         }
     }
 
@@ -218,9 +230,16 @@ nlohmann::json TableProjectService::SetLoad(float loadKg) {
     applyLoad(std::max(loadKg, 0.0f));
 
     nlohmann::json parts = nlohmann::json::array();
-    for (const auto& compPtr : SimulationEngine::GetInstance().GetComponents()) {
-        if (compPtr) {
-            parts.push_back(componentRow(*compPtr));
+    auto* scene = SimulationEngine::GetInstance().GetScene();
+    if (scene) {
+        auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent>();
+        for (auto e : entities) {
+            std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+            if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+                name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+            }
+            const auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+            parts.push_back(componentRow(e, name, physics));
         }
     }
 
@@ -249,14 +268,21 @@ nlohmann::json TableProjectService::RunLimitSweep() {
         std::string worstName;
         nlohmann::json parts = nlohmann::json::array();
 
-        for (const auto& compPtr : SimulationEngine::GetInstance().GetComponents()) {
-            if (!compPtr) {
-                continue;
-            }
-            parts.push_back(componentRow(*compPtr));
-            if (compPtr->stressRatio > worstRatio) {
-                worstRatio = compPtr->stressRatio;
-                worstName = compPtr->name;
+        auto* scene = SimulationEngine::GetInstance().GetScene();
+        if (scene) {
+            auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent>();
+            for (auto e : entities) {
+                std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+                if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+                    name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+                }
+                const auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+                parts.push_back(componentRow(e, name, physics));
+                
+                if (physics.stressRatio > worstRatio) {
+                    worstRatio = physics.stressRatio;
+                    worstName = name;
+                }
             }
         }
 
@@ -302,10 +328,21 @@ nlohmann::json TableProjectService::RunAIImprove() {
 
     float worstRatio = 0.0f;
     uint32_t worstId = m_TopId;
-    for (const auto& compPtr : SimulationEngine::GetInstance().GetComponents()) {
-        if (compPtr && compPtr->stressRatio > worstRatio) {
-            worstRatio = compPtr->stressRatio;
-            worstId = compPtr->id;
+    std::string worstName;
+    auto* scene = SimulationEngine::GetInstance().GetScene();
+    if (scene) {
+        auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent>();
+        for (auto e : entities) {
+            const auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+            std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+            if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+                name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+            }
+            if (physics.stressRatio > worstRatio) {
+                worstRatio = physics.stressRatio;
+                worstId = static_cast<uint32_t>(e);
+                worstName = name;
+            }
         }
     }
 
@@ -374,9 +411,15 @@ nlohmann::json TableProjectService::RunAIImprove() {
     }
 
     nlohmann::json partsAfter = nlohmann::json::array();
-    for (const auto& compPtr : engine.GetComponents()) {
-        if (compPtr) {
-            partsAfter.push_back(componentRow(*compPtr));
+    if (scene) {
+        auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent>();
+        for (auto e : entities) {
+            std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+            if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+                name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+            }
+            const auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+            partsAfter.push_back(componentRow(e, name, physics));
         }
     }
 

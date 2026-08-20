@@ -72,6 +72,38 @@ export async function fetchSceneJson(): Promise<unknown | null> {
   return fetchJson<unknown>('/api/scene.json');
 }
 
+export interface AxisLimit {
+  travel_mm: number;
+  feed_mm_min: number;
+  accel_mm_s2: number;
+}
+
+export interface MachineConfigDto {
+  id: string;
+  name: string;
+  is_5axis: boolean;
+  linear: AxisLimit[];
+  rotary: AxisLimit[];
+}
+
 export function getApiBaseUrl(): string {
   return API_BASE;
+}
+
+export async function fetchMachineConfig(id = 'default'): Promise<MachineConfigDto | null> {
+  return fetchJson<MachineConfigDto>(`/api/machine/config?id=${id}`);
+}
+
+export async function saveMachineConfig(cfg: MachineConfigDto): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/machine/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cfg),
+    });
+    const data = await res.json();
+    return data?.ok === true;
+  } catch {
+    return false;
+  }
 }

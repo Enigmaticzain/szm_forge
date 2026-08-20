@@ -60,7 +60,7 @@ void SimulationVisualizerPanel::RenderVisualizationControls() {
 }
 
 void SimulationVisualizerPanel::RenderViewport() {
-    const auto& components = SZM::SimulationEngine::GetInstance().GetComponents();
+    auto* scene = SZM::SimulationEngine::GetInstance().GetScene();
     ImVec2 viewportSize = ImGui::GetContentRegionAvail();
     
     if (viewportSize.x <= 0.0f || viewportSize.y <= 0.0f) {
@@ -89,21 +89,37 @@ void SimulationVisualizerPanel::RenderViewport() {
     drawList->AddLine(ImVec2(center.x - 10, center.y), ImVec2(center.x + 10, center.y), IM_COL32(100, 150, 200, 150), 1.0f);
     drawList->AddLine(ImVec2(center.x, center.y - 10), ImVec2(center.x, center.y + 10), IM_COL32(100, 150, 200, 150), 1.0f);
 
-    if (components.empty()) {
+    if (!scene) {
         drawList->AddText(
             ImVec2(p0.x + 16.0f, p0.y + 16.0f),
             IM_COL32(180, 185, 195, 255),
-            "No components. Add one from the toolbar."
+            "No Scene loaded."
         );
     } else {
-        // Render components
-        for (const auto& comp : components) {
-            // Filter by search
-            if (m_SearchFilter[0] != '\0' && comp->name.find(m_SearchFilter) == std::string::npos) {
-                continue;
+        auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent, SZM::SceneGraph::TransformComponent>();
+        if (entities.empty()) {
+            drawList->AddText(
+                ImVec2(p0.x + 16.0f, p0.y + 16.0f),
+                IM_COL32(180, 185, 195, 255),
+                "No components. Add one from the toolbar."
+            );
+        } else {
+            // Render components
+            for (auto e : entities) {
+                std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+                if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+                    name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+                }
+
+                // Filter by search
+                if (m_SearchFilter[0] != '\0' && name.find(m_SearchFilter) == std::string::npos) {
+                    continue;
+                }
+                
+                const auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+                const auto& transform = scene->GetComponent<SZM::SceneGraph::TransformComponent>(e);
+                DrawComponentCube(e, physics, transform, name, drawList, p0, viewportSize);
             }
-            
-            DrawComponentCube(*comp, drawList, p0, viewportSize);
         }
     }
 
@@ -120,14 +136,15 @@ void SimulationVisualizerPanel::RenderViewport() {
     UpdateCamera();
 }
 
-void SimulationVisualizerPanel::DrawComponentCube(const SZM::SimulationComponent& comp, 
+void SimulationVisualizerPanel::DrawComponentCube(SZM::SceneGraph::Entity e, const SZM::SceneGraph::PhysicsStateComponent& physics,
+                                                  const SZM::SceneGraph::TransformComponent& transform, const std::string& name,
                                                   ImDrawList* drawList, 
                                                   const ImVec2& viewportPos, 
                                                   const ImVec2& viewportSize) {
     // Project component position to screen space
     const ImVec2 center = ImVec2(
-        viewportPos.x + viewportSize.x * 0.5f + comp.position.x * 50.0f,
-        viewportPos.y + viewportSize.y * 0.5f - comp.position.z * 50.0f
+        viewportPos.x + viewportSize.x * 0.5f + transform.position.x * 50.0f,
+        viewportPos.y + viewportSize.y * 0.5f - transform.position.z * 50.0f
     );
 
     const float size = 16.0f * m_ComponentScale;
@@ -135,7 +152,7 @@ void SimulationVisualizerPanel::DrawComponentCube(const SZM::SimulationComponent
     const ImVec2 p1 = ImVec2(center.x + size, center.y + size);
 
     // Get color based on visualization mode
-    const auto color = GetComponentColor(comp);
+    const auto color = GetComponentColor(physics);
     const ImU32 fillColor = IM_COL32(
         static_cast<int>(color.x * 255.0f),
         static_cast<int>(color.y * 255.0f),
@@ -152,13 +169,13 @@ void SimulationVisualizerPanel::DrawComponentCube(const SZM::SimulationComponent
     }
 
     // Danger indicator (pulsing border)
-    if (m_ShowDangerIndicators && comp.isDangerous) {
+    if (m_ShowDangerIndicators && physics.isDangerous) {
         const ImU32 dangerColor = IM_COL32(255, 100, 100, 200);
         drawList->AddRect(ImVec2(p0.x - 2, p0.y - 2), ImVec2(p1.x + 2, p1.y + 2), dangerColor, 0.0f, 0, 2.0f);
     }
 
-    if (comp.activeContactCount > 0) {
-        const ImU32 contactColor = comp.isGrounded
+    if (physics.activeContactCount > 0) {
+        const ImU32 contactColor = physics.isGrounded
             ? IM_COL32(90, 190, 255, 220)
             : IM_COL32(255, 210, 120, 220);
         drawList->AddRect(ImVec2(p0.x - 3, p0.y - 3), ImVec2(p1.x + 3, p1.y + 3), contactColor, 0.0f, 0, 2.0f);
@@ -175,68 +192,73 @@ void SimulationVisualizerPanel::DrawComponentCube(const SZM::SimulationComponent
         drawList->AddText(
             ImVec2(center.x - 20.0f, center.y + size + 4.0f),
             IM_COL32(220, 225, 235, 255),
-            comp.name.c_str()
+            name.c_str()
         );
     }
 
     // Selection highlight
-    if (m_SelectedComponentId == comp.id) {
+    if (m_SelectedComponentId == e) {
         drawList->AddRect(ImVec2(p0.x - 4, p0.y - 4), ImVec2(p1.x + 4, p1.y + 4), 
                          IM_COL32(255, 200, 0, 255), 0.0f, 0, 3.0f);
     }
 }
 
 void SimulationVisualizerPanel::RenderComponentList() {
-    ImGui::Text("Components (%zu)", SZM::SimulationEngine::GetInstance().GetComponents().size());
-    ImGui::Separator();
+    auto* scene = SZM::SimulationEngine::GetInstance().GetScene();
+    if (!scene) return;
 
-    const auto& components = SZM::SimulationEngine::GetInstance().GetComponents();
+    auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent, SZM::SceneGraph::TransformComponent>();
+    ImGui::Text("Components (%zu)", entities.size());
+    ImGui::Separator();
     
-    for (const auto& comp : components) {
-        if (m_SearchFilter[0] != '\0' && comp->name.find(m_SearchFilter) == std::string::npos) {
+    for (auto e : entities) {
+        std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
+        if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
+            name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
+        }
+
+        if (m_SearchFilter[0] != '\0' && name.find(m_SearchFilter) == std::string::npos) {
             continue;
         }
 
-        ImGui::PushID(comp->id);
+        ImGui::PushID(e);
         
-        const bool isSelected = (m_SelectedComponentId == comp->id);
-        if (ImGui::Selectable(comp->name.c_str(), isSelected)) {
-            m_SelectedComponentId = comp->id;
+        const bool isSelected = (m_SelectedComponentId == e);
+        if (ImGui::Selectable(name.c_str(), isSelected)) {
+            m_SelectedComponentId = e;
         }
 
         if (isSelected) {
-            DrawComponentDetails(*comp);
+            const auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
+            const auto& transform = scene->GetComponent<SZM::SceneGraph::TransformComponent>(e);
+            DrawComponentDetails(e, physics, transform, name);
         }
 
         ImGui::PopID();
     }
 }
 
-void SimulationVisualizerPanel::DrawComponentDetails(const SZM::SimulationComponent& comp) {
+void SimulationVisualizerPanel::DrawComponentDetails(SZM::SceneGraph::Entity e, const SZM::SceneGraph::PhysicsStateComponent& physics,
+                              const SZM::SceneGraph::TransformComponent& transform, const std::string& name) {
     ImGui::Indent();
-    ImGui::TextDisabled("ID: %u", comp.id);
-    ImGui::TextDisabled("Pos: (%.2f, %.2f, %.2f)", comp.position.x, comp.position.y, comp.position.z);
-    ImGui::TextDisabled("Material: %s", comp.materialName.c_str());
-    ImGui::TextDisabled("Area: %.4f m²", comp.area);
-    ImGui::TextDisabled("Thickness: %.4f m", comp.thickness);
-    ImGui::TextDisabled("Density: %.0f kg/m³", comp.density);
-    ImGui::TextDisabled("Backend: %s", comp.physicsBackend.c_str());
-
+    ImGui::TextDisabled("ID: %u", e);
+    ImGui::TextDisabled("Pos: (%.2f, %.2f, %.2f)", transform.position.x, transform.position.y, transform.position.z);
+    
     ImGui::Separator();
 
-    ImGui::Text("Stress: %.2f MPa", comp.stress / 1e6f);
-    ImGui::ProgressBar(comp.stressRatio, ImVec2(-1, 0), "");
+    ImGui::Text("Stress: %.2f MPa", physics.stress / 1e6f);
+    ImGui::ProgressBar(physics.stressRatio, ImVec2(-1, 0), "");
     
-    ImGui::Text("Temp: %.1f°C", comp.temperature - 273.15f);
-    ImGui::ProgressBar(comp.tempRatio, ImVec2(-1, 0), "");
+    ImGui::Text("Temp: %.1f°C", physics.temperature - 273.15f);
+    ImGui::ProgressBar(physics.tempRatio, ImVec2(-1, 0), "");
 
-    ImGui::Text("Contacts: %u | Grounded: %s", comp.activeContactCount, comp.isGrounded ? "Yes" : "No");
-    ImGui::Text("Kinetic Energy: %.4f J", comp.kineticEnergy);
-    ImGui::Text("Penetration: %.4f m", comp.maxContactPenetration);
+    ImGui::Text("Contacts: %u | Grounded: %s", physics.activeContactCount, physics.isGrounded ? "Yes" : "No");
+    ImGui::Text("Kinetic Energy: %.4f J", physics.kineticEnergy);
+    ImGui::Text("Penetration: %.4f m", physics.maxContactPenetration);
 
     ImGui::Separator();
     
-    if (comp.isDangerous) {
+    if (physics.isDangerous) {
         ImGui::TextColored(ImVec4(1.0f, 0.2f, 0.2f, 1.0f), "⚠ DANGEROUS");
     } else {
         ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), "✓ SAFE");
@@ -245,14 +267,14 @@ void SimulationVisualizerPanel::DrawComponentDetails(const SZM::SimulationCompon
     ImGui::Unindent();
 }
 
-SZM::Geometry::Vector3 SimulationVisualizerPanel::GetComponentColor(const SZM::SimulationComponent& comp) const {
+SZM::Geometry::Vector3 SimulationVisualizerPanel::GetComponentColor(const SZM::SceneGraph::PhysicsStateComponent& physics) const {
     if (m_ShowStressHeatmap) {
-        return MapStressToColor(comp.stressRatio);
+        return MapStressToColor(physics.stressRatio);
     }
     if (m_ShowTemperatureHeatmap) {
-        return MapTemperatureToColor(comp.tempRatio);
+        return MapTemperatureToColor(physics.tempRatio);
     }
-    return MapDangerToColor(comp.isDangerous);
+    return MapDangerToColor(physics.isDangerous);
 }
 
 SZM::Geometry::Vector3 SimulationVisualizerPanel::MapStressToColor(float ratio) const {
