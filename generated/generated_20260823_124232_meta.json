@@ -1,0 +1,12 @@
+{
+  "id": "generated_20260823_124232",
+  "name": "Generated Cnc_Mill",
+  "machine_type": "cnc_mill",
+  "confidence": 0.5,
+  "generated_at": "2026-08-23T12:42:33.218769",
+  "files": {
+    "header": "Generatedcnc_mill.hpp",
+    "source": "Generatedcnc_mill.cpp",
+    "specification": "generated_20260823_124232_spec.json"
+  }
+}

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { AIChatBot } from './AIChatBot';
 import { Resizer } from './Resizer';
+import { getApiBaseUrl, runBatchSimulation, mlIngestData, mlLearnPatterns, mlGenerateMachine, GeneratedMachineCode } from '../services/forgeApi';
 
 const severityIcons = {
   info: <Info size={12} className="text-forge-accent" />,
@@ -45,6 +46,10 @@ export const AIWorkspace: React.FC = () => {
   const [agents, setAgents] = useState(initialAgentStatus);
   const [batchStatus, setBatchStatus] = useState('Idle');
   
+  const [mlOutput, setMlOutput] = useState<GeneratedMachineCode[]>([]);
+  const [isGeneratingML, setIsGeneratingML] = useState(false);
+  const [isLearningML, setIsLearningML] = useState(false);
+  
   const [observationActive, setObservationActive] = useState(false);
   const [obsStats, setObsStats] = useState({ total_actions: 0, total_patterns: 0 });
 
@@ -63,7 +68,7 @@ export const AIWorkspace: React.FC = () => {
   useEffect(() => {
     const pollStatus = async () => {
       try {
-        const res = await fetch('http://localhost:8001/api/status');
+        const res = await fetch(`${getApiBaseUrl()}/api/status`);
         if (res.ok) {
           const data = await res.json();
           const activeTask = data.training?.active_status || 'Idle';
@@ -96,7 +101,7 @@ export const AIWorkspace: React.FC = () => {
     if (observationActive) {
       interval = setInterval(async () => {
         try {
-          const res = await fetch('http://localhost:8000/api/ai/observe/stats');
+          const res = await fetch(`${getApiBaseUrl()}/api/ai/observe/stats`);
           if (res.ok) {
             const data = await res.json();
             setObsStats({
@@ -113,7 +118,7 @@ export const AIWorkspace: React.FC = () => {
   const toggleObservation = async () => {
     try {
       const endpoint = observationActive ? 'stop' : 'start';
-      await fetch(`http://localhost:8000/api/ai/observe/${endpoint}`, { method: 'POST' });
+      await fetch(`${getApiBaseUrl()}/api/ai/observe/${endpoint}`, { method: 'POST' });
       setObservationActive(!observationActive);
     } catch (e) {
       console.error(e);
@@ -122,14 +127,32 @@ export const AIWorkspace: React.FC = () => {
 
   const startBatchSimulation = async () => {
     try {
-      await fetch('http://localhost:8001/api/batch-simulate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ num_variations: 50 })
-      });
+      await runBatchSimulation(50);
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleLearnPatterns = async () => {
+    setIsLearningML(true);
+    try {
+      await mlIngestData();
+      await mlLearnPatterns();
+    } catch (e) {
+      console.error(e);
+    }
+    setIsLearningML(false);
+  };
+
+  const handleGenerateMachine = async () => {
+    setIsGeneratingML(true);
+    try {
+      const machines = await mlGenerateMachine('cnc_mill', 1);
+      setMlOutput(machines);
+    } catch (e) {
+      console.error(e);
+    }
+    setIsGeneratingML(false);
   };
 
   return (
@@ -239,6 +262,18 @@ export const AIWorkspace: React.FC = () => {
              <button onClick={startBatchSimulation} className="w-full py-2 bg-forge-purple text-white rounded font-semibold text-[10px] hover:bg-forge-purple/80 transition-colors">
                 INITIATE SELF-TEACHING
              </button>
+             
+             <div className="p-3 rounded border border-forge-border bg-forge-dark mt-2">
+                <div className="text-[9px] font-semibold text-forge-text-dim mb-2">MACHINE GENERATOR</div>
+                <div className="flex gap-2 mb-2">
+                  <button onClick={handleLearnPatterns} disabled={isLearningML} className="flex-1 py-1.5 bg-forge-surface text-forge-text-muted rounded text-[8px] font-mono hover:bg-forge-purple/20 hover:text-forge-purple disabled:opacity-50 transition-colors">
+                    {isLearningML ? 'LEARNING...' : 'LEARN PATTERNS'}
+                  </button>
+                  <button onClick={handleGenerateMachine} disabled={isGeneratingML || isLearningML} className="flex-1 py-1.5 bg-forge-surface text-forge-text-muted rounded text-[8px] font-mono hover:bg-forge-green/20 hover:text-forge-green disabled:opacity-50 transition-colors">
+                    {isGeneratingML ? 'GENERATING...' : 'GENERATE C++'}
+                  </button>
+                </div>
+             </div>
           </div>
         </div>
 
@@ -266,6 +301,31 @@ export const AIWorkspace: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Generated Machine Code Preview */}
+          {mlOutput.length > 0 && (
+            <div className="p-4 rounded-lg border border-forge-purple/30 bg-forge-purple/5">
+              <div className="flex items-center gap-2 mb-3">
+                <Brain size={12} className="text-forge-purple" />
+                <span className="text-[10px] font-semibold tracking-widest text-forge-purple">GENERATED C++ MACHINE CODE</span>
+                <span className="text-[8px] font-mono text-forge-text-muted ml-auto">Confidence: {(mlOutput[0].confidence * 100).toFixed(0)}%</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-mono text-forge-text-dim mb-1">{mlOutput[0].name}.hpp</span>
+                  <pre className="p-2 rounded bg-forge-dark border border-forge-border text-[8px] font-mono text-forge-green overflow-x-auto max-h-48 custom-scrollbar">
+                    {mlOutput[0].header}
+                  </pre>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-mono text-forge-text-dim mb-1">{mlOutput[0].name}.cpp</span>
+                  <pre className="p-2 rounded bg-forge-dark border border-forge-border text-[8px] font-mono text-forge-cyan overflow-x-auto max-h-48 custom-scrollbar">
+                    {mlOutput[0].source}
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Optimization Targets */}
           <div className="p-4 rounded-lg border border-forge-border bg-forge-panel">

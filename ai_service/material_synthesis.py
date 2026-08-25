@@ -117,7 +117,58 @@ class MaterialSynthesisEngine:
         "rdkit": "Optional molecular featurization for polymers and organic additives.",
         "pymatgen": "Optional crystal/composition analysis for alloys and ceramics.",
         "matminer": "Optional featurizers and dataset-backed property models.",
+        "mendeleev": "Element property database lookup.",
+        "mp-api": "Materials Project online database (requires MP_API_KEY).",
     }
+
+    @staticmethod
+    def lookup_element(symbol: str) -> Dict[str, Any]:
+        """Layered lookup: hardcoded → mendeleev → pymatgen."""
+        sym = symbol.strip().capitalize()
+        if sym in ELEMENT_PROPERTY_TABLE:
+            return {"source": "hardcoded", "symbol": sym, "properties": ELEMENT_PROPERTY_TABLE[sym]}
+        try:
+            from mendeleev import element as mend_element
+            el = mend_element(sym)
+            return {
+                "source": "mendeleev",
+                "symbol": sym,
+                "properties": {
+                    "density": el.density or 0,
+                    "atomic_mass": el.atomic_weight,
+                    "melting_point": el.melting_point,
+                },
+            }
+        except ImportError:
+            pass
+        except Exception:
+            pass
+        try:
+            from pymatgen.core import Element
+            el = Element(sym)
+            return {"source": "pymatgen", "symbol": sym, "properties": {"atomic_mass": el.atomic_mass}}
+        except ImportError:
+            pass
+        except Exception:
+            pass
+        return {"source": "none", "symbol": sym, "properties": {}}
+
+    @staticmethod
+    def lookup_formula(formula: str) -> Dict[str, Any]:
+        """Lookup composition properties by chemical formula."""
+        try:
+            from pymatgen.core import Composition
+            comp = Composition(formula)
+            return {
+                "source": "pymatgen",
+                "formula": formula,
+                "elements": {str(el): amt for el, amt in comp.items()},
+                "weight": comp.weight,
+            }
+        except ImportError:
+            return {"source": "hardcoded", "formula": formula, "message": "pymatgen not installed"}
+        except Exception as exc:
+            return {"source": "error", "formula": formula, "message": str(exc)}
 
     @staticmethod
     def synthesize(request: Dict[str, Any]) -> Dict[str, Any]:

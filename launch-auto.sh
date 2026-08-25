@@ -87,8 +87,24 @@ main() {
     fi
     
     log_success "Launching SZM Forge..."
-    nohup "$EXECUTABLE" > /dev/null 2>&1 &
-    log_info "PID: $!"
+    
+    # Start Python AI bridge in background if not running
+    if ! pgrep -f "ai_service/external_engine_bridge.py" > /dev/null; then
+        log_info "Starting AI Bridge on port 8003..."
+        source venv/bin/activate
+        nohup python ai_service/external_engine_bridge.py > ai_bridge.log 2>&1 &
+        AI_PID=$!
+        deactivate
+    fi
+
+    # Run SZM_Forge in foreground so the script blocks
+    "$EXECUTABLE"
+    
+    # Cleanup AI bridge on exit
+    if [ ! -z "$AI_PID" ]; then
+        log_info "Cleaning up AI Bridge..."
+        kill $AI_PID || true
+    fi
 }
 
 main "$@"

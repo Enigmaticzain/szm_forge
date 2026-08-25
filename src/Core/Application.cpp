@@ -15,6 +15,10 @@
 #include "../UI/panels/ComponentBuilderPanel.hpp"
 #include "../UI/panels/ToolbarPanel.hpp"
 #include "../UI/panels/DashboardPanel.hpp"
+#include "../UI/panels/EngineeringStackPanel.hpp"
+#include "../UI/panels/CadToolsPanel.hpp"
+#include "../UI/panels/MeshToolsPanel.hpp"
+#include "../UI/panels/FeaToolsPanel.hpp"
 #include "../Workshop3D/WorkshopManager.hpp"
 #include "../Workshop3D/WorkshopPanels.hpp"
 #include "../Workshop3D/ComponentBrowserPanel.hpp"
@@ -223,6 +227,10 @@ void Application::Init(const WindowConfig& config) {
         auto componentBuilder = std::make_shared<ComponentBuilderPanel>();
         auto toolbarPanel = std::make_shared<ToolbarPanel>();
         auto dashboardPanel = std::make_shared<DashboardPanel>();
+        auto engineeringStackPanel = std::make_shared<EngineeringStackPanel>();
+        auto cadToolsPanel = std::make_shared<CadToolsPanel>();
+        auto meshToolsPanel = std::make_shared<MeshToolsPanel>();
+        auto feaToolsPanel = std::make_shared<FeaToolsPanel>();
         auto componentBrowser = std::make_shared<Workshop3D::ComponentBrowserPanel>();
         auto componentWeightTable = std::make_shared<Workshop3D::ComponentWeightTablePanel>();
         auto workshopLibrary = std::make_shared<Workshop3D::PartLibraryPanel>();
@@ -239,6 +247,10 @@ void Application::Init(const WindowConfig& config) {
         m_UIManager.RegisterPanel(componentBuilder);
         m_UIManager.RegisterPanel(toolbarPanel);
         m_UIManager.RegisterPanel(dashboardPanel);
+        m_UIManager.RegisterPanel(engineeringStackPanel);
+        m_UIManager.RegisterPanel(cadToolsPanel);
+        m_UIManager.RegisterPanel(meshToolsPanel);
+        m_UIManager.RegisterPanel(feaToolsPanel);
         m_UIManager.RegisterPanel(componentBrowser);
         m_UIManager.RegisterPanel(componentWeightTable);
         m_UIManager.RegisterPanel(workshopLibrary);

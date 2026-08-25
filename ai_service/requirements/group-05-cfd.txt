@@ -1,0 +1,2 @@
+-r group-04-fea.txt
+CoolProp>=6.6.0

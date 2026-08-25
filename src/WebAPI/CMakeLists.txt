@@ -7,6 +7,8 @@ add_library(SZM_WebAPI_Module STATIC
     StructuralSolveService.cpp
     SimulationServer.hpp
     SimulationServer.cpp
+    MachineConfig.hpp
+    MachineConfig.cpp
 )
 
 target_include_directories(SZM_WebAPI_Module PUBLIC

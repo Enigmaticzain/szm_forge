@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SZM Forge Web Viz Smoke Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.160/build/three.min.js"></script>
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+</head>
+<body>
+  <h1>SZM Forge CDN Smoke Test</h1>
+  <div id="status"></div>
+  <script>
+    const el = document.getElementById('status');
+    const ok = typeof THREE !== 'undefined' && typeof BABYLON !== 'undefined';
+    el.textContent = ok ? 'Three.js and Babylon.js loaded OK' : 'CDN load failed';
+  </script>
+</body>
+</html>

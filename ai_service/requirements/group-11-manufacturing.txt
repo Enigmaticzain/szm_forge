@@ -1,0 +1,2 @@
+-r group-02-cad.txt
+gcodepy>=0.1.0

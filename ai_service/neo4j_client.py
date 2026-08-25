@@ -7,6 +7,12 @@ try:
 except ImportError:
     NEO4J_AVAILABLE = False
 
+try:
+    from falkordb import FalkorDB
+    FALKORDB_AVAILABLE = True
+except ImportError:
+    FALKORDB_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 class Neo4jKnowledgeGraph:
@@ -15,22 +21,34 @@ class Neo4jKnowledgeGraph:
     Uses Neo4j if available, otherwise falls back to an in-memory mock graph
     to ensure the service remains operational.
     """
-    def __init__(self, uri="bolt://localhost:7687", user="neo4j", password="password"):
+    def __init__(self, uri="bolt://localhost:7687", user="neo4j", password="password", use_falkordb: bool = False):
         self.driver = None
+        self.falkor = None
         self.connected = False
-        
-        if NEO4J_AVAILABLE:
+        self.backend = "memory"
+
+        if use_falkordb and FALKORDB_AVAILABLE:
+            try:
+                self.falkor = FalkorDB(host="localhost", port=6379)
+                self.connected = True
+                self.backend = "falkordb"
+                logger.info("Connected to FalkorDB.")
+            except Exception as e:
+                logger.warning(f"FalkorDB unavailable: {e}")
+
+        if not self.connected and NEO4J_AVAILABLE:
             try:
                 self.driver = GraphDatabase.driver(uri, auth=(user, password))
                 self.driver.verify_connectivity()
                 self.connected = True
+                self.backend = "neo4j"
                 logger.info("Successfully connected to Neo4j Knowledge Graph.")
                 self._initialize_schema()
                 self._seed_mock_designs()
             except Exception as e:
                 logger.warning(f"Failed to connect to Neo4j: {e}. Falling back to in-memory GraphRAG.")
                 self.connected = False
-        else:
+        elif not self.connected and not NEO4J_AVAILABLE:
             logger.warning("neo4j python package not installed. Falling back to in-memory GraphRAG.")
             
         # In-memory fallback dataset (used if Neo4j is offline)

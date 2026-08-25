@@ -83,18 +83,18 @@ void SimulationPanel::DrawComponentList() {
 
     for (auto e : entities) {
         auto& physics = scene->GetComponent<SZM::SceneGraph::PhysicsStateComponent>(e);
-        std::string name = "Entity_" + std::to_string(e);
+        std::string name = "Entity_" + std::to_string(static_cast<uint32_t>(e));
         if (scene->HasComponent<SZM::SceneGraph::TagComponent>(e)) {
             name = scene->GetComponent<SZM::SceneGraph::TagComponent>(e).name;
         }
 
-        ImGui::PushID(static_cast<int>(e));
+        ImGui::PushID(static_cast<int>(static_cast<uint32_t>(e)));
         ImGui::TableNextRow();
 
         ImGui::TableSetColumnIndex(0);
-        const std::string idText = std::to_string(e);
-        if (ImGui::Selectable(idText.c_str(), m_SelectedComponentId == e)) {
-            m_SelectedComponentId = e;
+        const std::string idText = std::to_string(static_cast<uint32_t>(e));
+        if (ImGui::Selectable(idText.c_str(), m_SelectedComponentId == static_cast<uint32_t>(e))) {
+            m_SelectedComponentId = static_cast<uint32_t>(e);
             m_SelectedForce = physics.appliedForce;
             m_SelectedHeatInput = physics.heatInput;
         }

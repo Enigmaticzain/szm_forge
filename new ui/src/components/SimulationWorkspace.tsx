@@ -17,9 +17,9 @@ interface Props {
 const simTypes = [
   { id: 'static', label: 'Static Structural', active: true },
   { id: 'thermal', label: 'Thermal Steady-State', active: true },
-  { id: 'modal', label: 'Modal Analysis', active: false },
+  { id: 'modal', label: 'Modal Analysis', active: true },
+  { id: 'cfd', label: 'CFD Flow', active: true },
   { id: 'fatigue', label: 'Fatigue Life', active: false },
-  { id: 'cfd', label: 'CFD Flow', active: false },
   { id: 'coupled', label: 'Coupled Multi-Physics', active: false },
 ];
 
@@ -52,7 +52,7 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
     setConvergenceData([]);
     
     try {
-      const res = await fetch('http://localhost:8000/api/simulation/optimize', {
+      const res = await fetch('/api/simulation/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ iterations: 40 })
@@ -180,7 +180,23 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
           >
             <Brain size={10} /> {optimizing ? 'OPTIMIZING...' : 'AI OPTIMIZE'}
           </button>
-          <button className="flex items-center gap-1 px-3 py-1 rounded text-[9px] font-mono bg-forge-green/10 text-forge-green border border-forge-green/20 hover:bg-forge-green/20">
+          <button 
+            className="flex items-center gap-1 px-3 py-1 rounded text-[9px] font-mono bg-forge-green/10 text-forge-green border border-forge-green/20 hover:bg-forge-green/20"
+            onClick={async () => {
+              const { runFea, runThermal, runModal, runCfd } = await import('../services/forgeApi');
+              showToast(`Initializing ${activeSim} solver...`);
+              try {
+                if (activeSim === 'static') await runFea(101, 'steel', 1000, 0.05, 0.01);
+                else if (activeSim === 'thermal') await runThermal(101, 120);
+                else if (activeSim === 'modal') await runModal(101, 6);
+                else if (activeSim === 'cfd') await runCfd(101, 5.0);
+                
+                showToast(`Solver finished successfully for ${activeSim}`);
+              } catch(e: any) {
+                showToast(`Solver failed: ${e.message}`, 'error');
+              }
+            }}
+          >
             <Play size={10} /> SOLVE
           </button>
           <button className="p-1.5 rounded text-forge-text-muted hover:bg-forge-surface">
@@ -261,6 +277,35 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
                     <span className="text-[9px] font-mono text-forge-cyan">{setting.value}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Physics ML Surrogate */}
+            <div className="mt-4 pt-4 border-t border-forge-border/50">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Brain size={10} className="text-forge-purple" />
+                <span className="text-[9px] font-semibold tracking-wider text-forge-text-dim">PHYSICS ML SURROGATE</span>
+              </div>
+              <div className="p-2 border border-forge-purple/20 bg-forge-purple/5 rounded flex flex-col gap-2">
+                <p className="text-[8px] text-forge-text-muted leading-tight">Train an AI surrogate to bypass FEA. Predicts stress in milliseconds.</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono text-forge-text-dim">Epochs</span>
+                  <input type="number" defaultValue={100} className="w-16 bg-forge-dark border border-forge-border rounded p-1 text-right text-[9px] font-mono outline-none focus:border-forge-purple" />
+                </div>
+                <button className="mt-1 w-full py-1.5 bg-forge-purple/10 text-forge-purple hover:bg-forge-purple/20 border border-forge-purple/30 rounded text-[9px] font-bold font-mono transition-colors"
+                  onClick={async () => {
+                    const { trainSurrogate } = await import('../services/forgeApi');
+                    showToast("Training Surrogate Model...");
+                    try {
+                      const res = await trainSurrogate("Structural_ML", "torch", 100);
+                      showToast(`Model Trained! MSE: ${res.mse?.toExponential(2)}`);
+                    } catch (e: any) {
+                      showToast(`Surrogate Training failed: ${e.message}`, "error");
+                    }
+                  }}
+                >
+                  TRAIN SURROGATE
+                </button>
               </div>
             </div>
           </div>

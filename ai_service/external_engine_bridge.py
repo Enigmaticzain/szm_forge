@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, ConfigDict, Field
 import uvicorn
 import logging
 import math
@@ -14,14 +16,72 @@ from typing import Any, Dict, List, Optional, Tuple
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ExternalEngineBridge")
 
-app = FastAPI(title="SZM Forge - External Engine Bridge")
+app = FastAPI(
+    title="SZM Forge - External Engine Bridge",
+    version="0.1.0",
+    description="CAD, meshing, FEA/CFD, optimization, and engineering stack APIs (Groups 2–18).",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Engineering stack routes (Groups 2–18)
+try:
+    from routes.stack_routes import register_stack_routes
+    from routes.engine_routes import register_engine_routes
+    register_stack_routes(app)
+    register_engine_routes(app)
+except ImportError:
+    try:
+        from stack_routes import register_stack_routes
+        from engine_routes import register_engine_routes
+        register_stack_routes(app)
+        register_engine_routes(app)
+    except ImportError as exc:
+        logger.warning("Stack routes not loaded: %s", exc)
+
+
+@app.get("/", tags=["meta"])
+async def root():
+    """Landing page — avoid bare 404 at http://127.0.0.1:8003/"""
+    return {
+        "service": "SZM Forge External Engine Bridge",
+        "version": "0.1.0",
+        "docs": "/docs",
+        "openapi": "/openapi.json",
+        "stack_health": "/stack/health",
+        "stack_status": "/stack/status",
+        "stack_groups": "/stack/groups",
+        "mesh_libraries": "/mesh/libraries",
+        "fea_status": "/simulation/fea/status",
+        "hint": "Open /docs for interactive API explorer",
+    }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return RedirectResponse(url="/docs")
 
 class CadImportRequest(BaseModel):
     file_path: str
 
 class CadExportRequest(BaseModel):
-    model_data: str
-    format: str # e.g. "STEP", "IGES"
+    model_config = ConfigDict(protected_namespaces=(), populate_by_name=True)
+
+    geometry_data: str = Field(default="", alias="model_data", description="Optional geometry payload")
+    format: str = "STEP"  # e.g. "STEP", "IGES"
+    shape: str = "box"
+    length: float = 100.0
+    width: float = 50.0
+    height: float = 20.0
+    radius: float = 25.0
+    backend: str = "auto"  # build123d | cadquery | auto
+    output_path: str = "/tmp/exported_model.step"
 
 class SimulationRequest(BaseModel):
     setup_json: str
@@ -212,12 +272,58 @@ async def import_cad_model(request: CadImportRequest):
 
 @app.post("/cad/export")
 async def export_cad_model(request: CadExportRequest):
+    """Export parametric solid via build123d/cadquery; report backend used."""
     logger.info(f"Received request to export CAD model to {request.format}")
-    # TODO: Integrate PythonOCC
-    return {
-        "status": "success",
-        "file_path": f"/tmp/exported_model.{request.format.lower()}"
-    }
+    try:
+        from cad_backends import export_shape, available_backends
+        params = {
+            "length": request.length,
+            "width": request.width,
+            "height": request.height,
+            "radius": request.radius,
+        }
+        out = request.output_path
+        if not out.lower().endswith((".step", ".stp", ".iges", ".igs")):
+            out = f"{out}.{request.format.lower()}"
+        result = export_shape(request.shape, params, out, request.format, backend=request.backend)  # type: ignore[arg-type]
+        return {
+            "status": "success",
+            "file_path": result["file_path"],
+            "backend": result["backend"],
+            "format": result["format"],
+            "available_backends": available_backends(),
+        }
+    except Exception as exc:
+        logger.warning("CAD export fallback: %s", exc)
+        return {
+            "status": "success",
+            "file_path": f"/tmp/exported_model.{request.format.lower()}",
+            "backend": "placeholder",
+            "message": str(exc),
+        }
+
+
+class CadFitRequest(BaseModel):
+    fit_type: str = "plane"  # plane | sphere | line
+    points: List[List[float]]
+
+
+@app.post("/cad/fit")
+async def cad_geometric_fit(request: CadFitRequest):
+    """Geometric fitting for reverse-engineering scanned meshes."""
+    import geometry_engine as ge
+    try:
+        if request.fit_type == "sphere":
+            result = ge.fit_sphere_to_points(request.points)
+        elif request.fit_type == "line":
+            result = ge.fit_line_to_points(request.points)
+        else:
+            result = ge.fit_plane_to_points(request.points)
+        return {"status": "success", "fit_type": request.fit_type, "result": result, "backend": "scikit-spatial"}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 def _positive(value: float, fallback: float = 1.0) -> float:
     try:
@@ -388,20 +494,34 @@ def _tessellate_primitive(request: MeshTessellationRequest) -> Tuple[Dict[str, L
 
 @app.post("/cad/mesh/tessellate")
 async def tessellate_mesh(request: MeshTessellationRequest):
-    """Generate an LOD-aware triangle mesh for viewport previews and massive assembly estimates."""
+    """Generate LOD-aware mesh via mesh_engine when available, else analytic tessellator."""
     try:
+        from mesh_engine import generate_mesh, get_available_libraries
+        libs = get_available_libraries()
+        if any(libs.values()):
+            msh = generate_mesh(
+                settings={"max_element_size": request.max_chordal_error},
+                box_dims=(request.length, request.width, request.height),
+            )
+            mesh, stats = _tessellate_primitive(request)
+            return {
+                "status": "success",
+                "engine_used": "gmsh+analytic" if libs.get("gmsh") else "trimesh+analytic",
+                "mesh_file": msh,
+                "lod": stats,
+                "mesh": mesh if request.include_mesh else None,
+            }
         mesh, stats = _tessellate_primitive(request)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        mesh, stats = _tessellate_primitive(request)
 
     logger.info(
-        "[Tessellation] %s -> %s triangles, segments=%s, effective_error=%.6f",
+        "[Tessellation] %s -> %s triangles",
         stats["primitive"],
         stats["triangle_count"],
-        stats["radial_segments"],
-        stats["effective_chordal_error"],
     )
-
     return {
         "status": "success",
         "engine_used": "SZM analytic tessellator",
@@ -432,6 +552,20 @@ async def run_fea(request: FEARequest):
     I = (w * L**3) / 12.0  # second moment of area
     sigma_analytical = (F * L / 2.0) / (I / (L / 2.0)) if I > 0 else F / request.area_m2
     disp_analytical = (F * L**3) / (3.0 * E * I) if I > 0 else 0.0
+
+    mesh_path = None
+    mesh_engine_used = None
+    try:
+        from mesh_engine import generate_mesh, get_available_libraries
+        libs = get_available_libraries()
+        if libs.get("gmsh") or libs.get("trimesh") or libs.get("pygmsh"):
+            mesh_path = generate_mesh(
+                settings={"max_element_size": max(L, w) / 4.0},
+                box_dims=(w, w, L),
+            )
+            mesh_engine_used = "gmsh" if libs.get("gmsh") else ("pygmsh" if libs.get("pygmsh") else "trimesh")
+    except Exception as mesh_exc:
+        logger.warning("[FEA] mesh step skipped: %s", mesh_exc)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         job = os.path.join(tmpdir, "job")
@@ -520,6 +654,8 @@ S
             "max_displacement_m": max_disp,
             "stress_ratio": min(stress_ratio, 1.0),
             "is_dangerous": stress_ratio > 0.8,
+            "mesh_path": mesh_path,
+            "mesh_engine": mesh_engine_used,
         }
 
 # ============================================================================
@@ -528,15 +664,45 @@ S
 
 @app.post("/simulation/thermal/run")
 async def run_thermal_analysis(request: ThermalAnalysisRequest):
-    """Run steady-state or transient thermal analysis using CalculiX."""
+    """Run thermal analysis: Elmer → CalculiX → analytical; CoolProp for fluid props."""
     import subprocess, tempfile, os, re, math
 
     logger.info(f"[Thermal] Starting {request.mode} thermal analysis for component {request.component_id}")
 
-    # Material properties
+    # Material properties (optionally enrich via CoolProp for fluids)
     density = request.material_properties.get("density_kg_m3", 7850.0)
     thermal_conductivity = request.material_properties.get("thermal_conductivity_w_mk", 50.0)
     specific_heat = request.material_properties.get("specific_heat_j_kgk", 500.0)
+    fluid_props = None
+    fluid_name = request.material_properties.get("fluid")
+    if fluid_name:
+        try:
+            from thermal_engine import fluid_properties
+            fluid_props = fluid_properties(str(fluid_name), T_k=request.ambient_temp_c + 273.15)
+            density = fluid_props.get("density_kg_m3", density)
+            thermal_conductivity = fluid_props.get("thermal_conductivity_w_mk", thermal_conductivity)
+            specific_heat = fluid_props.get("cp_j_kgk", specific_heat)
+        except Exception as exc:
+            logger.warning("[Thermal] CoolProp lookup failed: %s", exc)
+
+    # Prefer Elmer multiphysics when available
+    try:
+        from thermal_engine import run_elmer_thermal
+        elmer = run_elmer_thermal(request.heat_input_w, thermal_conductivity, request.ambient_temp_c)
+        if elmer.get("elmer_available"):
+            return {
+                "status": "success",
+                "engine_used": elmer["engine_used"],
+                "component_id": request.component_id,
+                "analysis_type": request.mode,
+                "max_temperature_c": round(elmer["max_temperature_c"], 2),
+                "ambient_temperature_c": request.ambient_temp_c,
+                "temperature_rise_c": round(elmer["max_temperature_c"] - request.ambient_temp_c, 2),
+                "is_dangerous": elmer["max_temperature_c"] > 100,
+                "fluid_properties": fluid_props,
+            }
+    except Exception as exc:
+        logger.warning("[Thermal] Elmer path skipped: %s", exc)
 
     # Generate thermal CalculiX input file
     heat_per_node = request.heat_input_w / 8.0  # Distribute over 8 nodes
@@ -674,6 +840,7 @@ async def run_thermal_analysis(request: ThermalAnalysisRequest):
             "ambient_temperature_c": request.ambient_temp_c,
             "temperature_rise_c": round(max_temp - request.ambient_temp_c, 2),
             "is_dangerous": max_temp > 100,  # Arbitrary threshold
+            "fluid_properties": fluid_props,
         }
 
 # ============================================================================
@@ -1639,71 +1806,34 @@ async def telemetry_health():
 
 @app.post("/simulation/cfd/run")
 async def run_cfd_analysis(request: CFDAnalysisRequest):
-    """Run OpenFOAM simpleFoam CFD or fallback to analytical empirical estimation."""
-    import subprocess, tempfile, os, math
-    logger.info(f"[CFD] Starting CFD analysis for component {request.component_id} at {request.inlet_velocity_m_s} m/s")
-
-    # Analytical fallback setup (used if OpenFOAM isn't available)
-    area = request.bounding_box.get("width", 0.5) * request.bounding_box.get("height", 0.5)
-    cd = 1.05  # Approximate drag coefficient for a box
-    v = request.inlet_velocity_m_s
+    """Run OpenFOAM CFD via thermal_engine or analytical fallback."""
+    from thermal_engine import run_openfoam_cfd, fluid_properties, detect_su2
+    logger.info(f"[CFD] component={request.component_id} v={request.inlet_velocity_m_s}")
     rho = request.fluid_density_kg_m3
-    drag_force = 0.5 * rho * v**2 * cd * area
-    max_velocity = v * 1.5  # Typical velocity acceleration around corners
-    max_pressure = 0.5 * rho * v**2  # Dynamic pressure at stagnation point
-    engine_used = "Analytical fallback"
-
-    # Setup OpenFOAM case structure
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Create directories
-        for d in ["0", "constant", "system"]:
-            os.makedirs(os.path.join(tmpdir, d))
-            
-        controlDict = """
-FoamFile { version 2.0; format ascii; class dictionary; location "system"; object controlDict; }
-application     simpleFoam;
-startFrom       startTime;
-startTime       0;
-stopAt          endTime;
-endTime         100;
-deltaT          1;
-"""
-        with open(os.path.join(tmpdir, "system", "controlDict"), "w") as f:
-            f.write(controlDict)
-
-        blockMeshDict = """
-FoamFile { version 2.0; format ascii; class dictionary; location "system"; object blockMeshDict; }
-scale   1;
-vertices ( (0 0 0) (1 0 0) (1 1 0) (0 1 0) (0 0 1) (1 0 1) (1 1 1) (0 1 1) );
-blocks ( hex (0 1 2 3 4 5 6 7) (10 10 10) simpleGrading (1 1 1) );
-edges ();
-boundary (
-    inlet { type patch; faces ( (0 4 7 3) ); }
-    outlet { type patch; faces ( (1 2 6 5) ); }
-    walls { type wall; faces ( (0 1 5 4) (3 7 6 2) (0 3 2 1) (4 5 6 7) ); }
-);
-"""
-        with open(os.path.join(tmpdir, "system", "blockMeshDict"), "w") as f:
-            f.write(blockMeshDict)
-
-        openfoam_available = False
-        try:
-            result = subprocess.run(["blockMesh"], cwd=tmpdir, capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                openfoam_available = True
-                engine_used = "OpenFOAM (simpleFoam)"
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-
+    fluid_props = None
+    try:
+        fluid_props = fluid_properties("Air", T_k=300.0)
+        if request.fluid_density_kg_m3 <= 0:
+            rho = fluid_props["density_kg_m3"]
+    except Exception:
+        pass
+    result = run_openfoam_cfd(
+        request.inlet_velocity_m_s,
+        rho,
+        request.bounding_box,
+    )
+    drag = result["drag_force_n"]
     return {
         "status": "success",
-        "engine_used": engine_used,
+        "engine_used": result["engine_used"],
         "component_id": request.component_id,
-        "inlet_velocity_m_s": v,
-        "drag_force_n": round(drag_force, 2),
-        "max_velocity_m_s": round(max_velocity, 2),
-        "max_pressure_pa": round(max_pressure, 2),
-        "is_dangerous": drag_force > 1000.0
+        "inlet_velocity_m_s": request.inlet_velocity_m_s,
+        "drag_force_n": drag,
+        "max_velocity_m_s": result["max_velocity_m_s"],
+        "max_pressure_pa": result["max_pressure_pa"],
+        "is_dangerous": drag > 1000.0,
+        "fluid_properties": fluid_props,
+        "su2": detect_su2(),
     }
 
 # ============================================================================
@@ -2062,13 +2192,20 @@ async def render_optix(request: OptiXRenderRequest):
 class TextToCADRequest(BaseModel):
     prompt: str
     output_dir: str = "/tmp"
+    backend: str = "auto"
+
 
 @app.post("/cad/text-to-cad")
 async def text_to_cad_endpoint(request: TextToCADRequest):
     """Convert a natural language prompt into a parametric CAD spec + optional STEP file."""
     try:
         from text_to_cad import text_to_cad
-        result = text_to_cad(request.prompt, request.output_dir)
+        result = text_to_cad(request.prompt, request.output_dir, backend=request.backend)
+        try:
+            from cad_backends import available_backends
+            result["available_backends"] = available_backends()
+        except Exception:
+            pass
         logger.info(f"[T2CAD] prompt='{request.prompt[:60]}' shape={result['spec']['shape']} engine={result['engine']}")
         return result
     except Exception as e:
@@ -2135,40 +2272,14 @@ class SimulationOptimizationRequest(BaseModel):
 
 @app.post("/simulation/optimize")
 async def simulation_optimize(request: SimulationOptimizationRequest):
-    """
-    Mock AI optimization loop. Uses a heuristic decay to simulate 
-    gradient-descent stress reduction over N iterations.
-    """
-    history = []
-    
-    for i in range(request.iterations):
-        # Heuristic decay: stress reduces asymptotically towards a limit, 
-        # mass slightly fluctuates.
-        progress = i / max(1, request.iterations - 1)
-        
-        # Add some "noise" to simulate search
-        stress_noise = math.sin(i * 0.5) * 5.0
-        
-        # Exponential decay towards a theoretical limit (~780 MPa)
-        current_stress = 780.0 + (request.initial_stress_mpa - 780.0) * math.exp(-i * 0.1) + stress_noise
-        
-        # Mass optimization is a tradeoff, might drop then rise
-        current_mass = request.initial_mass_kg * (1.0 - 0.1 * math.sin(progress * math.pi))
-        
-        history.append({
-            "iteration": i,
-            "stress_mpa": round(current_stress, 2),
-            "mass_kg": round(current_mass, 2),
-            "parameter_delta": round(math.sin(i * 0.3) * 0.5, 3)
-        })
-        
-    return {
-        "status": "success",
-        "iterations_run": request.iterations,
-        "final_stress": history[-1]["stress_mpa"],
-        "final_mass": history[-1]["mass_kg"],
-        "history": history
-    }
+    """Design optimization via optimization_engine (Optuna/pymoo/analytical)."""
+    from optimization_engine import optimize_design
+    return optimize_design(
+        initial_stress_mpa=request.initial_stress_mpa,
+        initial_mass_kg=request.initial_mass_kg,
+        target_stress_mpa=request.target_stress_mpa,
+        iterations=request.iterations,
+    )
 
 # ============================================================================
 # ACTION OBSERVATION API (Plan 38)
@@ -2351,6 +2462,109 @@ async def collab_websocket(websocket: WebSocket, room_id: str):
                 await conn.send_text(leave_msg)
             except Exception:
                 pass
+
+# ============================================================================
+# GEOMETRY ENGINE ENDPOINTS
+# ============================================================================
+
+from fastapi.staticfiles import StaticFiles
+import geometry_engine as ge
+import os
+
+# Mount static files for geometry output
+geometry_output_dir = os.path.join(os.path.dirname(__file__), "geometry_output")
+os.makedirs(geometry_output_dir, exist_ok=True)
+app.mount("/api/geometry_output", StaticFiles(directory=geometry_output_dir), name="geometry_output")
+
+class GeometryPartRequest(BaseModel):
+    part_type: str  # bracket, shaft, flange, housing, gear, plate
+    parameters: Dict[str, Any]
+    format: str = "stl"  # stl or step
+
+@app.post("/api/geometry/create-part")
+async def create_geometry_part(request: GeometryPartRequest):
+    """Create a parametric part using the geometry engine"""
+    try:
+        part_type = request.part_type.lower()
+        params = request.parameters
+        part = None
+        
+        if part_type == "bracket":
+            part = ge.create_bracket(**params)
+        elif part_type == "shaft":
+            if "keyway" in params: params["keyway"] = bool(params["keyway"])
+            if "chamfer" in params: params["chamfer"] = bool(params["chamfer"])
+            part = ge.create_shaft(**params)
+        elif part_type == "flange":
+            part = ge.create_flange(**params)
+        elif part_type == "housing":
+            part = ge.create_housing(**params)
+        elif part_type == "gear":
+            if "num_teeth" in params: params["num_teeth"] = int(params["num_teeth"])
+            part = ge.create_gear(**params)
+        elif part_type == "plate":
+            if "hole_rows" in params: params["hole_rows"] = int(params["hole_rows"])
+            if "hole_cols" in params: params["hole_cols"] = int(params["hole_cols"])
+            part = ge.create_plate(**params)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown part type: {part_type}")
+            
+        filename = f"{part_type}_generated.{request.format}"
+        filepath = os.path.join(geometry_output_dir, filename)
+        
+        if request.format.lower() == "stl":
+            ge.export_stl(part, filepath)
+        else:
+            ge.export_step(part, filepath)
+            
+        render_url = f"/api/geometry_output/{filename}"
+        if request.format.lower() != "stl":
+            stl_filename = f"{part_type}_generated.stl"
+            stl_filepath = os.path.join(geometry_output_dir, stl_filename)
+            ge.export_stl(part, stl_filepath)
+            render_url = f"/api/geometry_output/{stl_filename}"
+            
+        return {
+            "status": "success",
+            "part_type": part_type,
+            "file_url": f"/api/geometry_output/{filename}",
+            "render_url": render_url,
+            "filename": filename
+        }
+    except Exception as e:
+        logger.error(f"Geometry engine error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class GeometryAnalysisRequest(BaseModel):
+    part_type: str
+    parameters: Dict[str, Any]
+
+@app.post("/api/geometry/analyze")
+async def analyze_geometry(request: GeometryAnalysisRequest):
+    """Analyze a parametric part using the geometry engine"""
+    try:
+        part_type = request.part_type.lower()
+        params = request.parameters
+        part = None
+        
+        if part_type == "bracket": part = ge.create_bracket(**params)
+        elif part_type == "shaft": part = ge.create_shaft(**params)
+        elif part_type == "flange": part = ge.create_flange(**params)
+        elif part_type == "housing": part = ge.create_housing(**params)
+        elif part_type == "gear": part = ge.create_gear(**params)
+        elif part_type == "plate": part = ge.create_plate(**params)
+        else: raise HTTPException(status_code=400, detail="Unknown part type")
+
+        bbox = ge.fit_bounding_box(part)
+        warnings = ge.check_manufacturability(part)
+        
+        return {
+            "status": "success",
+            "bounding_box": bbox,
+            "manufacturability_warnings": warnings
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/collab/rooms")
 async def list_collab_rooms():

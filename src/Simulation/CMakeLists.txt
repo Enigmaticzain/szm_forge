@@ -4,6 +4,8 @@ add_library(SZM_Simulation_Module
     SimulationComponent.hpp
     Scheduler.cpp
     CouplingManager.cpp
+    BridgeClient.cpp
+    BridgeClient.hpp
     ../Scene/Scene.cpp
 )
 

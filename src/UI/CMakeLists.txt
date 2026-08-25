@@ -23,6 +23,10 @@ add_library(SZM_UI_Module STATIC
     panels/ToolbarPanel.cpp
     panels/DashboardPanel.cpp
     panels/ModernDashboardPanel.cpp
+    panels/EngineeringStackPanel.cpp
+    panels/CadToolsPanel.cpp
+    panels/MeshToolsPanel.cpp
+    panels/FeaToolsPanel.cpp
     panels/ViewportPanel.cpp
     panels/InteractiveViewportPanel.cpp
     panels/SelectionPropertiesPanel.cpp

@@ -3,6 +3,8 @@
 #include "../UITooltipHelper.hpp"
 #include "../WorkshopTooltips.hpp"
 #include "../../Simulation/SimulationEngine.hpp"
+#include "../../Simulation/BridgeClient.hpp"
+#include <chrono>
 
 namespace WT = SZM::WorkshopTooltips;
 #include <imgui.h>
@@ -72,7 +74,7 @@ void ToolbarPanel::DrawSpeedControl() {
     ImGui::SetNextItemWidth(120.0f);
     
     if (ImGui::SliderFloat("Speed##sim", &m_SimulationSpeed, 0.1f, 2.0f, "%.1fx")) {
-        engine.SetTimeScale(static_cast<double>(m_SimulationSpeed));
+        SZM::SimulationEngine::GetInstance().SetTimeScale(static_cast<double>(m_SimulationSpeed));
     }
     SZM::UITooltip::Hover(WT::ToolbarSpeed);
     
@@ -140,4 +142,30 @@ void ToolbarPanel::DrawStatus() {
     ImGui::TextDisabled("Components: %zu", componentCount);
     ImGui::TextDisabled("At risk: %zu", dangerCount);
     ImGui::TextDisabled("Speed: %.1fx", m_SimulationSpeed);
+
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now - m_LastBridgeRefresh).count();
+    if (elapsed >= m_BridgeRefreshIntervalSec || !m_BridgeStatus.has_value()) {
+        m_LastBridgeRefresh = now;
+        m_BridgeStatus = SZM::BridgeClient::FetchStackStatus();
+    }
+    if (m_BridgeStatus && m_BridgeStatus->connected) {
+        SZM::UIStyleHelper::StatusBadge("online");
+        ImGui::SameLine();
+        ImGui::TextDisabled("Bridge: %d/%d tools",
+            m_BridgeStatus->available, m_BridgeStatus->totalTools);
+        if (m_BridgeStatus->cadReady) {
+            ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.45f, 1.f), "CAD ready");
+        }
+        if (m_BridgeStatus->meshReady) {
+            ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.45f, 1.f), "Mesh ready");
+        }
+        if (m_BridgeStatus->feaReady) {
+            ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.45f, 1.f), "FEA ready");
+        }
+    } else {
+        SZM::UIStyleHelper::StatusBadge("offline");
+        ImGui::SameLine();
+        ImGui::TextDisabled("Bridge :8003 offline");
+    }
 }

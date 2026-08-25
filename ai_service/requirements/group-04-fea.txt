@@ -1,0 +1,2 @@
+-r group-03-mesh.txt
+sfepy>=2024.1

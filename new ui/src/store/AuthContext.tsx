@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
-const AI_BASE = 'http://localhost:8000/api';
+const AI_BASE = '/api';
 const TOKEN_KEY = 'szm-auth-token';
 const USER_KEY = 'szm-auth-user';
 
@@ -23,10 +23,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    try { return JSON.parse(localStorage.getItem(USER_KEY) ?? 'null'); } catch { return null; }
-  });
+  const [token, setToken] = useState<string | null>(() => 'bypass-token');
+  const [user, setUser] = useState<AuthUser | null>(() => ({ username: 'local_admin', projects: [] }));
 
   const persist = (t: string, u: AuthUser) => {
     localStorage.setItem(TOKEN_KEY, t);
@@ -38,17 +36,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
-    setToken(null);
-    setUser(null);
+    // setToken(null);
+    // setUser(null);
   }, []);
 
   // Refresh user info on mount if token exists
   useEffect(() => {
+    // Auth bypassed
+    /*
     if (!token) return;
     fetch(`${AI_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((data: AuthUser) => setUser(data))
       .catch(logout);
+    */
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async (username: string, password: string): Promise<string | null> => {

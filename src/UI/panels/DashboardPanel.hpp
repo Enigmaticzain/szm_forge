@@ -2,9 +2,11 @@
 
 #include "../IPanel.hpp"
 #include "../../Simulation/SimulationEngine.hpp"
+#include "../../Simulation/BridgeClient.hpp"
 #include <imgui.h>
 #include <deque>
 #include <chrono>
+#include <optional>
 
 /**
  * @class DashboardPanel
@@ -33,6 +35,8 @@ private:
     void RenderComponentStatistics();
     void RenderSimulationStatus();
     void RenderSystemHealth();
+    void RenderEngineeringStackStatus();
+    void RefreshBridgeStatus();
     void RenderTrendGraphs();
     void RenderWarnings();
     
@@ -74,4 +78,8 @@ private:
     bool m_ShowDetailedMetrics = false;
     bool m_ShowGraphs = true;
     bool m_ShowWarnings = true;
+
+    std::optional<SZM::BridgeClient::StackStatus> m_BridgeStatus;
+    std::chrono::steady_clock::time_point m_LastBridgeRefresh{};
+    double m_BridgeRefreshIntervalSec = 8.0;
 };
