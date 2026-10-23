@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Wand2, Loader2, Box, Cylinder, Circle, Triangle, Donut, Download, Plus, AlertCircle } from 'lucide-react';
 import * as THREE from 'three';
 
-const BRIDGE_BASE = 'http://localhost:8003';
+import { textToCad } from '../services/forgeApi';
 
 interface CADSpec {
   shape: string;
@@ -144,13 +144,8 @@ export const TextToCADPanel: React.FC = () => {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch(`${BRIDGE_BASE}/cad/text-to-cad`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: p }),
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data: T2CADResult = await res.json();
+      const data = await textToCad(p) as T2CADResult | null;
+      if (!data) throw new Error('Could not parse prompt');
       setResult(data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Request failed');
@@ -294,15 +289,6 @@ export const TextToCADPanel: React.FC = () => {
 
             {/* Actions */}
             <div className="flex gap-2">
-              {result.step_available && result.step_file && (
-                <a
-                  href={`${BRIDGE_BASE}/cad/download?path=${encodeURIComponent(result.step_file)}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-forge-green/10 text-forge-green border border-forge-green/20 text-[10px] font-semibold hover:bg-forge-green/20 transition-all"
-                >
-                  <Download size={11} />
-                  DOWNLOAD STEP
-                </a>
-              )}
               <button
                 onClick={() => {
                   const json = JSON.stringify(result.spec, null, 2);
@@ -312,10 +298,10 @@ export const TextToCADPanel: React.FC = () => {
                   a.href = url; a.download = `szm_t2cad_${spec.shape}.json`;
                   a.click(); URL.revokeObjectURL(url);
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-forge-surface text-forge-text-dim border border-forge-border/50 text-[10px] font-semibold hover:border-forge-border transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-forge-green/10 text-forge-green border border-forge-green/20 text-[10px] font-semibold hover:bg-forge-green/20 transition-all"
               >
                 <Download size={11} />
-                EXPORT SPEC
+                EXPORT STL SPEC
               </button>
               <button
                 onClick={() => { setResult(null); setPrompt(''); }}

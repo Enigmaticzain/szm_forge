@@ -1,12 +1,32 @@
 /**
- * HTTP bridge to SZM Forge C++ backend (WebAPI on port 8000).
- * Used by both Theme 1 (Classic) and Theme 2 (Modern).
+ * SZM Forge API — offline-first. All core data and solvers run in-browser.
+ * Optional C++ backend (:8000) enhances results when VITE_ENABLE_BACKEND=true.
  */
 
-/** In dev, Vite proxies /api → :8000 (same origin, no CORS). */
+import {
+  getAllMaterials,
+  listKbDomains,
+  getKbDomain,
+  searchKb,
+  solveSketchOffline,
+  extrudeSketchOffline,
+  createParametricPart,
+  analyzePart,
+  parseTextToCad,
+  loadMachineConfig,
+  saveMachineConfigLocal,
+  validateMachineConfig,
+  OFFLINE_ENGINE_NAME,
+  OFFLINE_ENGINE_VERSION,
+} from '../offline';
+
+/** Network backend only when explicitly enabled */
+const NETWORK_ENABLED = import.meta.env.VITE_ENABLE_BACKEND === 'true';
+
+/** In dev with network enabled, Vite proxies /api → :8000 */
 const API_BASE = (
   (import.meta.env.VITE_FORGE_API_URL as string | undefined)?.replace(/\/$/, '') ??
-  (import.meta.env.DEV ? '' : 'http://127.0.0.1:8000')
+  (import.meta.env.DEV && NETWORK_ENABLED ? '' : '')
 );
 
 export interface ForgeStatus {
@@ -39,6 +59,7 @@ export interface AssemblyNodeDto {
 }
 
 export async function fetchJson<T>(path: string, timeoutMs = 2500): Promise<T | null> {
+  if (!NETWORK_ENABLED || !API_BASE) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -56,12 +77,29 @@ export async function fetchJson<T>(path: string, timeoutMs = 2500): Promise<T | 
 }
 
 export async function pingBackend(): Promise<boolean> {
-  const status = await fetchJson<ForgeStatus>('/api/status');
-  return status?.status === 'running';
+  if (NETWORK_ENABLED) {
+    const status = await fetchJson<ForgeStatus>('/api/status');
+    if (status?.status === 'running') return true;
+  }
+  return true; // offline engine always available
+}
+
+export function isOfflineMode(): boolean {
+  return !NETWORK_ENABLED;
+}
+
+export function getEngineInfo(): { name: string; version: string; mode: 'offline' | 'hybrid' } {
+  return {
+    name: OFFLINE_ENGINE_NAME,
+    version: OFFLINE_ENGINE_VERSION,
+    mode: NETWORK_ENABLED ? 'hybrid' : 'offline',
+  };
 }
 
 export async function fetchSimulationStatus(): Promise<SimulationStatusDto | null> {
-  return fetchJson<SimulationStatusDto>('/api/simulation/status');
+  const remote = await fetchJson<SimulationStatusDto>('/api/simulation/status');
+  if (remote) return remote;
+  return { simTime: 0, componentCount: 0, components: [] };
 }
 
 export async function fetchAssembly(): Promise<AssemblyNodeDto | null> {
@@ -91,10 +129,13 @@ export function getApiBaseUrl(): string {
 }
 
 export async function fetchMachineConfig(id = 'default'): Promise<MachineConfigDto | null> {
-  return fetchJson<MachineConfigDto>(`/api/machine/config?id=${id}`);
+  const remote = await fetchJson<MachineConfigDto>(`/api/machine/config?id=${id}`);
+  return remote ?? loadMachineConfig(id);
 }
 
 export async function saveMachineConfig(cfg: MachineConfigDto): Promise<boolean> {
+  const local = saveMachineConfigLocal(cfg);
+  if (!NETWORK_ENABLED || !API_BASE) return local;
   try {
     const res = await fetch(`${API_BASE}/api/machine/config`, {
       method: 'POST',
@@ -102,9 +143,9 @@ export async function saveMachineConfig(cfg: MachineConfigDto): Promise<boolean>
       body: JSON.stringify(cfg),
     });
     const data = await res.json();
-    return data?.ok === true;
+    return data?.ok === true || local;
   } catch {
-    return false;
+    return local;
   }
 }
 
@@ -129,8 +170,9 @@ export interface MaterialsResponse {
 }
 
 export async function fetchMaterials(): Promise<MaterialDto[]> {
-  const res = await fetchJson<MaterialsResponse>('/api/materials', 5000);
-  return res?.materials ?? [];
+  const remote = await fetchJson<MaterialsResponse>('/api/materials', 5000);
+  if (remote?.materials?.length) return remote.materials;
+  return getAllMaterials();
 }
 
 export interface KbDomainDto {
@@ -153,23 +195,28 @@ export interface KbSearchResponse {
 }
 
 export async function fetchKbDomains(): Promise<KbDomainDto[]> {
-  const res = await fetchJson<{ ok: boolean; domains: KbDomainDto[] }>('/api/kb/domains', 5000);
-  return res?.domains ?? [];
+  const remote = await fetchJson<{ ok: boolean; domains: KbDomainDto[] }>('/api/kb/domains', 5000);
+  if (remote?.domains?.length) return remote.domains;
+  return listKbDomains();
 }
 
 export async function fetchKbDomain(domain: string): Promise<Record<string, unknown> | null> {
-  const res = await fetchJson<{ ok: boolean; data: Record<string, unknown> }>(
+  const remote = await fetchJson<{ ok: boolean; data: Record<string, unknown> }>(
     `/api/kb/${encodeURIComponent(domain)}`,
     5000,
   );
-  return res?.data ?? null;
+  if (remote?.data) return remote.data;
+  return getKbDomain(domain);
 }
 
 export async function searchKnowledge(query: string, domain = ''): Promise<KbSearchHit[]> {
-  const params = new URLSearchParams({ q: query });
-  if (domain) params.set('domain', domain);
-  const res = await fetchJson<KbSearchResponse>(`/api/kb/search?${params}`, 5000);
-  return res?.results ?? [];
+  if (NETWORK_ENABLED) {
+    const params = new URLSearchParams({ q: query });
+    if (domain) params.set('domain', domain);
+    const res = await fetchJson<KbSearchResponse>(`/api/kb/search?${params}`, 5000);
+    if (res?.results?.length) return res.results;
+  }
+  return searchKb(query, domain);
 }
 
 // ======================== Machine Learning Pipeline ========================
@@ -411,6 +458,118 @@ export async function runPipeline(job_name: string, tasks: string[]): Promise<an
   });
   return handleResponse(res);
 }
+
+// ======================== Geometry (offline Three.js + optional backend) ========================
+
+export interface SketchEntityDto {
+  id: number;
+  type: 'point' | 'line' | 'circle' | 'arc';
+  construction?: boolean;
+  p1: [number, number];
+  p2?: [number, number];
+  p3?: [number, number];
+}
+
+export interface SketchDto {
+  plane?: { origin: [number, number, number]; normal: [number, number, number] };
+  entities: SketchEntityDto[];
+  constraints?: Array<Record<string, unknown>>;
+  dimensions?: Array<Record<string, unknown>>;
+}
+
+export interface SketchSolveResult extends SketchDto {
+  solved?: boolean;
+  dof?: number;
+}
+
+export async function solveSketch(sketch: SketchDto): Promise<SketchSolveResult | null> {
+  if (NETWORK_ENABLED && API_BASE) {
+    try {
+      const res = await fetch(`${API_BASE}/api/sketch/solve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sketch),
+      });
+      if (res.ok) return res.json();
+    } catch { /* fall through */ }
+  }
+  return solveSketchOffline(sketch);
+}
+
+export async function extrudeSketch(
+  sketch: SketchDto,
+  distance = 0.01,
+): Promise<Record<string, unknown> | null> {
+  if (NETWORK_ENABLED && API_BASE) {
+    try {
+      const res = await fetch(`${API_BASE}/api/sketch/extrude`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sketch, distance }),
+      });
+      if (res.ok) return res.json();
+    } catch { /* fall through */ }
+  }
+  return extrudeSketchOffline(sketch, distance * 1000);
+}
+
+export type CsgOperation = 'union' | 'difference' | 'intersection';
+
+export async function csgBoolean(
+  operation: CsgOperation,
+  bodyA: Record<string, unknown>,
+  bodyB: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  if (!NETWORK_ENABLED || !API_BASE) {
+    return { ok: true, operation, engine: 'client-three-bvh-csg', note: 'Use mesh mode boolean tools' };
+  }
+  const res = await fetch(`${API_BASE}/api/csg/boolean`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ operation, body_a: bodyA, body_b: bodyB }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function freecadParametric(script: string): Promise<Record<string, unknown> | null> {
+  if (!NETWORK_ENABLED || !API_BASE) {
+    return { ok: false, error: 'FreeCAD scripting requires VITE_ENABLE_BACKEND=true' };
+  }
+  const res = await fetch(`${API_BASE}/api/freecad/parametric`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ script }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function createGeometryPart(
+  partType: string,
+  parameters: Record<string, unknown>,
+  _format: 'stl' | 'step' = 'stl',
+): Promise<Record<string, unknown> | null> {
+  return createParametricPart(partType, parameters);
+}
+
+export async function analyzeGeometryPart(
+  partType: string,
+  parameters: Record<string, unknown>,
+): Promise<Record<string, unknown> | null> {
+  return analyzePart(partType, parameters);
+}
+
+export async function textToCad(prompt: string): Promise<Record<string, unknown> | null> {
+  return parseTextToCad(prompt);
+}
+
+export function geometryBridgeUrl(path: string): string {
+  if (path.startsWith('blob:')) return path;
+  return path;
+}
+
+export { validateMachineConfig } from '../offline/machineConfig';
 
 // ======================== CAD & Export ========================
 

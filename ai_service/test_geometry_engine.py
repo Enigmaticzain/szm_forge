@@ -5,7 +5,7 @@ import sys
 import traceback
 
 sys.path.insert(0, os.path.dirname(__file__))
-import geometry_engine as ge
+import engines.geometry_engine as ge
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "geometry_output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)

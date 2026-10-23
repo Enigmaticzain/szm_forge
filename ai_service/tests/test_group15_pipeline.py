@@ -1,4 +1,4 @@
-from pipeline_engine import get_pipeline_engine
+from ai.pipeline_engine import get_pipeline_engine
 
 
 def test_pipeline_run():

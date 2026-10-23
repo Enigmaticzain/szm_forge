@@ -253,6 +253,7 @@ if(SZM_BUILD_FULL_DESKTOP)
     add_subdirectory(src/AI/Predictions)
     add_subdirectory(src/WebAPI)
     add_subdirectory(src/DigitalTwin)
+    add_subdirectory(src/Omniverse)
 
     # ========================================================
     #  Main Executable
@@ -283,6 +284,7 @@ if(SZM_BUILD_FULL_DESKTOP)
         SZM_AI_Predictions_Module
         SZM_WebAPI_Module
         SZM_DigitalTwin_Module
+        SZM_Omniverse_Module
         glfw
         glad
         OpenGL::GL
@@ -309,6 +311,7 @@ else()
     add_subdirectory(src/WebAPI)
     add_subdirectory(src/WebViewer)
     add_subdirectory(src/Chemistry)
+    add_subdirectory(src/Omniverse)
 
     # ========================================================
     #  React UI Build (if enabled)
@@ -374,5 +377,6 @@ else()
         SZM_WebAPI_Module
         SZM_WebViewer_Module
         SZM_Chemistry_Module
+        SZM_Omniverse_Module
     )
 endif()

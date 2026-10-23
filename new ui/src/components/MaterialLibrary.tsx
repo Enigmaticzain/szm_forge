@@ -38,7 +38,7 @@ export const MaterialLibrary: React.FC = () => {
       const mats = await fetchMaterials();
       if (cancelled) return;
       if (mats.length === 0) {
-        setError('No materials returned. Start the SZM Forge backend on port 8000.');
+        setError('No materials in library.');
       } else {
         setMaterials(mats);
         setSelectedMaterial(mats[0].id);

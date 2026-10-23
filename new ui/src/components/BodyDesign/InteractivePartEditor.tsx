@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
-import { Evaluator, Brush, SUBTRACTION } from 'three-bvh-csg';
+import { Evaluator, Brush, SUBTRACTION, ADDITION, INTERSECTION } from 'three-bvh-csg';
 
 const disposeObjectTree = (obj: THREE.Object3D) => {
   if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments || obj instanceof THREE.Line) {
@@ -62,12 +62,15 @@ interface GeometrySize {
   z: number;
 }
 
+export type BooleanOperation = 'subtract' | 'union' | 'intersect';
+
 interface Props {
   objects: SceneObject[];
   selectedId: string | null;
   transformMode: 'translate' | 'scale';
   deformSelectionMode?: DeformSelectionMode;
   booleanToolMode?: boolean; // If true, clicking selects a tool to cut the selectedId
+  booleanOperation?: BooleanOperation;
   isSnappingEnabled?: boolean;
   deformBrushSize?: number;
   onObjectChange: (id: string, newSize: GeometrySize, newPos: GeometrySize) => void;
@@ -318,6 +321,7 @@ export const InteractivePartEditor: React.FC<Props> = ({
   transformMode,
   deformSelectionMode = 'object',
   booleanToolMode,
+  booleanOperation = 'subtract',
   isSnappingEnabled,
   deformBrushSize = 30,
   onObjectChange,
@@ -345,6 +349,7 @@ export const InteractivePartEditor: React.FC<Props> = ({
   const objectsRef = useRef(objects);
   const selectedIdRef = useRef(selectedId);
   const booleanToolModeRef = useRef(booleanToolMode);
+  const booleanOperationRef = useRef(booleanOperation);
   const deformSelectionModeRef = useRef(deformSelectionMode);
   const deformBrushSizeRef = useRef(deformBrushSize);
   const onObjectChangeRef = useRef(onObjectChange);
@@ -357,6 +362,7 @@ export const InteractivePartEditor: React.FC<Props> = ({
   objectsRef.current = objects;
   selectedIdRef.current = selectedId;
   booleanToolModeRef.current = booleanToolMode;
+  booleanOperationRef.current = booleanOperation;
   deformSelectionModeRef.current = deformSelectionMode;
   deformBrushSizeRef.current = deformBrushSize;
   onObjectChangeRef.current = onObjectChange;
@@ -949,8 +955,11 @@ export const InteractivePartEditor: React.FC<Props> = ({
       const brush2 = new Brush(toolMesh.geometry, toolMesh.material as THREE.Material);
       brush2.matrix.copy(toolMesh.matrixWorld);
 
+      const op = booleanOperationRef.current;
+      const csgOp = op === 'union' ? ADDITION : op === 'intersect' ? INTERSECTION : SUBTRACTION;
+
       const evaluator = new Evaluator();
-      const result = evaluator.evaluate(brush1, brush2, SUBTRACTION);
+      const result = evaluator.evaluate(brush1, brush2, csgOp);
       const finalGeo = result.geometry.clone();
       
       const inverseMatrix = new THREE.Matrix4().copy(targetMesh.matrixWorld).invert();

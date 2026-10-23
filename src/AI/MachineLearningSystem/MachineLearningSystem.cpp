@@ -10,6 +10,7 @@
 #include "Simulation/SimulationEngine.hpp"
 #include "Scene/Scene.hpp"
 #include "Scene/Components.hpp"
+#include "Omniverse/OmniverseConnector.hpp"
 
 namespace SZM::AI::Machines {
 
@@ -1023,6 +1024,70 @@ bool MachineLearningSystem::IntegrateMachineIntoApp(GeneratedMachine& machine) {
     std::cout << "[MachineLearningSystem] Machine '" << machine.name << "' integrated successfully!" << std::endl;
     
     return true;
+}
+
+bool MachineLearningSystem::PushMachineToOmniverse(const GeneratedMachine& machine) {
+    std::cout << "[MachineLearningSystem] Generating native C++ USDA and pushing to Omniverse Nucleus..." << std::endl;
+    
+    // Check if connected
+    auto& connector = SZM::Omniverse::OmniverseConnector::GetInstance();
+    
+    // Generate USDA content natively in C++
+    std::ostringstream usda;
+    usda << "#usda 1.0\n";
+    usda << "(\n";
+    usda << "    defaultPrim = \"" << GenerateClassName(machine.name) << "\"\n";
+    usda << "    upAxis = \"Z\"\n";
+    usda << "    metersPerUnit = 1.0\n";
+    usda << ")\n\n";
+    
+    // Physics Scene
+    usda << "def PhysicsScene \"PhysicsScene\"\n";
+    usda << "{\n";
+    usda << "    vector3f physics:gravityDirection = (0, 0, -1)\n";
+    usda << "    float physics:gravityMagnitude = 9.81\n";
+    usda << "}\n\n";
+    
+    // Root Prim
+    usda << "def Xform \"" << GenerateClassName(machine.name) << "\"\n";
+    usda << "{\n";
+    usda << "    rel physics:articulationRoot = </" << GenerateClassName(machine.name) << ">\n\n";
+    
+    // Generate primitive bodies for components
+    float offset_z = 0.0f;
+    for (size_t i = 0; i < machine.specification.components.size(); ++i) {
+        const auto& comp = machine.specification.components[i];
+        std::string comp_name = GenerateClassName(comp.name) + "_" + std::to_string(i);
+        
+        usda << "    def Cube \"" << comp_name << "\"\n";
+        usda << "    {\n";
+        usda << "        double size = 0.1\n";
+        usda << "        matrix4d xformOp:transform = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, " << offset_z << ", 1) )\n";
+        usda << "        uniform token[] xformOpOrder = [\"xformOp:transform\"]\n";
+        usda << "        bool physics:collisionEnabled = 1\n";
+        usda << "        bool physics:rigidBodyEnabled = 1\n";
+        usda << "    }\n\n";
+        
+        offset_z += 0.1f;
+    }
+    
+    usda << "}\n";
+    
+    std::string usda_content = usda.str();
+    std::vector<uint8_t> buffer(usda_content.begin(), usda_content.end());
+    
+    std::string remote_name = machine.id + ".usda";
+    
+    // Push using connector via direct memory buffer stream
+    bool success = connector.PushAssetStream(remote_name, buffer);
+    
+    if (success) {
+        std::cout << "[MachineLearningSystem] Native USDA '" << machine.name << "' pushed to Omniverse queue successfully!" << std::endl;
+    } else {
+        std::cerr << "[MachineLearningSystem] Failed to push machine '" << machine.name << "' to Omniverse." << std::endl;
+    }
+    
+    return success;
 }
 
 bool MachineLearningSystem::RegisterMachineComponent(

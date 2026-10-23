@@ -28,7 +28,8 @@ from manufacturing_pipeline import ManufacturabilityValidator, GCodeExporter, CN
 from material_synthesis import MaterialSynthesisEngine
 from benchmarking import AIBenchmarker
 from sandbox import EvolutionSandbox
-from auth_routes import router as auth_router
+from auth.auth_routes import router as auth_router
+from ai.llm_provider import generate as llm_generate, provider_status as llm_provider_status, ProviderConfig as LLMProviderConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -725,26 +726,60 @@ async def kg_stats():
 
 @app.post("/api/graphrag/query")
 async def graphrag_query(request: GraphRAGRequest):
-    """Query the Neo4j Knowledge Graph using GraphRAG"""
+    """Query the Neo4j Knowledge Graph using GraphRAG, optionally synthesised by an LLM."""
     try:
         result = szm_ai.neo4j_graph.graph_rag_lookup(request.query)
-        # Format the response to be easily readable by the UI
-        answer = f"{result['insight']}\n\n"
+
+        # Build the GraphRAG-only answer (original behaviour)
+        graphrag_answer = f"{result['insight']}\n\n"
         if result['context']:
-            answer += "Context from Knowledge Graph:\n"
+            graphrag_answer += "Context from Knowledge Graph:\n"
             for item in result['context']:
-                answer += f"- {item}\n"
-        
+                graphrag_answer += f"- {item}\n"
+
+        matched_terms = (
+            ["GraphRAG", "Neo4j"]
+            + [
+                str(k)
+                for item in result['context']
+                for k in item.keys()
+                if k in ('name', 'type')
+            ][:3]
+        )
+
+        # --- LLM synthesis (new) ---
+        llm_result = llm_generate(
+            query=request.query,
+            graphrag_context=graphrag_answer,
+        )
+
+        if llm_result.generated:
+            answer = llm_result.text
+            confidence = 0.88
+            matched_terms = [llm_result.provider, llm_result.model] + matched_terms
+        else:
+            answer = graphrag_answer
+            confidence = 0.92
+
         return {
             "query": request.query,
             "answer": answer,
             "context": result['context'],
-            "confidence": 0.92,
-            "matchedTerms": ["GraphRAG", "Neo4j"] + [str(k) for item in result['context'] for k in item.keys() if k == 'name' or k == 'type'][:3]
+            "confidence": confidence,
+            "matchedTerms": matched_terms,
+            "llm_provider": llm_result.provider,
+            "llm_generated": llm_result.generated,
         }
     except Exception as e:
         logger.error(f"Error querying GraphRAG: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/llm/status")
+async def llm_status():
+    """Report which LLM provider is configured and whether it is ready."""
+    return llm_provider_status()
+
 
 # ======================== Reasoning Endpoints ========================
 

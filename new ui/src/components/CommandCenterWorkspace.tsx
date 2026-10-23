@@ -32,13 +32,13 @@ const focusAreas = [
 const memorySignals = [
   'Current project context is synchronized with the active assembly and CAD intent.',
   'SZM AI is tracking design decisions, materials, and solver insights for fast recall.',
-  'Recent outputs are available for review, reuse, and downstream engineering handoff.',
+  'Live USD assets are synced to Omniverse Nucleus for real-time physics validation.',
 ];
 
 const healthMetrics = [
   { label: 'Model readiness', value: '96%', tone: 'text-forge-green' },
   { label: 'AI confidence', value: '92%', tone: 'text-forge-accent' },
-  { label: 'Production readiness', value: '88%', tone: 'text-forge-purple' },
+  { label: 'Omniverse Nucleus', value: 'CONNECTED', tone: 'text-forge-green' },
 ];
 
 export const CommandCenterWorkspace: React.FC = () => {

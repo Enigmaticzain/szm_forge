@@ -80,7 +80,7 @@ export const tooltips = {
     simulation: 'Loads and boundary conditions on the selected part.',
   },
   backend: {
-    connected: 'Linked to C++ WebAPI — live simulation data on localhost:8000.',
+    connected: 'Built-in offline engine — materials, KB, geometry, and structural solvers run in the app.',
     offline: 'Demo mode — run ./build/SZM_Forge to enable live physics API.',
     refresh: 'Poll simulation status from the embedded HTTP server.',
   },

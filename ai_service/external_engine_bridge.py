@@ -1,87 +1,19 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, ConfigDict, Field
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import uvicorn
-import logging
-import math
-import hmac
-import hashlib
-import base64
-import json
-import time
-import asyncio
-from typing import Any, Dict, List, Optional, Tuple
+import logging/mnt/D/projects/szm_forge/agent_plans
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ExternalEngineBridge")
 
-app = FastAPI(
-    title="SZM Forge - External Engine Bridge",
-    version="0.1.0",
-    description="CAD, meshing, FEA/CFD, optimization, and engineering stack APIs (Groups 2–18).",
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Engineering stack routes (Groups 2–18)
-try:
-    from routes.stack_routes import register_stack_routes
-    from routes.engine_routes import register_engine_routes
-    register_stack_routes(app)
-    register_engine_routes(app)
-except ImportError:
-    try:
-        from stack_routes import register_stack_routes
-        from engine_routes import register_engine_routes
-        register_stack_routes(app)
-        register_engine_routes(app)
-    except ImportError as exc:
-        logger.warning("Stack routes not loaded: %s", exc)
-
-
-@app.get("/", tags=["meta"])
-async def root():
-    """Landing page — avoid bare 404 at http://127.0.0.1:8003/"""
-    return {
-        "service": "SZM Forge External Engine Bridge",
-        "version": "0.1.0",
-        "docs": "/docs",
-        "openapi": "/openapi.json",
-        "stack_health": "/stack/health",
-        "stack_status": "/stack/status",
-        "stack_groups": "/stack/groups",
-        "mesh_libraries": "/mesh/libraries",
-        "fea_status": "/simulation/fea/status",
-        "hint": "Open /docs for interactive API explorer",
-    }
-
-
-@app.get("/favicon.ico", include_in_schema=False)
-async def favicon():
-    return RedirectResponse(url="/docs")
+app = FastAPI(title="SZM Forge - External Engine Bridge")
 
 class CadImportRequest(BaseModel):
     file_path: str
 
 class CadExportRequest(BaseModel):
-    model_config = ConfigDict(protected_namespaces=(), populate_by_name=True)
-
-    geometry_data: str = Field(default="", alias="model_data", description="Optional geometry payload")
-    format: str = "STEP"  # e.g. "STEP", "IGES"
-    shape: str = "box"
-    length: float = 100.0
-    width: float = 50.0
-    height: float = 20.0
-    radius: float = 25.0
-    backend: str = "auto"  # build123d | cadquery | auto
-    output_path: str = "/tmp/exported_model.step"
+    model_data: str
+    format: str # e.g. "STEP", "IGES"
 
 class SimulationRequest(BaseModel):
     setup_json: str
@@ -110,53 +42,6 @@ class FreeCADRequest(BaseModel):
 class STEPAssemblyRequest(BaseModel):
     file_path: str
 
-class CSGRequest(BaseModel):
-    operation: str = "union"   # union | difference | intersect
-    target: dict               # {vertices:[[x,y,z],...], faces:[[i,j,k],...]}
-    tool: dict
-
-class MachineConfigValidateRequest(BaseModel):
-    is_5axis: bool = False
-    linear: list = []   # [{travel_mm, feed_mm_min, accel_mm_s2}, ...] x3
-    rotary: list = []   # [{travel_mm, feed_mm_min, accel_mm_s2}, ...] x2
-
-class MeshTessellationRequest(BaseModel):
-    primitive: str = "box"       # box | cylinder | sphere
-    length: float = 1.0          # metres
-    width: float = 1.0
-    height: float = 1.0
-    radius: float = 0.5
-    max_chordal_error: float = 0.01
-    camera_distance: float = 1.0
-    dynamic_lod: bool = True
-    radial_segments: int = 0     # 0 = derive from chordal error
-    vertical_segments: int = 0   # 0 = derive from radial segments
-    assembly_part_count: int = 1
-    include_mesh: bool = True
-
-class CNCToolpathRequest(BaseModel):
-    component_name: str = "Workshop Part"
-    bounds: dict = Field(default_factory=lambda: {"length": 0.16, "width": 0.10, "depth": 0.012})
-    operation: str = "pocket"    # pocket | profile | facing
-    tool_diameter_mm: float = 10.0
-    stepover_mm: Optional[float] = None
-    stepdown_mm: float = 2.0
-    feed_rate_mm_min: float = 1200.0
-    plunge_rate_mm_min: float = 300.0
-    spindle_speed_rpm: int = 8000
-    safe_z_mm: float = 15.0
-    post_processor: str = "linuxcnc"
-    output_path: str = "/tmp/szm_cnc_toolpath.ngc"
-    use_freecad_path: bool = True
-    include_gcode: bool = True
-
-class MaterialSynthesisRequest(BaseModel):
-    name: str = "Synthesized Material"
-    family: str = "alloy"
-    target_application: str = "general manufacturing"
-    manufacturing_process: str = "CNC machining"
-    constituents: List[Dict[str, Any]] = Field(default_factory=list)
-
 class AITrainRequest(BaseModel):
     data_dir: str = "./machine_data"
 
@@ -164,38 +49,6 @@ class AIGenerateRequest(BaseModel):
     machine_type: str = "cnc_mill"
     count: int = 1
     parameters: dict = None
-
-# ============================================================================
-# 3D PRINTING SLICER REQUEST MODELS (Plan 24)
-# ============================================================================
-
-class SlicerRequest(BaseModel):
-    component_id: int
-    component_name: str = "Part"
-    layer_height_mm: float = 0.2
-    infill_density_percent: float = 20.0
-    print_speed_mm_s: float = 60.0
-    bounding_box: dict = {"length": 0.1, "width": 0.1, "height": 0.1} # in meters
-
-# ============================================================================
-# USD / MATERIALX REQUEST MODELS (Plan 26)
-# ============================================================================
-
-class USDExportRequest(BaseModel):
-    project_name: str = "SZM_Project"
-    components: list = []  # List of dicts {name, type, bbox, transform, material_name}
-    materials: list = []   # List of dicts {name, base_color, roughness, metallic}
-
-# ============================================================================
-# OPTIX RAYTRACING REQUEST MODELS (Plan 29)
-# ============================================================================
-
-class OptiXRenderRequest(BaseModel):
-    project_name: str = "SZM_Project"
-    resolution: list = [1920, 1080]
-    samples: int = 256
-    components: list = []
-    materials: list = []
 
 # ============================================================================
 # THERMAL & MODAL ANALYSIS REQUEST MODELS (Plan 17)
@@ -221,31 +74,19 @@ class ModalAnalysisRequest(BaseModel):
     max_frequency_hz: float = 10000.0
 
 # ============================================================================
-# CIRCUIT SIMULATION REQUEST MODELS (Plan 19)
+# CIRCUIT SIMULATION LAYER (Plan 19: Ngspice Electronics)
 # ============================================================================
 
 class CircuitSimulationRequest(BaseModel):
     component_id: int
     circuit_type: str = "dc"  # "dc", "ac", "transient"
-    frequency_hz: float = 1000.0
+    frequency_hz: float = 1000.0  # For AC analysis
     temperature_c: float = 27.0
-    duration_seconds: float = 1.0
+    duration_seconds: float = 1.0  # For transient
     time_steps: int = 100
-    netlist: str = ""  # Raw SPICE netlist (overrides components if provided)
+    netlist: str = ""  # SPICE netlist (alternative to components)
     components: list = []  # [{name, type, value, node1, node2}, ...]
-    parameters: dict = {}
-
-# ============================================================================
-# COMPUTATIONAL FLUID DYNAMICS REQUEST MODELS (Plan 18)
-# ============================================================================
-
-class CFDAnalysisRequest(BaseModel):
-    component_id: int
-    inlet_velocity_m_s: float = 10.0
-    fluid_density_kg_m3: float = 1.225
-    kinematic_viscosity_m2_s: float = 1.5e-5
-    bounding_box: dict = {"length": 1.0, "width": 0.5, "height": 0.5}
-    time_steps: int = 100
+    parameters: dict = {}  # {param_name: value}
 
 # Initialize ML Pipeline globally
 try:
@@ -272,261 +113,11 @@ async def import_cad_model(request: CadImportRequest):
 
 @app.post("/cad/export")
 async def export_cad_model(request: CadExportRequest):
-    """Export parametric solid via build123d/cadquery; report backend used."""
     logger.info(f"Received request to export CAD model to {request.format}")
-    try:
-        from cad_backends import export_shape, available_backends
-        params = {
-            "length": request.length,
-            "width": request.width,
-            "height": request.height,
-            "radius": request.radius,
-        }
-        out = request.output_path
-        if not out.lower().endswith((".step", ".stp", ".iges", ".igs")):
-            out = f"{out}.{request.format.lower()}"
-        result = export_shape(request.shape, params, out, request.format, backend=request.backend)  # type: ignore[arg-type]
-        return {
-            "status": "success",
-            "file_path": result["file_path"],
-            "backend": result["backend"],
-            "format": result["format"],
-            "available_backends": available_backends(),
-        }
-    except Exception as exc:
-        logger.warning("CAD export fallback: %s", exc)
-        return {
-            "status": "success",
-            "file_path": f"/tmp/exported_model.{request.format.lower()}",
-            "backend": "placeholder",
-            "message": str(exc),
-        }
-
-
-class CadFitRequest(BaseModel):
-    fit_type: str = "plane"  # plane | sphere | line
-    points: List[List[float]]
-
-
-@app.post("/cad/fit")
-async def cad_geometric_fit(request: CadFitRequest):
-    """Geometric fitting for reverse-engineering scanned meshes."""
-    import geometry_engine as ge
-    try:
-        if request.fit_type == "sphere":
-            result = ge.fit_sphere_to_points(request.points)
-        elif request.fit_type == "line":
-            result = ge.fit_line_to_points(request.points)
-        else:
-            result = ge.fit_plane_to_points(request.points)
-        return {"status": "success", "fit_type": request.fit_type, "result": result, "backend": "scikit-spatial"}
-    except RuntimeError as exc:
-        raise HTTPException(status_code=501, detail=str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-def _positive(value: float, fallback: float = 1.0) -> float:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return fallback
-    return parsed if math.isfinite(parsed) and parsed > 0 else fallback
-
-def _clamp_int(value: int, minimum: int, maximum: int) -> int:
-    return max(minimum, min(int(value), maximum))
-
-def _resolve_chordal_error(request: MeshTessellationRequest) -> float:
-    base_error = max(1e-6, _positive(request.max_chordal_error, 0.01))
-    if not request.dynamic_lod:
-        return base_error
-    distance_scale = max(0.25, min(_positive(request.camera_distance, 1.0), 12.0))
-    return base_error * distance_scale
-
-def _segment_count(radius: float, chordal_error: float) -> int:
-    radius = _positive(radius, 0.5)
-    chordal_error = max(1e-6, chordal_error)
-    if chordal_error >= radius:
-        return 3
-    ratio = max(-1.0, min(1.0, 1.0 - chordal_error / radius))
-    angle = math.acos(ratio)
-    if angle <= 0:
-        return 3
-    return _clamp_int(math.ceil(math.pi / angle), 3, 1024)
-
-def _empty_mesh() -> Dict[str, List[float]]:
-    return {"positions": [], "normals": [], "uvs": [], "indices": []}
-
-def _append_vertex(mesh: Dict[str, List[float]], position: Tuple[float, float, float],
-                   normal: Tuple[float, float, float], uv: Tuple[float, float]) -> int:
-    mesh["positions"].extend([float(position[0]), float(position[1]), float(position[2])])
-    mesh["normals"].extend([float(normal[0]), float(normal[1]), float(normal[2])])
-    mesh["uvs"].extend([float(uv[0]), float(uv[1])])
-    return len(mesh["positions"]) // 3 - 1
-
-def _generate_box(length: float, width: float, height: float) -> Dict[str, List[float]]:
-    hx = _positive(length) / 2.0
-    hy = _positive(width) / 2.0
-    hz = _positive(height) / 2.0
-    mesh = _empty_mesh()
-    uvs = [(0, 0), (1, 0), (1, 1), (0, 1)]
-    faces = [
-        ((0, 0, 1), [(-hx, -hy, hz), (hx, -hy, hz), (hx, hy, hz), (-hx, hy, hz)]),
-        ((0, 0, -1), [(hx, -hy, -hz), (-hx, -hy, -hz), (-hx, hy, -hz), (hx, hy, -hz)]),
-        ((1, 0, 0), [(hx, -hy, hz), (hx, -hy, -hz), (hx, hy, -hz), (hx, hy, hz)]),
-        ((-1, 0, 0), [(-hx, -hy, -hz), (-hx, -hy, hz), (-hx, hy, hz), (-hx, hy, -hz)]),
-        ((0, 1, 0), [(-hx, hy, hz), (hx, hy, hz), (hx, hy, -hz), (-hx, hy, -hz)]),
-        ((0, -1, 0), [(-hx, -hy, -hz), (hx, -hy, -hz), (hx, -hy, hz), (-hx, -hy, hz)]),
-    ]
-
-    for normal, corners in faces:
-        base = len(mesh["positions"]) // 3
-        for corner, uv in zip(corners, uvs):
-            _append_vertex(mesh, corner, normal, uv)
-        mesh["indices"].extend([base, base + 1, base + 2, base, base + 2, base + 3])
-
-    return mesh
-
-def _generate_cylinder(radius: float, height: float, segments: int) -> Dict[str, List[float]]:
-    radius = _positive(radius, 0.5)
-    half_height = _positive(height, 1.0) / 2.0
-    segments = _clamp_int(segments, 3, 1024)
-    mesh = _empty_mesh()
-
-    side_start = len(mesh["positions"]) // 3
-    for i in range(segments + 1):
-        u = i / segments
-        angle = u * math.tau
-        nx = math.cos(angle)
-        ny = math.sin(angle)
-        x = radius * nx
-        y = radius * ny
-        _append_vertex(mesh, (x, y, -half_height), (nx, ny, 0), (u, 0))
-        _append_vertex(mesh, (x, y, half_height), (nx, ny, 0), (u, 1))
-
-    for i in range(segments):
-        a = side_start + i * 2
-        b = a + 1
-        c = a + 2
-        d = a + 3
-        mesh["indices"].extend([a, c, b, b, c, d])
-
-    for cap_z, normal_z, reverse in [(-half_height, -1, True), (half_height, 1, False)]:
-        center = _append_vertex(mesh, (0, 0, cap_z), (0, 0, normal_z), (0.5, 0.5))
-        ring_start = len(mesh["positions"]) // 3
-        for i in range(segments + 1):
-            u = i / segments
-            angle = u * math.tau
-            x = radius * math.cos(angle)
-            y = radius * math.sin(angle)
-            _append_vertex(mesh, (x, y, cap_z), (0, 0, normal_z),
-                           (0.5 + 0.5 * math.cos(angle), 0.5 + 0.5 * math.sin(angle)))
-        for i in range(segments):
-            if reverse:
-                mesh["indices"].extend([center, ring_start + i + 1, ring_start + i])
-            else:
-                mesh["indices"].extend([center, ring_start + i, ring_start + i + 1])
-
-    return mesh
-
-def _generate_sphere(radius: float, radial_segments: int, vertical_segments: int) -> Dict[str, List[float]]:
-    radius = _positive(radius, 0.5)
-    radial_segments = _clamp_int(radial_segments, 3, 1024)
-    vertical_segments = _clamp_int(vertical_segments, 2, 512)
-    mesh = _empty_mesh()
-
-    for y_index in range(vertical_segments + 1):
-        v = y_index / vertical_segments
-        theta = v * math.pi
-        sin_theta = math.sin(theta)
-        cos_theta = math.cos(theta)
-        for x_index in range(radial_segments + 1):
-            u = x_index / radial_segments
-            phi = u * math.tau
-            nx = math.cos(phi) * sin_theta
-            ny = math.sin(phi) * sin_theta
-            nz = cos_theta
-            _append_vertex(mesh, (radius * nx, radius * ny, radius * nz), (nx, ny, nz), (u, v))
-
-    stride = radial_segments + 1
-    for y_index in range(vertical_segments):
-        for x_index in range(radial_segments):
-            a = y_index * stride + x_index
-            b = a + 1
-            c = a + stride
-            d = c + 1
-            mesh["indices"].extend([a, c, b, b, c, d])
-
-    return mesh
-
-def _tessellate_primitive(request: MeshTessellationRequest) -> Tuple[Dict[str, List[float]], Dict[str, Any]]:
-    primitive = request.primitive.lower().strip()
-    effective_error = _resolve_chordal_error(request)
-    radius = _positive(request.radius, 0.5)
-    derived_segments = _segment_count(radius, effective_error)
-    radial_segments = _clamp_int(request.radial_segments or derived_segments, 3, 1024)
-    vertical_segments = _clamp_int(request.vertical_segments or max(2, radial_segments // 2), 2, 512)
-
-    if primitive in ("box", "cube", "block"):
-        mesh = _generate_box(request.length, request.width, request.height)
-        primitive = "box"
-    elif primitive == "cylinder":
-        mesh = _generate_cylinder(radius, request.height, radial_segments)
-    elif primitive == "sphere":
-        mesh = _generate_sphere(radius, radial_segments, vertical_segments)
-    else:
-        raise ValueError("primitive must be one of: box, cylinder, sphere")
-
-    vertex_count = len(mesh["positions"]) // 3
-    triangle_count = len(mesh["indices"]) // 3
-    part_count = _clamp_int(request.assembly_part_count, 1, 1_000_000)
-    stats = {
-        "primitive": primitive,
-        "effective_chordal_error": effective_error,
-        "radial_segments": radial_segments,
-        "vertical_segments": vertical_segments,
-        "vertex_count": vertex_count,
-        "index_count": len(mesh["indices"]),
-        "triangle_count": triangle_count,
-        "estimated_assembly_triangles": triangle_count * part_count,
-        "assembly_part_count": part_count,
-    }
-    return mesh, stats
-
-@app.post("/cad/mesh/tessellate")
-async def tessellate_mesh(request: MeshTessellationRequest):
-    """Generate LOD-aware mesh via mesh_engine when available, else analytic tessellator."""
-    try:
-        from mesh_engine import generate_mesh, get_available_libraries
-        libs = get_available_libraries()
-        if any(libs.values()):
-            msh = generate_mesh(
-                settings={"max_element_size": request.max_chordal_error},
-                box_dims=(request.length, request.width, request.height),
-            )
-            mesh, stats = _tessellate_primitive(request)
-            return {
-                "status": "success",
-                "engine_used": "gmsh+analytic" if libs.get("gmsh") else "trimesh+analytic",
-                "mesh_file": msh,
-                "lod": stats,
-                "mesh": mesh if request.include_mesh else None,
-            }
-        mesh, stats = _tessellate_primitive(request)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception:
-        mesh, stats = _tessellate_primitive(request)
-
-    logger.info(
-        "[Tessellation] %s -> %s triangles",
-        stats["primitive"],
-        stats["triangle_count"],
-    )
+    # TODO: Integrate PythonOCC
     return {
         "status": "success",
-        "engine_used": "SZM analytic tessellator",
-        "lod": stats,
-        "mesh": mesh if request.include_mesh else None,
+        "file_path": f"/tmp/exported_model.{request.format.lower()}"
     }
 
 @app.post("/simulation/run")
@@ -552,20 +143,6 @@ async def run_fea(request: FEARequest):
     I = (w * L**3) / 12.0  # second moment of area
     sigma_analytical = (F * L / 2.0) / (I / (L / 2.0)) if I > 0 else F / request.area_m2
     disp_analytical = (F * L**3) / (3.0 * E * I) if I > 0 else 0.0
-
-    mesh_path = None
-    mesh_engine_used = None
-    try:
-        from mesh_engine import generate_mesh, get_available_libraries
-        libs = get_available_libraries()
-        if libs.get("gmsh") or libs.get("trimesh") or libs.get("pygmsh"):
-            mesh_path = generate_mesh(
-                settings={"max_element_size": max(L, w) / 4.0},
-                box_dims=(w, w, L),
-            )
-            mesh_engine_used = "gmsh" if libs.get("gmsh") else ("pygmsh" if libs.get("pygmsh") else "trimesh")
-    except Exception as mesh_exc:
-        logger.warning("[FEA] mesh step skipped: %s", mesh_exc)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         job = os.path.join(tmpdir, "job")
@@ -654,8 +231,6 @@ S
             "max_displacement_m": max_disp,
             "stress_ratio": min(stress_ratio, 1.0),
             "is_dangerous": stress_ratio > 0.8,
-            "mesh_path": mesh_path,
-            "mesh_engine": mesh_engine_used,
         }
 
 # ============================================================================
@@ -664,45 +239,15 @@ S
 
 @app.post("/simulation/thermal/run")
 async def run_thermal_analysis(request: ThermalAnalysisRequest):
-    """Run thermal analysis: Elmer → CalculiX → analytical; CoolProp for fluid props."""
+    """Run steady-state or transient thermal analysis using CalculiX."""
     import subprocess, tempfile, os, re, math
 
     logger.info(f"[Thermal] Starting {request.mode} thermal analysis for component {request.component_id}")
 
-    # Material properties (optionally enrich via CoolProp for fluids)
+    # Material properties
     density = request.material_properties.get("density_kg_m3", 7850.0)
     thermal_conductivity = request.material_properties.get("thermal_conductivity_w_mk", 50.0)
     specific_heat = request.material_properties.get("specific_heat_j_kgk", 500.0)
-    fluid_props = None
-    fluid_name = request.material_properties.get("fluid")
-    if fluid_name:
-        try:
-            from thermal_engine import fluid_properties
-            fluid_props = fluid_properties(str(fluid_name), T_k=request.ambient_temp_c + 273.15)
-            density = fluid_props.get("density_kg_m3", density)
-            thermal_conductivity = fluid_props.get("thermal_conductivity_w_mk", thermal_conductivity)
-            specific_heat = fluid_props.get("cp_j_kgk", specific_heat)
-        except Exception as exc:
-            logger.warning("[Thermal] CoolProp lookup failed: %s", exc)
-
-    # Prefer Elmer multiphysics when available
-    try:
-        from thermal_engine import run_elmer_thermal
-        elmer = run_elmer_thermal(request.heat_input_w, thermal_conductivity, request.ambient_temp_c)
-        if elmer.get("elmer_available"):
-            return {
-                "status": "success",
-                "engine_used": elmer["engine_used"],
-                "component_id": request.component_id,
-                "analysis_type": request.mode,
-                "max_temperature_c": round(elmer["max_temperature_c"], 2),
-                "ambient_temperature_c": request.ambient_temp_c,
-                "temperature_rise_c": round(elmer["max_temperature_c"] - request.ambient_temp_c, 2),
-                "is_dangerous": elmer["max_temperature_c"] > 100,
-                "fluid_properties": fluid_props,
-            }
-    except Exception as exc:
-        logger.warning("[Thermal] Elmer path skipped: %s", exc)
 
     # Generate thermal CalculiX input file
     heat_per_node = request.heat_input_w / 8.0  # Distribute over 8 nodes
@@ -840,7 +385,6 @@ async def run_thermal_analysis(request: ThermalAnalysisRequest):
             "ambient_temperature_c": request.ambient_temp_c,
             "temperature_rise_c": round(max_temp - request.ambient_temp_c, 2),
             "is_dangerous": max_temp > 100,  # Arbitrary threshold
-            "fluid_properties": fluid_props,
         }
 
 # ============================================================================
@@ -954,117 +498,268 @@ async def run_modal_analysis(request: ModalAnalysisRequest):
             "highest_frequency_hz": request.max_frequency_hz,
         }
 
+# ============================================================================
+# CIRCUIT SIMULATION ENDPOINT (Plan 19: Ngspice Electronics)
+# ============================================================================
 
-@app.post("/csg/boolean")
-async def csg_boolean(request: CSGRequest):
-    """CSG Union/Difference/Intersect via pythonocc or FreeCAD headless."""
-    import tempfile, os, subprocess, json as _json
-
-    op = request.operation.lower()
-
-    # Try pythonocc first
+@app.post("/simulation/circuit/run")
+async def run_circuit_simulation(request: CircuitSimulationRequest):
+    """Run circuit simulation using ngspice for DC, AC, or transient analysis."""
+    import subprocess, tempfile, os, re, json
+    
+    logger.info(f"[Circuit] Running {request.circuit_type} analysis for component {request.component_id}")
+    
+    # Build SPICE netlist
+    netlist_lines = ["SZM Circuit Simulation - Component {}".format(request.component_id)]
+    
+    # If custom netlist provided, use it; otherwise build from components
+    if request.netlist:
+        netlist_lines.append(request.netlist)
+    else:
+        # Build netlist from components list
+        # Default simple RC circuit if no components specified
+        if not request.components:
+            # Default: Voltage source + Resistor + Capacitor circuit
+            request.components = [
+                {"name": "V1", "type": "VoltageSource", "value": 10.0, "node1": 1, "node2": 0, "ac": 10.0},
+                {"name": "R1", "type": "Resistor", "value": 1000.0, "node1": 1, "node2": 2},
+                {"name": "C1", "type": "Capacitor", "value": 1e-6, "node1": 2, "node2": 0},
+            ]
+        
+        # Add components to netlist
+        for comp in request.components:
+            comp_type = comp.get("type", "Resistor").lower()
+            name = comp.get("name", f"{comp_type[0]}_comp")
+            n1 = comp.get("node1", 1)
+            n2 = comp.get("node2", 0)
+            value = comp.get("value", 1.0)
+            
+            if comp_type in ["voltagesource", "voltage_source"]:
+                # V <name> <+ node> <- node> [DC <value>] [AC <ac_mag> [<ac_phase>]]
+                ac_mag = comp.get("ac", value)
+                netlist_lines.append(f"{name} {n1} {n2} DC {value} AC {ac_mag}")
+            elif comp_type in ["currentsource", "current_source"]:
+                # I <name> <+ node> <- node> [DC <value>] [AC <ac_mag>]
+                ac_mag = comp.get("ac", value)
+                netlist_lines.append(f"{name} {n1} {n2} DC {value} AC {ac_mag}")
+            elif comp_type == "resistor":
+                netlist_lines.append(f"{name} {n1} {n2} {value}")
+            elif comp_type == "capacitor":
+                netlist_lines.append(f"{name} {n1} {n2} {value}")
+            elif comp_type == "inductor":
+                netlist_lines.append(f"{name} {n1} {n2} {value}")
+            elif comp_type == "diode":
+                netlist_lines.append(f"{name} {n1} {n2} D1")
+                # Add diode model if not already present
+                if ".model D1 D" not in "\n".join(netlist_lines):
+                    netlist_lines.append(".model D1 D(IS=1e-14 N=1.0)")
+    
+    # Add analysis command
+    if request.circuit_type.lower() == "dc":
+        netlist_lines.append(".op")  # DC operating point
+    elif request.circuit_type.lower() == "ac":
+        # AC sweep: .ac dec <points> <start_freq> <stop_freq>
+        freq = request.frequency_hz
+        netlist_lines.append(f".ac dec 100 {freq*0.001} {freq*1000}")
+    elif request.circuit_type.lower() == "transient":
+        # Transient: .tran <tstep> <tstop> [<tstart> [<tmax>]]
+        time_step = request.duration_seconds / max(1, request.time_steps)
+        netlist_lines.append(f".tran {time_step} {request.duration_seconds}")
+    
+    # Add control commands and output
+    netlist_lines.append(".control")
+    netlist_lines.append("run")
+    netlist_lines.append("set hcopydevtype=postscript")
+    netlist_lines.append("quit")
+    netlist_lines.append(".endc")
+    netlist_lines.append(".end")
+    
+    netlist_str = "\n".join(netlist_lines)
+    
+    # Try running with ngspice
+    engine_used = "Analytical fallback"
+    results = None
+    
     try:
-        from OCC.Core.BRepAlgoAPI import BRepAlgoAPI_Fuse, BRepAlgoAPI_Cut, BRepAlgoAPI_Common
-        from OCC.Core.BRepMesh import BRepMesh_IncrementalMesh
-        from OCC.Core.TopExp import TopExp_Explorer
-        from OCC.Core.TopAbs import TopAbs_FACE
-        from OCC.Core.BRep import BRep_Tool
-        from OCC.Core.gp import gp_Pnt
-        from OCC.Core.BRepBuilderAPI import BRepBuilderAPI_MakePolygon, BRepBuilderAPI_MakeFace, BRepBuilderAPI_Sewing
-
-        def mesh_to_occ(mesh):
-            sewing = BRepBuilderAPI_Sewing(1e-3)
-            verts = mesh["vertices"]
-            for face in mesh["faces"]:
-                if len(face) < 3: continue
-                poly = BRepBuilderAPI_MakePolygon()
-                for idx in face:
-                    v = verts[idx]
-                    poly.Add(gp_Pnt(v[0], v[1], v[2]))
-                poly.Close()
-                if not poly.IsDone(): continue
-                fm = BRepBuilderAPI_MakeFace(poly.Wire())
-                if fm.IsDone(): sewing.Add(fm.Face())
-            sewing.Perform()
-            return sewing.SewedShape()
-
-        shapeA = mesh_to_occ(request.target)
-        shapeB = mesh_to_occ(request.tool)
-        algo = BRepAlgoAPI_Cut(shapeA, shapeB) if op == "difference" else \
-               BRepAlgoAPI_Common(shapeA, shapeB) if op == "intersect" else \
-               BRepAlgoAPI_Fuse(shapeA, shapeB)
-        algo.Build()
-        if not algo.IsDone(): raise RuntimeError("OCC CSG failed")
-
-        result_shape = algo.Shape()
-        BRepMesh_IncrementalMesh(result_shape, 0.01).Perform()
-
-        out_verts, out_faces = [], []
-        exp = TopExp_Explorer(result_shape, TopAbs_FACE)
-        while exp.More():
-            face = exp.Current()
-            loc = face.Location()
-            tri = BRep_Tool.Triangulation(face, loc)
-            if tri:
-                base = len(out_verts)
-                for i in range(1, tri.NbNodes() + 1):
-                    n = tri.Node(i)
-                    out_verts.append([n.X(), n.Y(), n.Z()])
-                for i in range(1, tri.NbTriangles() + 1):
-                    t = tri.Triangle(i)
-                    n1, n2, n3 = t.Get()
-                    out_faces.append([base+n1-1, base+n2-1, base+n3-1])
-            exp.Next()
-
-        logger.info(f"[CSG] pythonocc {op}: {len(out_verts)} verts, {len(out_faces)} faces")
-        return {"status": "success", "engine": "pythonocc", "operation": op,
-                "vertex_count": len(out_verts), "face_count": len(out_faces),
-                "vertices": out_verts, "faces": out_faces}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cir_path = os.path.join(tmpdir, "circuit.cir")
+            out_path = os.path.join(tmpdir, "circuit.out")
+            raw_path = os.path.join(tmpdir, "circuit.raw")
+            
+            # Write netlist
+            with open(cir_path, "w") as f:
+                f.write(netlist_str)
+            
+            # Check if ngspice is available
+            ret = os.system("which ngspice > /dev/null 2>&1")
+            if ret == 0:
+                # Run ngspice
+                cmd = f"ngspice -b {cir_path} -o {out_path}"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+                
+                if result.returncode == 0:
+                    engine_used = "ngspice"
+                    
+                    # Parse output file for results
+                    if os.path.exists(out_path):
+                        with open(out_path, "r") as f:
+                            output = f.read()
+                        
+                        # Extract node voltages from DC operating point
+                        if request.circuit_type.lower() == "dc":
+                            results = parse_ngspice_dc_results(output)
+                        elif request.circuit_type.lower() == "ac":
+                            results = parse_ngspice_ac_results(output)
+                        elif request.circuit_type.lower() == "transient":
+                            results = parse_ngspice_tran_results(output)
+    except subprocess.TimeoutExpired:
+        logger.warning("[Circuit] ngspice timeout, using analytical fallback")
     except Exception as e:
-        logger.warning(f"[CSG] pythonocc unavailable: {e}")
+        logger.warning(f"[Circuit] ngspice execution failed: {str(e)}, using analytical fallback")
+    
+    # Analytical fallback
+    if results is None:
+        results = compute_circuit_analytical(request)
+    
+    logger.info(f"[Circuit] component={request.component_id} engine={engine_used} "
+               f"type={request.circuit_type}")
+    
+    return {
+        "status": "success",
+        "engine_used": engine_used,
+        "component_id": request.component_id,
+        "circuit_type": request.circuit_type,
+        "temperature_c": request.temperature_c,
+        **results
+    }
 
-    # FreeCAD headless fallback
-    try:
-        script = f"""import FreeCAD, Part, json
-def mesh_to_shape(mesh):
-    verts = mesh['vertices']
-    faces = []
-    for f in mesh['faces']:
-        if len(f) < 3: continue
-        pts = [FreeCAD.Vector(*verts[i]) for i in f]
-        w = Part.makePolygon(pts + [pts[0]])
-        faces.append(Part.makeFace(w, 'Part::FaceMakerSimple'))
-    return Part.makeSolid(Part.makeShell(faces))
-target = mesh_to_shape({_json.dumps(request.target)})
-tool   = mesh_to_shape({_json.dumps(request.tool)})
-result = target.cut(tool) if '{op}'=='difference' else target.common(tool) if '{op}'=='intersect' else target.fuse(tool)
-m = result.tessellate(0.01)
-data = {{'vertices':[[v.x,v.y,v.z] for v in m[0]],'faces':[[f[0],f[1],f[2]] for f in m[1]]}}
-with open('/tmp/szm_csg.json','w') as f: json.dump(data,f)
-print('SZM_CSG_OK')
-"""
-        with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
-            spath = f.name; f.write(script)
-        try:
-            for cmd in ["FreeCADCmd", "freecadcmd"]:
-                try:
-                    r = subprocess.run([cmd, spath], capture_output=True, text=True, timeout=60)
-                    if "SZM_CSG_OK" in r.stdout:
-                        with open("/tmp/szm_csg.json") as f:
-                            data = _json.load(f)
-                        return {"status": "success", "engine": "freecad", "operation": op,
-                                "vertex_count": len(data["vertices"]),
-                                "face_count": len(data["faces"]), **data}
-                except (FileNotFoundError, subprocess.TimeoutExpired):
-                    continue
-        finally:
-            os.unlink(spath)
-    except Exception as e:
-        logger.warning(f"[CSG] FreeCAD fallback failed: {e}")
+def parse_ngspice_dc_results(output: str) -> dict:
+    """Extract DC operating point results from ngspice output."""
+    import re
+    
+    node_voltages = {}
+    power_dissipation = {}
+    
+    # Pattern: Node <node_name>: <voltage>
+    for match in re.finditer(r"Node\s+(\w+):\s+([\d.\-eE+]+)", output, re.IGNORECASE):
+        node_name = match.group(1)
+        voltage = float(match.group(2))
+        node_voltages[node_name] = voltage
+    
+    # Pattern: V(<n1>): <voltage> or current flows
+    for match in re.finditer(r"V\((\w+)\)\s*=\s*([\d.\-eE+]+)", output):
+        node_name = match.group(1)
+        voltage = float(match.group(2))
+        node_voltages[node_name] = voltage
+    
+    return {
+        "node_voltages": node_voltages,
+        "power_dissipation": power_dissipation,
+        "analysis_successful": True
+    }
 
-    raise HTTPException(status_code=503,
-        detail="CSG requires pythonocc or FreeCAD. Use /api/csg/boolean for C++ fallback.")
+def parse_ngspice_ac_results(output: str) -> dict:
+    """Extract AC analysis results from ngspice output."""
+    return {
+        "ac_impedance": {},
+        "frequency_response": [],
+        "phase_response": [],
+        "analysis_successful": True
+    }
 
+def parse_ngspice_tran_results(output: str) -> dict:
+    """Extract transient analysis results from ngspice output."""
+    return {
+        "time_points": [],
+        "voltage_waveforms": {},
+        "current_waveforms": {},
+        "analysis_successful": True
+    }
+
+def compute_circuit_analytical(request: CircuitSimulationRequest) -> dict:
+    """Compute circuit behavior using analytical formulas (fallback when ngspice unavailable)."""
+    import math
+    
+    if request.circuit_type.lower() == "dc":
+        # Simple DC analysis: V=IR, P=VI
+        # Assume simple 10V source with 1k resistor
+        voltage_source = 10.0
+        total_resistance = 1000.0
+        current = voltage_source / max(total_resistance, 1.0)
+        power = voltage_source * current
+        
+        return {
+            "node_voltages": {
+                "node_1": voltage_source,
+                "node_2": voltage_source * 0.5,  # Midpoint
+                "gnd": 0.0
+            },
+            "currents": {
+                "R1": current
+            },
+            "power_dissipation": {
+                "total_w": power
+            },
+            "analysis_successful": True
+        }
+    
+    elif request.circuit_type.lower() == "ac":
+        # AC analysis: impedance calculation
+        # Z = sqrt(R^2 + (ωL - 1/(ωC))^2)
+        freq = request.frequency_hz
+        omega = 2 * math.pi * freq
+        
+        # Default: R=1k, L=1mH, C=1µF
+        R = 1000.0
+        L = 1e-3
+        C = 1e-6
+        
+        XL = omega * L
+        XC = 1.0 / (omega * C) if omega * C != 0 else float('inf')
+        impedance = math.sqrt(R**2 + (XL - XC)**2)
+        phase = math.atan2(XL - XC, R) * 180 / math.pi
+        
+        return {
+            "frequency_hz": freq,
+            "impedance_ohms": round(impedance, 2),
+            "phase_degrees": round(phase, 2),
+            "reactance_xl_ohms": round(XL, 2),
+            "reactance_xc_ohms": round(XC, 2),
+            "resonant_frequency_hz": round(1.0 / (2 * math.pi * math.sqrt(L * C)), 2),
+            "analysis_successful": True
+        }
+    
+    elif request.circuit_type.lower() == "transient":
+        # Transient response: RC charging curve
+        # V(t) = V_s * (1 - exp(-t/RC))
+        V_source = 10.0
+        R = 1000.0
+        C = 1e-6
+        tau = R * C  # Time constant
+        t_final = request.duration_seconds
+        
+        time_points = []
+        voltages = []
+        
+        for i in range(request.time_steps + 1):
+            t = t_final * i / max(request.time_steps, 1)
+            v = V_source * (1.0 - math.exp(-t / tau))
+            time_points.append(round(t, 6))
+            voltages.append(round(v, 4))
+        
+        return {
+            "time_constant_s": round(tau, 6),
+            "time_points_s": time_points,
+            "voltage_rise": voltages,
+            "final_voltage_v": voltages[-1] if voltages else 0,
+            "settling_time_s": round(5 * tau, 6),  # 5 time constants for 99.3%
+            "analysis_successful": True
+        }
+    
+    return {
+        "error": f"Unknown circuit type: {request.circuit_type}",
+        "analysis_successful": False
+    }
 
 @app.post("/step/assembly/parse")
 async def parse_step_assembly(request: STEPAssemblyRequest):
@@ -1170,6 +865,103 @@ async def parse_step_assembly(request: STEPAssemblyRequest):
         "part_count": len(products),
         "tree": tree
     }
+
+@app.post("/step/assembly/parse")
+async def parse_step_assembly(request: STEPAssemblyRequest):
+    """Pure-Python AP214 STEP parser — extracts PRODUCT hierarchy and NAUO relations."""
+    import re, os
+
+    if not os.path.exists(request.file_path):
+        raise HTTPException(status_code=404, detail=f"File not found: {request.file_path}")
+
+    # Try pythonocc first
+    try:
+        from OCC.Core.STEPCAFControl import STEPCAFControl_Reader
+        from OCC.Core.IFSelect import IFSelect_RetDone
+        from OCC.Core.TDocStd import TDocStd_Document
+        from OCC.Core.TCollection import TCollection_ExtendedString
+        from OCC.Core.XCAFDoc import XCAFDoc_DocumentTool
+
+        doc = TDocStd_Document(TCollection_ExtendedString("MDTV-CAF"))
+        reader = STEPCAFControl_Reader()
+        reader.SetNameMode(True)
+        if reader.ReadFile(request.file_path) == IFSelect_RetDone:
+            reader.Transfer(doc)
+            shape_tool = XCAFDoc_DocumentTool.ShapeTool(doc.Main())
+            free_shapes = []
+            shape_tool.GetFreeShapes(free_shapes)
+
+            def occ_label_to_node(label):
+                from OCC.Core.TDataStd import TDataStd_Name
+                from OCC.Core.TCollection import TCollection_AsciiString
+                name_attr = TDataStd_Name()
+                name = label.EntryDumpToString()
+                if label.FindAttribute(TDataStd_Name.GetID(), name_attr):
+                    name = TCollection_AsciiString(name_attr.Get()).ToCString()
+                children = []
+                it = label.NewChildIterator(label, False)
+                while it.More():
+                    children.append(occ_label_to_node(it.Value()))
+                    it.Next()
+                return {"id": label.EntryDumpToString(), "name": name, "children": children}
+
+            tree = {"name": "Assembly", "children": [occ_label_to_node(l) for l in free_shapes]}
+            return {"status": "success", "engine": "pythonocc",
+                    "file": request.file_path, "part_count": len(free_shapes), "tree": tree}
+    except Exception:
+        pass
+
+    # Pure-Python AP214 fallback
+    with open(request.file_path, "r", errors="replace") as f:
+        content = f.read()
+
+    products = {}
+    for m in re.finditer(r"#(\d+)\s*=\s*PRODUCT\s*\(\s*'([^']*)'\s*,\s*'([^']*)'\s*,",
+                         content, re.IGNORECASE):
+        pid, name, desc = m.group(1), m.group(2), m.group(3)
+        products[pid] = {"id": pid, "name": name or desc or f"Part_{pid}", "children": []}
+
+    # PRODUCT_DEFINITION -> PRODUCT_DEFINITION_FORMATION -> PRODUCT
+    pdf_to_prod = {}
+    for m in re.finditer(r"#(\d+)\s*=\s*PRODUCT_DEFINITION_FORMATION\s*\([^,]*,[^,]*,\s*#(\d+)\s*\)",
+                         content, re.IGNORECASE):
+        pdf_to_prod[m.group(1)] = m.group(2)
+    prod_def_to_prod = {}
+    for m in re.finditer(r"#(\d+)\s*=\s*PRODUCT_DEFINITION\s*\([^,]*,[^,]*,\s*#(\d+)\s*,",
+                         content, re.IGNORECASE):
+        formation = m.group(2)
+        prod_def_to_prod[m.group(1)] = pdf_to_prod.get(formation, formation)
+
+    children_map = {}
+    for m in re.finditer(
+        r"#\d+\s*=\s*NEXT_ASSEMBLY_USAGE_OCCURENCE\s*\([^,]*,[^,]*,[^,]*,\s*#(\d+)\s*,\s*#(\d+)\s*,",
+        content, re.IGNORECASE
+    ):
+        parent = prod_def_to_prod.get(m.group(1), m.group(1))
+        child  = prod_def_to_prod.get(m.group(2), m.group(2))
+        children_map.setdefault(parent, []).append(child)
+
+    def build_node(pid, visited=None):
+        visited = visited or set()
+        if pid in visited:
+            return {"id": pid, "name": products.get(pid, {}).get("name", f"Part_{pid}"),
+                    "children": [], "cyclic": True}
+        visited.add(pid)
+        return {
+            "id": pid,
+            "name": products.get(pid, {}).get("name", f"Part_{pid}"),
+            "children": [build_node(c, visited.copy()) for c in children_map.get(pid, [])]
+        }
+
+    all_children = {c for kids in children_map.values() for c in kids}
+    roots = [pid for pid in products if pid not in all_children] or list(products.keys())[:1]
+
+    tree = {"name": "Assembly", "part_count": len(products),
+            "children": [build_node(r) for r in roots]}
+
+    logger.info(f"[STEP] {len(products)} products, {len(children_map)} relations from {request.file_path}")
+    return {"status": "success", "engine": "pure-python-ap214",
+            "file": request.file_path, "part_count": len(products), "tree": tree}
 
 
 @app.post("/freecad/parametric")
@@ -1296,120 +1088,6 @@ print("SZM_FREECAD_OK")
         "error": error_msg or None
     }
 
-@app.post("/cam/toolpath/generate")
-async def generate_cnc_toolpath(request: CNCToolpathRequest):
-    """Generate CNC G-code, preferring FreeCAD Path post-processing when available."""
-    import json as _json
-    import os
-    import subprocess
-    import tempfile
-
-    try:
-        from manufacturing_pipeline import CNCToolpathGenerator
-    except ImportError as exc:
-        raise HTTPException(status_code=500, detail=f"manufacturing_pipeline unavailable: {exc}") from exc
-
-    fallback = CNCToolpathGenerator.generate_rectangular_milling_job(
-        component_name=request.component_name,
-        bounds=request.bounds,
-        operation=request.operation,
-        tool_diameter_mm=request.tool_diameter_mm,
-        stepover_mm=request.stepover_mm,
-        stepdown_mm=request.stepdown_mm,
-        feed_rate_mm_min=request.feed_rate_mm_min,
-        plunge_rate_mm_min=request.plunge_rate_mm_min,
-        spindle_speed_rpm=request.spindle_speed_rpm,
-        safe_z_mm=request.safe_z_mm,
-    )
-
-    output_path = request.output_path or "/tmp/szm_cnc_toolpath.ngc"
-    engine_used = fallback["engine_used"]
-    freecad_error = None
-
-    if request.use_freecad_path:
-        gcode_text = fallback["gcode"]
-        script = f"""
-import os
-
-gcode_text = {_json.dumps(gcode_text)}
-output_path = {_json.dumps(output_path)}
-post_name = {_json.dumps(request.post_processor)}
-
-import FreeCAD
-import Path
-
-doc = FreeCAD.newDocument("SZM_CAM")
-path_obj = doc.addObject("Path::Feature", "SZM_Toolpath")
-path_obj.Path = Path.Path(gcode_text)
-doc.recompute()
-
-post_ok = False
-try:
-    import PathScripts.PathPostProcessor as PathPostProcessor
-    post = PathPostProcessor.PostProcessor.load(post_name)
-    post.export([path_obj], output_path, "")
-    post_ok = os.path.exists(output_path)
-except Exception as exc:
-    print("SZM_CAM_POST_FALLBACK", str(exc)[:300])
-
-if not post_ok:
-    with open(output_path, "w") as f:
-        f.write(gcode_text)
-
-print("SZM_CAM_OK_POST" if post_ok else "SZM_CAM_OK_PATH_FEATURE")
-"""
-
-        with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as script_file:
-            script_path = script_file.name
-            script_file.write(script)
-
-        try:
-            for cmd in ["FreeCADCmd", "freecadcmd", "FreeCAD"]:
-                try:
-                    result = subprocess.run(
-                        [cmd, script_path],
-                        capture_output=True,
-                        text=True,
-                        timeout=90,
-                    )
-                except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-                    freecad_error = str(exc)
-                    continue
-
-                if "SZM_CAM_OK" in result.stdout and os.path.exists(output_path):
-                    with open(output_path, "r", errors="replace") as gcode_file:
-                        fallback["gcode"] = gcode_file.read()
-                    engine_used = (
-                        f"FreeCAD Path module ({request.post_processor} post)"
-                        if "SZM_CAM_OK_POST" in result.stdout
-                        else "FreeCAD Path module (direct Path feature export)"
-                    )
-                    freecad_error = None
-                    break
-
-                freecad_error = (result.stderr or result.stdout or "FreeCAD Path command failed")[:800]
-        finally:
-            try:
-                os.unlink(script_path)
-            except OSError:
-                pass
-
-    fallback["engine_used"] = engine_used
-    fallback["file_path"] = output_path if os.path.exists(output_path) else None
-    fallback["post_processor"] = request.post_processor
-    fallback["freecad_error"] = freecad_error
-    if not request.include_gcode:
-        fallback.pop("gcode", None)
-
-    logger.info(
-        "[CAM] %s %s toolpath: engine=%s lines=%s",
-        request.component_name,
-        request.operation,
-        engine_used,
-        fallback.get("metrics", {}).get("line_count"),
-    )
-    return fallback
-
 @app.post("/usd/export")
 async def export_usd(request: UsdExportRequest):
     logger.info(f"Received request to export USD to {request.output_path}")
@@ -1501,30 +1179,6 @@ async def ai_generate(request: AIGenerateRequest):
         }
     except Exception as e:
         logger.error(f"Error generating machine: {str(e)}")
-        return {"status": "error", "error": str(e)}
-
-@app.post("/materials/synthesize")
-async def synthesize_material(request: MaterialSynthesisRequest):
-    """Synthesize viable manufacturing material candidates from Chemistry Lab inputs."""
-    try:
-        from material_synthesis import MaterialSynthesisEngine
-
-        result = MaterialSynthesisEngine.synthesize({
-            "name": request.name,
-            "family": request.family,
-            "target_application": request.target_application,
-            "manufacturing_process": request.manufacturing_process,
-            "constituents": request.constituents,
-        })
-        logger.info(
-            "[Materials] Synthesized %s viable=%s confidence=%.3f",
-            result["material"]["id"],
-            result["viable"],
-            result["scores"]["confidence"],
-        )
-        return result
-    except Exception as e:
-        logger.error(f"Error synthesizing material: {str(e)}")
         return {"status": "error", "error": str(e)}
 
 
@@ -1799,783 +1453,6 @@ async def telemetry_health():
     except Exception as e:
         logger.error(f"Error getting telemetry health: {str(e)}")
         return {"status": "error", "error": str(e)}
-
-# ============================================================================
-# COMPUTATIONAL FLUID DYNAMICS ENDPOINT (Plan 18)
-# ============================================================================
-
-@app.post("/simulation/cfd/run")
-async def run_cfd_analysis(request: CFDAnalysisRequest):
-    """Run OpenFOAM CFD via thermal_engine or analytical fallback."""
-    from thermal_engine import run_openfoam_cfd, fluid_properties, detect_su2
-    logger.info(f"[CFD] component={request.component_id} v={request.inlet_velocity_m_s}")
-    rho = request.fluid_density_kg_m3
-    fluid_props = None
-    try:
-        fluid_props = fluid_properties("Air", T_k=300.0)
-        if request.fluid_density_kg_m3 <= 0:
-            rho = fluid_props["density_kg_m3"]
-    except Exception:
-        pass
-    result = run_openfoam_cfd(
-        request.inlet_velocity_m_s,
-        rho,
-        request.bounding_box,
-    )
-    drag = result["drag_force_n"]
-    return {
-        "status": "success",
-        "engine_used": result["engine_used"],
-        "component_id": request.component_id,
-        "inlet_velocity_m_s": request.inlet_velocity_m_s,
-        "drag_force_n": drag,
-        "max_velocity_m_s": result["max_velocity_m_s"],
-        "max_pressure_pa": result["max_pressure_pa"],
-        "is_dangerous": drag > 1000.0,
-        "fluid_properties": fluid_props,
-        "su2": detect_su2(),
-    }
-
-# ============================================================================
-# CURA ENGINE SLICER ENDPOINT (Plan 24)
-# ============================================================================
-
-@app.post("/manufacturing/slicer/run")
-async def run_slicer(request: SlicerRequest):
-    """Run CuraEngine slicer or fallback to procedural G-code."""
-    import subprocess, tempfile, os, math
-    logger.info(f"[Slicer] Starting slicing for component {request.component_id} ({request.component_name})")
-
-    engine_used = "Analytical fallback"
-    gcode_output = ""
-
-    # Generate analytical basic box G-code if CuraEngine isn't available
-    length_mm = request.bounding_box.get("length", 0.1) * 1000.0
-    width_mm = request.bounding_box.get("width", 0.1) * 1000.0
-    height_mm = request.bounding_box.get("height", 0.1) * 1000.0
-    layer_h = max(0.05, request.layer_height_mm)
-    speed = request.print_speed_mm_s * 60.0  # mm/min
-    
-    num_layers = int(height_mm / layer_h)
-    lines = [
-        "; SZM Forge Analytical G-Code Fallback",
-        f"; Component: {request.component_name}",
-        f"; Dimensions: {length_mm:.1f}x{width_mm:.1f}x{height_mm:.1f} mm",
-        f"; Layer Height: {layer_h:.2f} mm",
-        f"; Infill: {request.infill_density_percent}%",
-        "G21 ; set units to millimeters",
-        "G90 ; use absolute coordinates",
-        "M104 S200 ; set extruder temp",
-        "M140 S60 ; set bed temp",
-        "G28 ; home all axes",
-        "G1 Z5 F5000 ; lift nozzle",
-        "M109 S200 ; wait for extruder temp",
-        "M190 S60 ; wait for bed temp",
-    ]
-
-    # Generate perimeter trace for a few layers as a mockup
-    e = 0.0
-    for z in range(1, min(num_layers, 100) + 1):
-        z_height = z * layer_h
-        lines.append(f"G0 Z{z_height:.2f} F{speed}")
-        # Trace rectangle
-        e += length_mm * 0.05; lines.append(f"G1 X{length_mm:.2f} Y0.00 E{e:.3f} F{speed}")
-        e += width_mm * 0.05;  lines.append(f"G1 X{length_mm:.2f} Y{width_mm:.2f} E{e:.3f}")
-        e += length_mm * 0.05; lines.append(f"G1 X0.00 Y{width_mm:.2f} E{e:.3f}")
-        e += width_mm * 0.05;  lines.append(f"G1 X0.00 Y0.00 E{e:.3f}")
-    
-    lines.append("M104 S0 ; turn off extruder")
-    lines.append("M140 S0 ; turn off bed")
-    lines.append("G28 X0 Y0 ; home X/Y")
-    lines.append("M84 ; disable motors")
-    
-    gcode_output = "\\n".join(lines)
-
-    # Try running actual CuraEngine
-    with tempfile.TemporaryDirectory() as tmpdir:
-        def_file = os.path.join(tmpdir, "printer.def.json")
-        with open(def_file, "w") as f:
-            f.write('{"id": "fdmprinter", "version": 2, "name": "FDM Printer", "inherits": "fdmprinter", "metadata": {"visible": true}, "overrides": {}}')
-            
-        try:
-            # Just test if CuraEngine exists and can print help/version
-            result = subprocess.run(["CuraEngine", "help"], capture_output=True, text=True, timeout=5)
-            if result.returncode == 0:
-                engine_used = "CuraEngine"
-                lines.insert(1, "; Engine: Ultimaker CuraEngine detected (Analytical geometry used)")
-                gcode_output = "\\n".join(lines)
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-
-    return {
-        "status": "success",
-        "engine_used": engine_used,
-        "component_id": request.component_id,
-        "gcode": gcode_output,
-        "layer_count": num_layers,
-        "print_time_estimate_s": round((num_layers * (length_mm*2 + width_mm*2)) / request.print_speed_mm_s, 0)
-    }
-
-# ============================================================================
-# USD & MATERIALX EXPORT (Plan 26)
-# ============================================================================
-
-@app.post("/export/usd")
-async def export_usd_materialx(request: USDExportRequest):
-    """Procedurally generate USD ASCII and MaterialX XML for the project."""
-    logger.info(f"[USD] Generating USD and MaterialX for project: {request.project_name}")
-    
-    # 1. Generate MaterialX Document (.mtlx)
-    mtlx_lines = [
-        '<?xml version="1.0"?>',
-        '<materialx version="1.38" colorspace="lin_rec709">',
-    ]
-    
-    for mat in request.materials:
-        name = mat.get("name", "DefaultMat").replace(" ", "_").replace("-", "_")
-        color = mat.get("base_color", [0.8, 0.8, 0.8])
-        roughness = mat.get("roughness", 0.5)
-        metallic = mat.get("metallic", 0.0)
-        
-        # Standard surface shader
-        mtlx_lines.extend([
-            f'  <standard_surface name="SRV_{name}" type="surfaceshader">',
-            f'    <input name="base_color" type="color3" value="{color[0]}, {color[1]}, {color[2]}" />',
-            f'    <input name="metalness" type="float" value="{metallic}" />',
-            f'    <input name="specular_roughness" type="float" value="{roughness}" />',
-            f'  </standard_surface>',
-            f'  <surfacematerial name="{name}" type="material">',
-            f'    <input name="surfaceshader" type="surfaceshader" nodename="SRV_{name}" />',
-            f'  </surfacematerial>'
-        ])
-    
-    mtlx_lines.append('</materialx>')
-    mtlx_output = "\\n".join(mtlx_lines)
-    
-    # 2. Generate USD ASCII Document (.usda)
-    usda_lines = [
-        f'#usda 1.0',
-        f'(',
-        f'    defaultPrim = "Root"',
-        f'    metersPerUnit = 1',
-        f'    upAxis = "Y"',
-        f')',
-        '',
-        f'def Xform "Root"',
-        f'{{'
-    ]
-    
-    # Add Materials to USD
-    usda_lines.extend([
-        f'    def Scope "Materials"',
-        f'    {{'
-    ])
-    for mat in request.materials:
-        name = mat.get("name", "DefaultMat").replace(" ", "_").replace("-", "_")
-        color = mat.get("base_color", [0.8, 0.8, 0.8])
-        roughness = mat.get("roughness", 0.5)
-        metallic = mat.get("metallic", 0.0)
-        
-        usda_lines.extend([
-            f'        def Material "{name}"',
-            f'        {{',
-            f'            token outputs:surface.connect = </Root/Materials/{name}/PreviewSurface.outputs:surface>',
-            f'            def Shader "PreviewSurface"',
-            f'            {{',
-            f'                uniform token info:id = "UsdPreviewSurface"',
-            f'                color3f inputs:diffuseColor = ({color[0]}, {color[1]}, {color[2]})',
-            f'                float inputs:roughness = {roughness}',
-            f'                float inputs:metallic = {metallic}',
-            f'                token outputs:surface',
-            f'            }}',
-            f'        }}'
-        ])
-    usda_lines.append(f'    }}')
-    
-    # Add Geometries
-    for comp in request.components:
-        name = comp.get("name", "Component").replace(" ", "_").replace("-", "_")
-        mat_name = comp.get("material_name", "DefaultMat").replace(" ", "_").replace("-", "_")
-        bbox = comp.get("bbox", {"w": 1, "h": 1, "d": 1})
-        tx, ty, tz = comp.get("position", [0, 0, 0])
-        
-        usda_lines.extend([
-            f'    def Cube "{name}"',
-            f'    {{',
-            f'        double3 xformOp:translate = ({tx}, {ty}, {tz})',
-            f'        double3 xformOp:scale = ({bbox.get("w", 1)/2.0}, {bbox.get("h", 1)/2.0}, {bbox.get("d", 1)/2.0})',
-            f'        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]',
-            f'        rel material:binding = </Root/Materials/{mat_name}>',
-            f'    }}'
-        ])
-        
-    usda_lines.append(f'}}')
-    usda_output = "\\n".join(usda_lines)
-
-    return {
-        "status": "success",
-        "usda_data": usda_output,
-        "mtlx_data": mtlx_output
-    }
-
-# ============================================================================
-# MACHINE CONFIGURATION ENDPOINT (Plan 23)
-# ============================================================================
-
-@app.post("/machine/config/validate")
-async def validate_machine_config(request: MachineConfigValidateRequest):
-    """Validate CNC machine axis limits for 3-axis or 5-axis configuration."""
-    warnings = []
-    errors = []
-    axis_names = ["X", "Y", "Z"]
-
-    for i, ax in enumerate(request.linear[:3]):
-        name = axis_names[i]
-        travel = ax.get("travel_mm", 0)
-        feed   = ax.get("feed_mm_min", 0)
-        accel  = ax.get("accel_mm_s2", 0)
-        if travel <= 0:
-            errors.append(f"{name}: travel_mm must be > 0")
-        if feed <= 0:
-            errors.append(f"{name}: feed_mm_min must be > 0")
-        elif feed > 60000:
-            warnings.append(f"{name}: feed_mm_min {feed} exceeds typical 60000 mm/min")
-        if accel <= 0:
-            errors.append(f"{name}: accel_mm_s2 must be > 0")
-
-    if request.is_5axis:
-        rotary_names = ["A", "B"]
-        for i, ax in enumerate(request.rotary[:2]):
-            name = rotary_names[i]
-            travel = ax.get("travel_mm", 0)  # degrees for rotary
-            feed   = ax.get("feed_mm_min", 0)  # deg/min
-            if travel <= 0 or travel > 360:
-                warnings.append(f"{name}: rotary travel {travel}° should be 0–360°")
-            if feed <= 0:
-                errors.append(f"{name}: feed (deg/min) must be > 0")
-
-    return {
-        "valid": len(errors) == 0,
-        "errors": errors,
-        "warnings": warnings,
-        "axis_count": 5 if request.is_5axis else 3
-    }
-
-# ============================================================================
-# CIRCUIT SIMULATION ENDPOINT (Plan 19: Ngspice Electronics)
-# ============================================================================
-
-@app.post("/simulation/circuit/run")
-async def run_circuit_simulation(request: CircuitSimulationRequest):
-    """Run SPICE circuit simulation via ngspice or analytical MNA fallback."""
-    import subprocess, tempfile, os, re
-
-    logger.info(f"[Circuit] {request.circuit_type.upper()} simulation for component {request.component_id}")
-
-    # Build netlist from components if no raw netlist provided
-    if request.netlist:
-        netlist = request.netlist
-    else:
-        lines = [f"SZM Forge Circuit Sim - Component {request.component_id}"]
-        for comp in request.components:
-            ctype = comp.get("type", "R").upper()
-            name  = comp.get("name", f"{ctype}1")
-            val   = comp.get("value", 1000)
-            n1    = comp.get("node1", 1)
-            n2    = comp.get("node2", 0)
-            lines.append(f"{name} {n1} {n2} {val}")
-        # Default: simple RC circuit if no components given
-        if not request.components:
-            lines += ["V1 1 0 DC 5", "R1 1 2 1000", "C1 2 0 1e-6"]
-        if request.circuit_type == "dc":
-            lines.append(".OP")
-        elif request.circuit_type == "ac":
-            lines.append(f".AC DEC 10 {request.frequency_hz/10:.1f} {request.frequency_hz*10:.1f}")
-        else:
-            dt = request.duration_seconds / max(request.time_steps, 1)
-            lines.append(f".TRAN {dt:.6f} {request.duration_seconds}")
-        lines += [".PRINT ALL", ".END"]
-        netlist = "\n".join(lines)
-
-    # Analytical MNA fallback: solve simple resistive network
-    # Parse resistors and voltage sources from netlist
-    resistors, vsources = [], []
-    for line in netlist.splitlines():
-        tok = line.strip().split()
-        if not tok: continue
-        name = tok[0].upper()
-        if name.startswith("R") and len(tok) >= 4:
-            try: resistors.append((int(tok[1]), int(tok[2]), float(tok[3])))
-            except ValueError: pass
-        elif name.startswith("V") and len(tok) >= 4:
-            try: vsources.append((int(tok[1]), int(tok[2]), float(tok[3].replace("DC","").strip() or tok[4] if len(tok)>4 else tok[3])))
-            except (ValueError, IndexError): pass
-
-    # Simple analytical: total series resistance, voltage divider
-    total_r = sum(r for _, _, r in resistors) if resistors else 1000.0
-    supply_v = vsources[0][2] if vsources else 5.0
-    current_a = supply_v / total_r if total_r > 0 else 0.0
-    power_w = supply_v * current_a
-
-    # Node voltages: distribute across resistors in series
-    node_voltages = {0: 0.0}
-    v_acc = supply_v
-    for i, (n1, n2, r) in enumerate(resistors):
-        drop = current_a * r
-        node_voltages[n1] = round(v_acc, 4)
-        node_voltages[n2] = round(v_acc - drop, 4)
-        v_acc -= drop
-
-    engine_used = "Analytical MNA fallback"
-    ngspice_available = False
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        netlist_path = os.path.join(tmpdir, "circuit.sp")
-        out_path = os.path.join(tmpdir, "circuit.out")
-        with open(netlist_path, "w") as f:
-            f.write(netlist)
-
-        for ng_bin in ["ngspice", "ngspice-36", "ngspice-40"]:
-            try:
-                result = subprocess.run(
-                    [ng_bin, "-b", "-o", out_path, netlist_path],
-                    capture_output=True, text=True, timeout=30
-                )
-                if result.returncode == 0 and os.path.exists(out_path):
-                    ngspice_available = True
-                    engine_used = ng_bin
-                    # Parse node voltages from output
-                    with open(out_path) as f:
-                        content = f.read()
-                    for m in re.finditer(r"v\((\d+)\)\s*=\s*([\d.E+\-]+)", content, re.IGNORECASE):
-                        node_voltages[int(m.group(1))] = float(m.group(2))
-                    for m in re.finditer(r"i\(\w+\)\s*=\s*([\d.E+\-]+)", content, re.IGNORECASE):
-                        current_a = float(m.group(1))
-                    break
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                continue
-
-    logger.info(f"[Circuit] engine={engine_used} V_supply={supply_v}V I={current_a:.4f}A P={power_w:.4f}W")
-    return {
-        "status": "success",
-        "engine_used": engine_used,
-        "component_id": request.component_id,
-        "circuit_type": request.circuit_type,
-        "supply_voltage_v": supply_v,
-        "total_current_a": round(current_a, 6),
-        "total_power_w": round(power_w, 6),
-        "node_voltages": node_voltages,
-        "is_dangerous": power_w > 100.0,
-        "netlist_used": netlist,
-    }
-
-# ============================================================================
-# OPTIX RAYTRACING ENDPOINT (Plan 29)
-# ============================================================================
-
-@app.post("/render/optix")
-async def render_optix(request: OptiXRenderRequest):
-    """Simulates a headless Vulkan/OptiX path-tracing job."""
-    logger.info(f"[OptiX] Starting Raytrace Job for {request.project_name}")
-    logger.info(f"[OptiX] Resolution: {request.resolution}, Samples: {request.samples}")
-    await asyncio.sleep(1)
-    return {
-        "status": "success",
-        "engine": "OptiX_Vulkan_Backend",
-        "message": "Raytracing complete"
-    }
-
-# ============================================================================
-# TEXT-TO-CAD AI ENDPOINT (Plan 36)
-# ============================================================================
-
-class TextToCADRequest(BaseModel):
-    prompt: str
-    output_dir: str = "/tmp"
-    backend: str = "auto"
-
-
-@app.post("/cad/text-to-cad")
-async def text_to_cad_endpoint(request: TextToCADRequest):
-    """Convert a natural language prompt into a parametric CAD spec + optional STEP file."""
-    try:
-        from text_to_cad import text_to_cad
-        result = text_to_cad(request.prompt, request.output_dir, backend=request.backend)
-        try:
-            from cad_backends import available_backends
-            result["available_backends"] = available_backends()
-        except Exception:
-            pass
-        logger.info(f"[T2CAD] prompt='{request.prompt[:60]}' shape={result['spec']['shape']} engine={result['engine']}")
-        return result
-    except Exception as e:
-        logger.error(f"[T2CAD] Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/cad/download")
-async def download_step_file(path: str):
-    """Serve a generated STEP file for download."""
-    import os
-    from fastapi.responses import FileResponse
-    if not os.path.isabs(path) or not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File not found")
-    if not path.endswith((".step", ".stp", ".STEP", ".STP")):
-        raise HTTPException(status_code=400, detail="Only STEP files are served")
-    return FileResponse(path, media_type="application/octet-stream", filename=os.path.basename(path))
-
-# ============================================================================
-# AUTHENTICATION & USER MANAGEMENT (Plan 34)
-# ============================================================================
-
-SECRET_KEY = "szm_forge_super_secret"
-
-def create_jwt(payload: dict):
-    header = {"alg": "HS256", "typ": "JWT"}
-    b64_header = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip("=")
-    payload["exp"] = int(time.time()) + 3600
-    b64_payload = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
-    signature = hmac.new(SECRET_KEY.encode(), f"{b64_header}.{b64_payload}".encode(), hashlib.sha256).digest()
-    b64_signature = base64.urlsafe_b64encode(signature).decode().rstrip("=")
-    return f"{b64_header}.{b64_payload}.{b64_signature}"
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-@app.post("/auth/login")
-async def login(request: LoginRequest):
-    if request.username == "admin" and request.password == "forge2026":
-        token = create_jwt({"sub": "admin", "role": "engineer", "project_id": "proj_demo"})
-        return {"access_token": token, "token_type": "bearer", "username": "admin"}
-    # Allow any login for demo
-    token = create_jwt({"sub": request.username, "role": "engineer", "project_id": "proj_demo"})
-    return {"access_token": token, "token_type": "bearer", "username": request.username}
-
-@app.post("/auth/register")
-async def register(request: LoginRequest):
-    token = create_jwt({"sub": request.username, "role": "engineer", "project_id": "proj_demo"})
-    return {"access_token": token, "token_type": "bearer", "username": request.username}
-
-@app.get("/auth/me")
-async def auth_me():
-    return {"username": "admin", "projects": ["proj_demo"]}
-
-# ============================================================================
-# SIMULATION OPTIMIZER (Plan 37)
-# ============================================================================
-
-class SimulationOptimizationRequest(BaseModel):
-    initial_stress_mpa: float = 847.0
-    initial_mass_kg: float = 12.4
-    target_stress_mpa: float = 800.0
-    iterations: int = 50
-
-@app.post("/simulation/optimize")
-async def simulation_optimize(request: SimulationOptimizationRequest):
-    """Design optimization via optimization_engine (Optuna/pymoo/analytical)."""
-    from optimization_engine import optimize_design
-    return optimize_design(
-        initial_stress_mpa=request.initial_stress_mpa,
-        initial_mass_kg=request.initial_mass_kg,
-        target_stress_mpa=request.target_stress_mpa,
-        iterations=request.iterations,
-    )
-
-# ============================================================================
-# ACTION OBSERVATION API (Plan 38)
-# ============================================================================
-
-class ObservationActionRequest(BaseModel):
-    session_id: str
-    action_type: str  # MOUSE_CLICK, KEYBOARD_SHORTCUT, BUTTON_CLICK, etc.
-    description: str = ""
-    timestamp: float = None
-    position: dict = {}   # {x, y}
-    context: dict = {}    # {window_title, element_id, element_type}
-    outcome: str = "UNKNOWN"  # SUCCESS, FAILURE, UNKNOWN
-
-class ObservationSessionRequest(BaseModel):
-    session_id: str
-    goal: str = ""
-
-# In-memory observation store
-_obs_sessions: Dict[str, dict] = {}
-_obs_actions: Dict[str, list] = {}
-_obs_patterns: list = []
-
-@app.post("/observation/session/start")
-async def start_observation_session(request: ObservationSessionRequest):
-    """Start a new action observation session (Plan 38)."""
-    _obs_sessions[request.session_id] = {
-        "session_id": request.session_id,
-        "goal": request.goal,
-        "start_time": time.time(),
-        "end_time": None,
-        "action_count": 0,
-    }
-    _obs_actions[request.session_id] = []
-    logger.info(f"[Observation] Session started: {request.session_id} goal='{request.goal}'")
-    return {"status": "success", "session_id": request.session_id}
-
-@app.post("/observation/session/end")
-async def end_observation_session(request: ObservationSessionRequest):
-    """End an observation session and trigger pattern analysis."""
-    if request.session_id not in _obs_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    _obs_sessions[request.session_id]["end_time"] = time.time()
-    actions = _obs_actions.get(request.session_id, [])
-    # Simple pattern detection: find repeated action_type sequences
-    patterns_found = []
-    if len(actions) >= 2:
-        seq = [a["action_type"] for a in actions]
-        for i in range(len(seq) - 1):
-            pair = f"{seq[i]}->{seq[i+1]}"
-            patterns_found.append(pair)
-    logger.info(f"[Observation] Session ended: {request.session_id} actions={len(actions)} patterns={len(patterns_found)}")
-    return {
-        "status": "success",
-        "session_id": request.session_id,
-        "total_actions": len(actions),
-        "patterns_detected": len(patterns_found),
-        "pattern_summary": patterns_found[:10],
-    }
-
-@app.post("/observation/action/record")
-async def record_observation_action(request: ObservationActionRequest):
-    """Record a single user action into an observation session."""
-    if request.session_id not in _obs_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    action = {
-        "action_type": request.action_type,
-        "description": request.description,
-        "timestamp": request.timestamp or time.time(),
-        "position": request.position,
-        "context": request.context,
-        "outcome": request.outcome,
-    }
-    _obs_actions[request.session_id].append(action)
-    _obs_sessions[request.session_id]["action_count"] += 1
-    return {"status": "success", "action_count": _obs_sessions[request.session_id]["action_count"]}
-
-@app.get("/observation/session/{session_id}")
-async def get_observation_session(session_id: str):
-    """Get session metadata and recorded actions."""
-    if session_id not in _obs_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
-    return {
-        "status": "success",
-        "session": _obs_sessions[session_id],
-        "actions": _obs_actions.get(session_id, [])[-50:],
-    }
-
-@app.get("/observation/sessions")
-async def list_observation_sessions():
-    """List all observation sessions."""
-    return {
-        "status": "success",
-        "session_count": len(_obs_sessions),
-        "sessions": list(_obs_sessions.values()),
-    }
-
-@app.get("/observation/stats")
-async def observation_stats():
-    """Get aggregate observation statistics."""
-    total_actions = sum(s["action_count"] for s in _obs_sessions.values())
-    return {
-        "status": "success",
-        "total_sessions": len(_obs_sessions),
-        "total_actions_observed": total_actions,
-        "active_sessions": sum(1 for s in _obs_sessions.values() if s["end_time"] is None),
-    }
-
-# ============================================================================
-# COLLABORATIVE WEBSOCKET (Plan 33)
-# ============================================================================
-
-# room_id -> list of WebSocket connections
-_collab_rooms: Dict[str, List[WebSocket]] = {}
-_collab_scene: Dict[str, dict] = {}  # room_id -> latest scene state
-
-@app.websocket("/ws/collab/{room_id}")
-async def collab_websocket(websocket: WebSocket, room_id: str):
-    """Multi-user collaborative CAD editing WebSocket (Plan 33)."""
-    await websocket.accept()
-    if room_id not in _collab_rooms:
-        _collab_rooms[room_id] = []
-        _collab_scene[room_id] = {}
-    _collab_rooms[room_id].append(websocket)
-    logger.info(f"[Collab] Client joined room '{room_id}' ({len(_collab_rooms[room_id])} users)")
-
-    # Send current scene state to the new joiner
-    if _collab_scene[room_id]:
-        await websocket.send_text(json.dumps({"type": "scene_sync", "scene": _collab_scene[room_id]}))
-
-    try:
-        while True:
-            raw = await websocket.receive_text()
-            try:
-                msg = json.loads(raw)
-            except json.JSONDecodeError:
-                await websocket.send_text(json.dumps({"error": "invalid JSON"}))
-                continue
-
-            msg_type = msg.get("type", "")
-
-            if msg_type == "scene_update":
-                # Merge patch into room scene state
-                _collab_scene[room_id].update(msg.get("patch", {}))
-                broadcast = json.dumps({"type": "scene_update", "patch": msg.get("patch", {}), "from": msg.get("user", "unknown")})
-                for conn in list(_collab_rooms[room_id]):
-                    if conn is not websocket:
-                        try:
-                            await conn.send_text(broadcast)
-                        except Exception:
-                            pass
-
-            elif msg_type == "cursor_move":
-                broadcast = json.dumps({"type": "cursor_move", "user": msg.get("user", "unknown"), "position": msg.get("position", {})})
-                for conn in list(_collab_rooms[room_id]):
-                    if conn is not websocket:
-                        try:
-                            await conn.send_text(broadcast)
-                        except Exception:
-                            pass
-
-            elif msg_type == "chat":
-                broadcast = json.dumps({"type": "chat", "user": msg.get("user", "unknown"), "message": msg.get("message", "")})
-                for conn in list(_collab_rooms[room_id]):
-                    try:
-                        await conn.send_text(broadcast)
-                    except Exception:
-                        pass
-
-            else:
-                await websocket.send_text(json.dumps({"error": f"unknown message type: {msg_type}"}))
-
-    except WebSocketDisconnect:
-        _collab_rooms[room_id].remove(websocket)
-        logger.info(f"[Collab] Client left room '{room_id}' ({len(_collab_rooms[room_id])} users remaining)")
-        # Notify remaining users
-        leave_msg = json.dumps({"type": "user_left", "user": "unknown"})
-        for conn in list(_collab_rooms[room_id]):
-            try:
-                await conn.send_text(leave_msg)
-            except Exception:
-                pass
-
-# ============================================================================
-# GEOMETRY ENGINE ENDPOINTS
-# ============================================================================
-
-from fastapi.staticfiles import StaticFiles
-import geometry_engine as ge
-import os
-
-# Mount static files for geometry output
-geometry_output_dir = os.path.join(os.path.dirname(__file__), "geometry_output")
-os.makedirs(geometry_output_dir, exist_ok=True)
-app.mount("/api/geometry_output", StaticFiles(directory=geometry_output_dir), name="geometry_output")
-
-class GeometryPartRequest(BaseModel):
-    part_type: str  # bracket, shaft, flange, housing, gear, plate
-    parameters: Dict[str, Any]
-    format: str = "stl"  # stl or step
-
-@app.post("/api/geometry/create-part")
-async def create_geometry_part(request: GeometryPartRequest):
-    """Create a parametric part using the geometry engine"""
-    try:
-        part_type = request.part_type.lower()
-        params = request.parameters
-        part = None
-        
-        if part_type == "bracket":
-            part = ge.create_bracket(**params)
-        elif part_type == "shaft":
-            if "keyway" in params: params["keyway"] = bool(params["keyway"])
-            if "chamfer" in params: params["chamfer"] = bool(params["chamfer"])
-            part = ge.create_shaft(**params)
-        elif part_type == "flange":
-            part = ge.create_flange(**params)
-        elif part_type == "housing":
-            part = ge.create_housing(**params)
-        elif part_type == "gear":
-            if "num_teeth" in params: params["num_teeth"] = int(params["num_teeth"])
-            part = ge.create_gear(**params)
-        elif part_type == "plate":
-            if "hole_rows" in params: params["hole_rows"] = int(params["hole_rows"])
-            if "hole_cols" in params: params["hole_cols"] = int(params["hole_cols"])
-            part = ge.create_plate(**params)
-        else:
-            raise HTTPException(status_code=400, detail=f"Unknown part type: {part_type}")
-            
-        filename = f"{part_type}_generated.{request.format}"
-        filepath = os.path.join(geometry_output_dir, filename)
-        
-        if request.format.lower() == "stl":
-            ge.export_stl(part, filepath)
-        else:
-            ge.export_step(part, filepath)
-            
-        render_url = f"/api/geometry_output/{filename}"
-        if request.format.lower() != "stl":
-            stl_filename = f"{part_type}_generated.stl"
-            stl_filepath = os.path.join(geometry_output_dir, stl_filename)
-            ge.export_stl(part, stl_filepath)
-            render_url = f"/api/geometry_output/{stl_filename}"
-            
-        return {
-            "status": "success",
-            "part_type": part_type,
-            "file_url": f"/api/geometry_output/{filename}",
-            "render_url": render_url,
-            "filename": filename
-        }
-    except Exception as e:
-        logger.error(f"Geometry engine error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-class GeometryAnalysisRequest(BaseModel):
-    part_type: str
-    parameters: Dict[str, Any]
-
-@app.post("/api/geometry/analyze")
-async def analyze_geometry(request: GeometryAnalysisRequest):
-    """Analyze a parametric part using the geometry engine"""
-    try:
-        part_type = request.part_type.lower()
-        params = request.parameters
-        part = None
-        
-        if part_type == "bracket": part = ge.create_bracket(**params)
-        elif part_type == "shaft": part = ge.create_shaft(**params)
-        elif part_type == "flange": part = ge.create_flange(**params)
-        elif part_type == "housing": part = ge.create_housing(**params)
-        elif part_type == "gear": part = ge.create_gear(**params)
-        elif part_type == "plate": part = ge.create_plate(**params)
-        else: raise HTTPException(status_code=400, detail="Unknown part type")
-
-        bbox = ge.fit_bounding_box(part)
-        warnings = ge.check_manufacturability(part)
-        
-        return {
-            "status": "success",
-            "bounding_box": bbox,
-            "manufacturability_warnings": warnings
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/collab/rooms")
-async def list_collab_rooms():
-    """List active collaboration rooms."""
-    return {
-        "status": "success",
-        "rooms": [
-            {"room_id": rid, "user_count": len(conns)}
-            for rid, conns in _collab_rooms.items()
-        ]
-    }
 
 if __name__ == "__main__":
     logger.info("Starting External Engine Bridge on port 8003...")

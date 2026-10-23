@@ -75,7 +75,7 @@ export const KnowledgeBrowser: React.FC = () => {
       <div className="h-full flex flex-col items-center justify-center gap-2 p-6">
         <AlertCircle size={20} className="text-forge-yellow" />
         <p className="text-[10px] font-mono text-forge-text-muted text-center">
-          Knowledge base unavailable. Ensure backend is running with data/knowledge loaded.
+          Knowledge base data missing from build.
         </p>
       </div>
     );

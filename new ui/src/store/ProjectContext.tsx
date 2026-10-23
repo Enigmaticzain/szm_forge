@@ -122,26 +122,21 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const runLocalSolve = useCallback(
     async (mList: StructuralMember[], materialId: string, loadKg: number) => {
-      const online = await ensureBackend();
-      if (!online) {
-        setError('Backend is offline. Start the SZM_Forge C++ server to run simulations.');
+      if (mList.length === 0) {
         setParts([]);
         return null;
       }
-      if (mList.length > 0) {
-        const res = await solveStructuralBackend(mList, materialId, loadKg);
-        if (res?.ok && res.parts?.length) {
-          setParts(res.parts);
-          return res.parts;
-        } else {
-          setError('Backend failed to solve the assembly.');
-          setParts([]);
-          return null;
-        }
+      const res = await solveStructuralBackend(mList, materialId, loadKg);
+      if (res?.ok && res.parts?.length) {
+        setParts(res.parts);
+        setError(null);
+        return res.parts;
       }
+      setError(res?.error ?? 'Solve failed');
+      setParts([]);
       return null;
     },
-    [ensureBackend]
+    [],
   );
 
   const refresh = useCallback(async () => {
@@ -304,38 +299,25 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     async (materialId: string, loadKg: number) => {
       setLoading(true);
       setError(null);
-      const online = await ensureBackend();
-      if (!online) {
-        setError('Backend is offline. Cannot build furniture.');
-        setLoading(false);
-        return;
-      }
-
-      let built: FurniturePart[] = [];
       const res = await createFurniture(furnitureType, materialId, loadKg);
-      if (res?.parts) {
-        built = res.parts;
-      } else {
-        setError('Backend failed to build furniture.');
-        setLoading(false);
-        return;
-      }
+      const built = res?.parts ?? [];
+      if (res?.members) setMembers(res.members);
       setParts(built);
-      setProject(prev => ({
-        projectName: prev?.projectName ?? `${furnitureType} Study`,
+      setProject(res?.project ?? {
+        projectName: `${furnitureType} Study`,
         hasFurniture: true,
         furnitureType,
         materialId,
         material: built[0]?.material ?? materialId,
         loadKg,
         aiImproved: false,
-      }));
+      });
       setLastAction(
-        `Built ${furnitureType} (${built.length} parts) with ${built[0]?.material ?? materialId}. Press APPLY LOAD or LIMITS.`
+        `Built ${furnitureType} (${built.length} parts). Press APPLY LOAD or LIMITS.`,
       );
       setLoading(false);
     },
-    [furnitureType, ensureBackend]
+    [furnitureType],
   );
 
   const applyLoad = useCallback(
@@ -349,58 +331,33 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setLoading(false);
         return;
       }
-      const online = await ensureBackend();
-      if (!online) {
-        setError('Backend is offline. Cannot apply load.');
-        setLoading(false);
-        return;
-      }
-
       if (project?.hasFurniture) {
-        const res = await apiSetLoad(loadKg);
+        const mList = members.length > 0 ? members : presetTable(materialId);
+        const res = await apiSetLoad(loadKg, mList, materialId);
         if (res?.parts) setParts(res.parts);
-        else setError('Backend failed to apply load.');
       }
-      setProject(prev =>
-        prev ? { ...prev, loadKg } : prev
-      );
+      setProject(prev => (prev ? { ...prev, loadKg } : prev));
       setLastAction(`Applied ${loadKg} kg — check viewport (Stress mode) and Analysis → RESULTS.`);
       setLoading(false);
     },
-    [project, furnitureType, members, ensureBackend, runLocalSolve]
+    [project, members, runLocalSolve],
   );
 
-  const runLimitSweep = useCallback(async () => {
+  const measureLimits = useCallback(async () => {
     setLoading(true);
     setError(null);
     const materialId = project?.materialId ?? 'MAT-STEEL-STRUCT';
-    if (members.length > 0) {
-      setError('Limit sweep for custom assemblies is not supported by the backend yet.');
-      setLoading(false);
-      return;
-    }
-
-    const online = await ensureBackend();
-    if (!online) {
-      setError('Backend is offline. Cannot measure limits.');
-      setLoading(false);
-      return;
-    }
-
-    if (project?.hasFurniture) {
-      const res = await apiLimits();
-      if (res?.results) {
-        setLimits(res.results);
-        setLastAction(
-          `Limit sweep: safe up to ${res.maxSafeLoadKg ?? '?'} kg` +
-            (res.firstFailureLoadKg != null ? `; failure near ${res.firstFailureLoadKg} kg.` : '.')
-        );
-      } else {
-        setError('Backend failed to measure limits.');
-      }
+    const mList = members.length > 0 ? members : presetTable(materialId);
+    const res = await apiLimits(mList, materialId);
+    if (res?.results) {
+      setLimits(res.results);
+      setLastAction(
+        `Limit sweep: safe up to ${res.maxSafeLoadKg ?? '?'} kg` +
+          (res.firstFailureLoadKg != null ? `; failure near ${res.firstFailureLoadKg} kg.` : '.'),
+      );
     }
     setLoading(false);
-  }, [project, furnitureType, members, ensureBackend]);
+  }, [project, members]);
 
   const previewLoad = useCallback(
     (loadKg: number) => {
@@ -410,56 +367,39 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setProject(prev => (prev ? { ...prev, loadKg, hasFurniture: true } : prev));
         return;
       }
-      if (!project?.hasFurniture) return;
-      // Cannot preview load without backend. Just return.
-      return;
-      setProject(prev => (prev ? { ...prev, loadKg } : prev));
+      if (project?.hasFurniture) {
+        setProject(prev => (prev ? { ...prev, loadKg } : prev));
+      }
     },
-    [project, furnitureType, members, runLocalSolve]
+    [project, members, runLocalSolve],
   );
 
-  const runAIImprove = useCallback(async () => {
+  const improveWithAI = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
-    if (members.length > 0) {
-      setError('AI Improve for custom assemblies is not supported by the backend yet.');
-      setLoading(false);
-      return;
+    const materialId = project?.materialId ?? 'MAT-STEEL-STRUCT';
+    const loadKg = project?.loadKg ?? 200;
+    const mList = members.length > 0 ? members : presetTable(materialId);
+    const res = await apiAI(mList, materialId, loadKg);
+    if (res?.insights) setAiInsights(res.insights);
+    if (res?.parts) setParts(res.parts);
+    if (res?.materialId) {
+      setProject(prev =>
+        prev
+          ? {
+              ...prev,
+              materialId: res.materialId!,
+              material: res.materialId,
+              aiImproved: true,
+            }
+          : prev,
+      );
+    } else {
+      setProject(prev => (prev ? { ...prev, aiImproved: true } : prev));
     }
-
-    const online = await ensureBackend();
-    if (!online) {
-      setError('Backend is offline. Cannot run AI Improve.');
-      setLoading(false);
-      return;
-    }
-
-    if (project?.hasFurniture) {
-      const res = await apiAI();
-      if (res?.insights) setAiInsights(res.insights);
-      if (res?.parts) setParts(res.parts);
-      const mat = res as { materialId?: string; material?: string } | null;
-      if (mat?.materialId) {
-        setProject(prev =>
-          prev
-            ? {
-                ...prev,
-                materialId: mat.materialId!,
-                material: mat.material ?? prev.material,
-                aiImproved: true,
-              }
-            : prev
-        );
-        setLoading(false);
-        setLastAction('AI improvements applied — open AI ENGINE workspace to review insights.');
-        return;
-      }
-    }
-    setProject(prev => (prev ? { ...prev, aiImproved: true } : prev));
-    setLastAction('AI improvements applied.');
+    setLastAction('AI improvements applied — review insights in Analysis panel.');
     setLoading(false);
-  }, [project, furnitureType, parts, ensureBackend]);
+  }, [project, members]);
 
   const saveMotorProject = useCallback((motorParts: any[], rpm: number) => {
     const newParts: FurniturePart[] = motorParts.map((p, i) => ({
@@ -512,8 +452,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         updateSelectedMember,
         solveAssembly: solveAssemblyAction,
         applyLoad,
-        measureLimits: runLimitSweep,
-        improveWithAI: runAIImprove,
+        measureLimits,
+        improveWithAI,
         previewLoad,
         refresh,
         customMaterials,

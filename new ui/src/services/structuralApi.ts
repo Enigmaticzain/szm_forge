@@ -1,14 +1,10 @@
 /**
- * Backend structural kit solver (uses codes/ MaterialDatabase + beam mechanics).
+ * Structural solver — runs entirely in-browser (offline).
  */
 
 import type { StructuralMember } from '../workshop/structuralAssembly';
 import type { FurniturePart } from '../workshop/furnitureEngine';
-
-const API_BASE = (
-  (import.meta.env.VITE_FORGE_API_URL as string | undefined)?.replace(/\/$/, '') ??
-  (import.meta.env.DEV ? '' : 'http://127.0.0.1:8000')
-);
+import { solveStructural } from '../offline/structuralSolver';
 
 export interface StructuralSolveResult {
   ok: boolean;
@@ -23,22 +19,16 @@ export interface StructuralSolveResult {
 export async function solveStructuralBackend(
   members: StructuralMember[],
   materialId: string,
-  loadKg: number
+  loadKg: number,
 ): Promise<StructuralSolveResult | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8000);
-  try {
-    const res = await fetch(`${API_BASE}/api/structural/solve`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ members, materialId, loadKg }),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as StructuralSolveResult;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  const result = solveStructural(members, materialId, loadKg);
+  return {
+    ok: result.ok,
+    parts: result.parts,
+    memberCount: members.length,
+    loadKg,
+    materialId,
+    solver: result.solver,
+    error: result.error,
+  };
 }

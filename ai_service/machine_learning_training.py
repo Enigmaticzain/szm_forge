@@ -745,6 +745,12 @@ class MachineLearningPipeline:
                 f.write(code[filename])
             print(f"Saved: {filepath}")
         
+        # Generate USD for Omniverse
+        usd_file = self.generate_usd(machine, str(output_path))
+        if usd_file:
+            print(f"Saved USD: {usd_file}")
+
+        
         # Save specification
         spec_path = output_path / f"{machine.id}_spec.json"
         with open(spec_path, 'w') as f:
@@ -768,6 +774,52 @@ class MachineLearningPipeline:
             json.dump(meta, f, indent=2)
         
         return str(output_path)
+
+    def generate_usd(self, machine: GeneratedMachine, output_dir: str) -> Optional[str]:
+        """Generate USD file for Omniverse/Isaac Sim integration."""
+        try:
+            from pxr import Usd, UsdGeom, UsdPhysics, Gf
+        except ImportError:
+            print("Notice: usd-core not installed. Skipping USD generation for Omniverse.")
+            return None
+            
+        try:
+            usd_path = Path(output_dir) / f"{machine.id}.usd"
+            stage = Usd.Stage.CreateNew(str(usd_path))
+            
+            # Root Xform
+            root_path = f"/{self.code_generator.to_pascal_case(machine.name).replace(' ', '_')}"
+            root_xform = UsdGeom.Xform.Define(stage, root_path)
+            
+            # Add Physics Scene
+            scene = UsdPhysics.Scene.Define(stage, f"{root_path}/PhysicsScene")
+            scene.CreateGravityDirectionAttr().Set(Gf.Vec3f(0.0, 0.0, -1.0))
+            scene.CreateGravityMagnitudeAttr().Set(981.0) # cm/s^2 for Omniverse
+            
+            # Articulation Root for Robot/Machine
+            UsdPhysics.ArticulationRootAPI.Apply(root_xform.GetPrim())
+            
+            # Create base components as primitive shapes for now
+            offset_z = 0.0
+            for i, comp in enumerate(machine.specification.get('components', [])):
+                comp_name = self.code_generator.to_pascal_case(comp['name']).replace(' ', '_')
+                comp_path = f"{root_path}/{comp_name}_{i}"
+                cube = UsdGeom.Cube.Define(stage, comp_path)
+                cube.CreateSizeAttr().Set(10.0) # 10cm base size
+                
+                # Stack them vertically for a basic physical representation
+                UsdGeom.XformCommonAPI(cube).SetTranslate(Gf.Vec3d(0, 0, offset_z))
+                offset_z += 10.0
+                
+                # Add rigid body and collision
+                UsdPhysics.RigidBodyAPI.Apply(cube.GetPrim())
+                UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+            
+            stage.GetRootLayer().Save()
+            return str(usd_path)
+        except Exception as e:
+            print(f"Error generating USD: {e}")
+            return None
 
 
 # =============================================================================
