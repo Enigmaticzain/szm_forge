@@ -60,6 +60,8 @@ const createLocalResponse = (query: string) => {
   ].join('\n\n');
 };
 
+import { getApiBaseUrl } from '../services/forgeApi';
+
 // Knowledge Base logic now uses the Python backend GraphRAG API
 
 export const AIChatBot: React.FC = () => {
@@ -113,7 +115,7 @@ export const AIChatBot: React.FC = () => {
       let matchedTerms: string[] = ['local-guidance', 'engineering-assistant'];
 
       try {
-        const res = await fetch('http://localhost:8001/api/graphrag/query', {
+        const res = await fetch(`${getApiBaseUrl()}/api/graphrag/query`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: text })

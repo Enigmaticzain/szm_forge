@@ -1,0 +1,15 @@
+FROM python:3.11-slim AS base
+WORKDIR /app
+COPY ai_service/requirements/base.txt ai_service/requirements/group-02-cad.txt ai_service/requirements/
+COPY ai_service/requirements.txt ai_service/
+RUN pip install --no-cache-dir -r ai_service/requirements.txt
+COPY ai_service/ ai_service/
+EXPOSE 8003
+CMD ["python", "-m", "uvicorn", "external_engine_bridge:app", "--host", "0.0.0.0", "--port", "8003"]
+
+FROM base AS gpl
+RUN pip install --no-cache-dir -r ai_service/requirements/extras-gpl.txt || true
+RUN pip install --no-cache-dir -r ai_service/requirements/group-03-mesh.txt || true
+
+FROM gpl AS ml
+RUN pip install --no-cache-dir -r ai_service/requirements/extras-ml.txt || true

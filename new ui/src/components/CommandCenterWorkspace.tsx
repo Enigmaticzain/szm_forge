@@ -90,6 +90,23 @@ export const CommandCenterWorkspace: React.FC = () => {
                 </button>
               ))}
             </div>
+            <button 
+              className="mt-4 w-full py-2 bg-forge-accent/20 hover:bg-forge-accent/40 text-forge-accent border border-forge-accent/50 rounded flex items-center justify-center gap-2 font-mono font-bold transition-all"
+              onClick={async () => {
+                const { runPipeline } = await import('../services/forgeApi');
+                try {
+                  const result = await runPipeline('auto_mesh_sim_export', ['mesh', 'fea', 'export']);
+                  if (result.status === 'failed') {
+                    throw new Error(result.result?.error || 'Unknown pipeline failure');
+                  }
+                  alert('Pipeline executed successfully!');
+                } catch(e: any) {
+                  alert('Pipeline failed: ' + e.message);
+                }
+              }}
+            >
+              <Workflow size={16} /> EXECUTE PIPELINE
+            </button>
           </div>
 
           <div className="rounded-2xl border border-forge-border/70 bg-forge-panel/75 p-5">

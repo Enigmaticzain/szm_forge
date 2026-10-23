@@ -304,6 +304,56 @@ export const FleetCommand: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Uplink Control */}
+          <div className="px-3 py-3 border-t border-forge-border">
+            <span className="text-[9px] font-semibold tracking-widest text-forge-text-dim">UPLINK CONTROL (IoT)</span>
+            <div className="mt-2 space-y-2">
+              <div className="p-2 border border-forge-green/20 bg-forge-green/5 rounded flex flex-col gap-2">
+                <div className="flex items-center gap-1.5 text-[9px] font-mono text-forge-green font-bold">
+                  <Wifi size={10} /> MQTT SUBSCRIBER
+                </div>
+                <input id="mqttBroker" defaultValue="localhost:1883" className="w-full bg-forge-dark border border-forge-border rounded p-1 text-[9px] font-mono outline-none focus:border-forge-green" />
+                <button className="w-full py-1.5 bg-forge-green/10 text-forge-green hover:bg-forge-green/20 border border-forge-green/30 rounded text-[9px] font-bold font-mono transition-colors"
+                  onClick={async () => {
+                    const { startMqtt } = await import('../services/forgeApi');
+                    const brokerInput = (document.getElementById('mqttBroker') as HTMLInputElement).value;
+                    const [broker, port] = brokerInput.split(':');
+                    try {
+                      const res = await startMqtt(broker, parseInt(port) || 1883);
+                      if (res.status === 'success') alert('MQTT Subscriber started successfully on ' + broker);
+                    } catch (e: any) {
+                      alert('Failed to connect MQTT: ' + e.message);
+                    }
+                  }}
+                >
+                  START UPLINK
+                </button>
+              </div>
+
+              <div className="p-2 border border-forge-accent/20 bg-forge-accent/5 rounded flex flex-col gap-2">
+                <div className="flex items-center gap-1.5 text-[9px] font-mono text-forge-accent font-bold">
+                  <Globe size={10} /> OPC-UA READER
+                </div>
+                <input id="opcuaEndpoint" placeholder="opc.tcp://..." className="w-full bg-forge-dark border border-forge-border rounded p-1 text-[9px] font-mono outline-none focus:border-forge-accent" />
+                <button className="w-full py-1.5 bg-forge-accent/10 text-forge-accent hover:bg-forge-accent/20 border border-forge-accent/30 rounded text-[9px] font-bold font-mono transition-colors"
+                  onClick={async () => {
+                    const { readOpcUa } = await import('../services/forgeApi');
+                    const endpoint = (document.getElementById('opcuaEndpoint') as HTMLInputElement).value;
+                    if (!endpoint) return alert('Enter OPC-UA endpoint');
+                    try {
+                      await readOpcUa(endpoint, 'ns=1;i=1001');
+                      alert('Successfully connected to PLC endpoint.');
+                    } catch (e: any) {
+                      alert('Failed to read PLC: ' + e.message);
+                    }
+                  }}
+                >
+                  PING PLC
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

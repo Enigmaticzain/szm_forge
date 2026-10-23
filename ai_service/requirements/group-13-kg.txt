@@ -1,0 +1,3 @@
+-r base.txt
+rdflib>=7.0.0
+falkordb>=1.0.0

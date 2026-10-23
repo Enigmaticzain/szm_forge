@@ -691,7 +691,7 @@ bool APIManager::Initialize(uint16_t basePort, const std::string& uiDistPath) {
             g_Server->set_pre_routing_handler([](const httplib::Request& req, httplib::Response& res) {
                 res.set_header("Access-Control-Allow-Origin", "*");
                 res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-                res.set_header("Access-Control-Allow-Headers", "Content-Type, Accept");
+                res.set_header("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization");
                 if (req.method == "OPTIONS") {
                     res.status = 204;
                     return httplib::Server::HandlerResponse::Handled;
@@ -921,29 +921,47 @@ bool APIManager::Initialize(uint16_t basePort, const std::string& uiDistPath) {
                 });
             });
 
-            g_Server->Post("/api/auth/login", [&postJson](const httplib::Request& req, httplib::Response& res) {
-                postJson(req, res, [](const nlohmann::json& body) {
-                    httplib::Client cli("127.0.0.1", 8003);
-                    auto r = cli.Post("/auth/login", body.dump(), "application/json");
-                    if (r && r->status == 200) return nlohmann::json::parse(r->body);
-                    return nlohmann::json{{"error", "Auth bridge unreachable"}};
-                });
+            g_Server->Post("/api/auth/login", [](const httplib::Request& req, httplib::Response& res) {
+                httplib::Client cli("127.0.0.1", 8003);
+                cli.set_connection_timeout(5);
+                cli.set_read_timeout(30);
+                auto r = cli.Post("/auth/login", req.body, "application/json");
+                if (r) {
+                    res.status = r->status;
+                    res.set_content(r->body, "application/json");
+                } else {
+                    res.status = 503;
+                    res.set_content(R"({"detail": "Auth bridge unreachable"})", "application/json");
+                }
             });
-            g_Server->Post("/api/auth/register", [&postJson](const httplib::Request& req, httplib::Response& res) {
-                postJson(req, res, [](const nlohmann::json& body) {
-                    httplib::Client cli("127.0.0.1", 8003);
-                    auto r = cli.Post("/auth/register", body.dump(), "application/json");
-                    if (r && r->status == 200) return nlohmann::json::parse(r->body);
-                    return nlohmann::json{{"error", "Auth bridge unreachable"}};
-                });
+            g_Server->Post("/api/auth/register", [](const httplib::Request& req, httplib::Response& res) {
+                httplib::Client cli("127.0.0.1", 8003);
+                cli.set_connection_timeout(5);
+                cli.set_read_timeout(30);
+                auto r = cli.Post("/auth/register", req.body, "application/json");
+                if (r) {
+                    res.status = r->status;
+                    res.set_content(r->body, "application/json");
+                } else {
+                    res.status = 503;
+                    res.set_content(R"({"detail": "Auth bridge unreachable"})", "application/json");
+                }
             });
             g_Server->Get("/api/auth/me", [](const httplib::Request& req, httplib::Response& res) {
                 httplib::Client cli("127.0.0.1", 8003);
-                auto r = cli.Get("/auth/me");
-                if (r && r->status == 200) {
+                cli.set_connection_timeout(5);
+                cli.set_read_timeout(30);
+                httplib::Headers headers;
+                if (req.has_header("Authorization")) {
+                    headers.insert({"Authorization", req.get_header_value("Authorization")});
+                }
+                auto r = cli.Get("/auth/me", headers);
+                if (r) {
+                    res.status = r->status;
                     res.set_content(r->body, "application/json");
                 } else {
-                    res.set_content(R"({"error": "Auth bridge unreachable"})", "application/json");
+                    res.status = 503;
+                    res.set_content(R"({"detail": "Auth bridge unreachable"})", "application/json");
                 }
             });
 

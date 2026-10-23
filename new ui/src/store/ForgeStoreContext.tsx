@@ -34,6 +34,10 @@ export interface ForgeState {
   showToast: (msg: string) => void;
   activeTheme: 'theme1' | 'theme2';
   setTheme: (theme: 'theme1' | 'theme2') => void;
+  floatingComponents: any[];
+  setFloatingComponents: React.Dispatch<React.SetStateAction<any[]>>;
+  importDialogOpen: boolean;
+  setImportDialogOpen: (open: boolean) => void;
 }
 
 const ForgeStoreContext = createContext<ForgeState | null>(null);
@@ -56,6 +60,8 @@ export const ForgeStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [activeTheme, setActiveThemeState] = useState<'theme1' | 'theme2'>(() => {
     return (localStorage.getItem('szm-theme') as 'theme1' | 'theme2') || 'theme2';
   });
+  const [floatingComponents, setFloatingComponents] = useState<any[]>([]);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -123,6 +129,10 @@ export const ForgeStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     showToast,
     activeTheme,
     setTheme,
+    floatingComponents,
+    setFloatingComponents,
+    importDialogOpen,
+    setImportDialogOpen,
   };
 
   return <ForgeStoreContext.Provider value={value}>{children}</ForgeStoreContext.Provider>;

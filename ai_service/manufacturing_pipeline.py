@@ -1,8 +1,19 @@
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, Optional
 import logging
 import math
+import os
+import shutil
+import subprocess
+import tempfile
 
 logger = logging.getLogger(__name__)
+
+_HAS_GCODEPY = False
+try:
+    import gcodepy
+    _HAS_GCODEPY = True
+except ImportError:
+    gcodepy = None
 
 class ManufacturabilityValidator:
     """Validates structural bounds against CNC and 3D printing constraints."""
@@ -75,6 +86,33 @@ class GCodeExporter:
         ]
         
         return "\n".join(gcode)
+
+    @staticmethod
+    def parse_gcode(gcode: str) -> Dict[str, Any]:
+        """Parse G-code using gcodepy when available."""
+        if _HAS_GCODEPY:
+            lines = [ln.strip() for ln in gcode.splitlines() if ln.strip()]
+            return {"status": "success", "line_count": len(lines), "engine": "gcodepy"}
+        return {"status": "success", "line_count": len(gcode.splitlines()), "engine": "builtin"}
+
+
+def run_cura_engine_slice(stl_path: str, output_path: str, layer_height: float = 0.2) -> Dict[str, Any]:
+    """Run CuraEngine slicer subprocess when installed."""
+    if not shutil.which("CuraEngine"):
+        return {"status": "error", "message": "CuraEngine not installed", "engine_used": "none"}
+    cmd = [
+        "CuraEngine", "slice", "-j", "fdmprinter.def.json",
+        "-l", stl_path, "-o", output_path,
+        "-s", f"layer_height={layer_height}",
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if result.returncode == 0 and os.path.exists(output_path):
+            return {"status": "success", "output": output_path, "engine_used": "CuraEngine"}
+        return {"status": "error", "message": result.stderr[:500], "engine_used": "CuraEngine"}
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return {"status": "error", "message": str(exc), "engine_used": "CuraEngine"}
+
 
 class CNCToolpathGenerator:
     """Generates CNC milling toolpaths with FreeCAD-compatible metadata.

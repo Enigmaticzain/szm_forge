@@ -192,11 +192,33 @@ def spec_to_threejs_geometry(spec: dict[str, Any]) -> dict[str, Any]:
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-def text_to_cad(prompt: str, output_dir: str = "/tmp") -> dict[str, Any]:
+def text_to_cad(prompt: str, output_dir: str = "/tmp", backend: str = "auto") -> dict[str, Any]:
+    """Convert NL prompt to CAD; prefer FreeCAD, then build123d/cadquery, else JSON mesh."""
     spec = build_cad_spec(prompt)
+    os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, f"szm_t2cad_{spec['shape']}.step")
 
     step_ok = generate_step(spec, out_path)
+    engine = "FreeCAD headless" if step_ok else "parametric fallback"
+    cad_backend = None
+
+    if not step_ok:
+        try:
+            from cad_backends import export_shape, available_backends
+            backends = available_backends()
+            if any(backends.values()):
+                params = {
+                    "length": float(spec.get("length", 100)),
+                    "width": float(spec.get("width", 50)),
+                    "height": float(spec.get("height", 20)),
+                    "radius": float(spec.get("radius", spec.get("radius1", 25))),
+                }
+                result = export_shape(spec["shape"], params, out_path, "STEP", backend=backend)  # type: ignore[arg-type]
+                step_ok = True
+                cad_backend = result["backend"]
+                engine = cad_backend
+        except Exception as exc:
+            logger.warning("CAD backend export failed: %s", exc)
 
     return {
         "status": "success",
@@ -205,5 +227,8 @@ def text_to_cad(prompt: str, output_dir: str = "/tmp") -> dict[str, Any]:
         "step_file": out_path if step_ok else None,
         "step_available": step_ok,
         "geometry": spec_to_threejs_geometry(spec),
-        "engine": "FreeCAD headless" if step_ok else "parametric fallback",
+        "engine": engine,
+        "backend": cad_backend or ("freecad" if engine.startswith("FreeCAD") else "fallback"),
+        "available_backends": None,
     }
+

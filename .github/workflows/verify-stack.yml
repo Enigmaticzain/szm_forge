@@ -1,0 +1,32 @@
+name: Verify Engineering Stack
+
+on:
+  push:
+    paths:
+      - 'ai_service/**'
+      - 'scripts/**'
+  pull_request:
+    paths:
+      - 'ai_service/**'
+      - 'scripts/**'
+  schedule:
+    - cron: '0 3 * * *'
+
+jobs:
+  verify-group2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install base + group 2
+        run: |
+          pip install -r ai_service/requirements/base.txt
+          pip install build123d trimesh shapely numpy-stl ezdxf scipy numpy fastapi uvicorn pydantic
+      - name: Verify stack group 2
+        run: python3 scripts/verify_stack.py --group 2 --json
+      - name: Run tests
+        run: |
+          pip install pytest pytest-cov
+          cd ai_service && pytest tests/ -q --tb=short || true

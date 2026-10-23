@@ -3,6 +3,7 @@
 #include "UITooltipHelper.hpp"
 #include "WorkshopTooltips.hpp"
 #include "../Simulation/SimulationEngine.hpp"
+#include "../WebAPI/FastAPIBridge.hpp"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <array>
@@ -12,9 +13,13 @@
 
 namespace {
 
-constexpr std::array<const char*, 6> kOverviewPanels = {
+constexpr std::array<const char*, 10> kOverviewPanels = {
     "Toolbar",
     "Dashboard",
+    "Engineering Stack",
+    "CAD Tools",
+    "Mesh Tools",
+    "FEA Tools",
     "Scene Outliner",
     "Properties Inspector",
     "Simulation Visualizer",
@@ -29,13 +34,16 @@ constexpr std::array<const char*, 5> kCorePanels = {
     "SZM-CEA Console"
 };
 
-constexpr std::array<const char*, 7> kBuildPanels = {
+constexpr std::array<const char*, 10> kBuildPanels = {
     "Toolbar",
     "Component Browser",
     "Workshop Library",
     "Workshop Assembly",
     "Part Editor",
     "Workshop Viewport",
+    "CAD Tools",
+    "Mesh Tools",
+    "Engineering Stack",
     "Properties Inspector"
 };
 
@@ -47,11 +55,13 @@ constexpr std::array<const char*, 5> kWorkshopPanels = {
     "Workshop Viewport"
 };
 
-constexpr std::array<const char*, 7> kAnalyzePanels = {
+constexpr std::array<const char*, 9> kAnalyzePanels = {
     "Toolbar",
     "Simulation Control",
     "Workshop Simulation",
     "Simulation Visualizer",
+    "FEA Tools",
+    "Mesh Tools",
     "Component Weight Table",
     "Properties Inspector",
     "SZM-CEA Console"

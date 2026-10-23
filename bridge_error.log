@@ -1,0 +1,51 @@
+INFO:ExternalEngineBridge:Starting External Engine Bridge on port 8003...
+INFO:     Started server process [62534]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8003 (Press CTRL+C to quit)
+INFO:build123d:None context requested by None
+INFO:build123d:Entering BuildPart with mode=Mode.ADD which is in different scope as parent
+INFO:build123d:WorkplaneList is pushing 1 workplanes: [Plane((0, 0, 0), (1, 0, 0), (0, 0, 1))]
+INFO:build123d:LocationList is pushing 1 points: [Location((0, 0, 0), (0, 0, 0))]
+INFO:build123d:BuildPart context requested by None
+INFO:build123d:Entering BuildSketch with mode=Mode.ADD which is in same scope as parent
+INFO:build123d:WorkplaneList is pushing 1 workplanes: [Plane((0, 0, 0), (1, 0, 0), (0, 0, 1))]
+INFO:build123d:LocationList is pushing 1 points: [Location((0, 0, 0), (0, 0, 0))]
+INFO:build123d:BuildSketch context requested by Rectangle
+INFO:build123d:Completed integrating 1 object(s) into part with Mode=Mode.ADD
+INFO:build123d:LocationList is popping 1 points
+INFO:build123d:WorkplaneList is popping 1 workplanes
+INFO:build123d:Exiting BuildSketch
+INFO:build123d:BuildPart context requested by extrude
+INFO:build123d:1 face(s) to extrude on 1 face plane(s)
+INFO:build123d:Completed integrating 1 object(s) into part with Mode=Mode.ADD
+INFO:build123d:BuildPart context requested by None
+INFO:build123d:Entering BuildSketch with mode=Mode.ADD which is in same scope as parent
+INFO:build123d:WorkplaneList is pushing 1 workplanes: [Plane((0, -15, 0), (1, 0, 0), (0, -1, 0))]
+INFO:build123d:LocationList is pushing 1 points: [Location((0, 0, 0), (0, 0, 0))]
+INFO:build123d:Locations is pushing 1 points: [Location((0, 20, 0), (0, 0, 0))]
+INFO:build123d:BuildSketch context requested by Rectangle
+INFO:build123d:Completed integrating 1 object(s) into part with Mode=Mode.ADD
+INFO:build123d:Locations is popping 1 points
+INFO:build123d:LocationList is popping 1 points
+INFO:build123d:WorkplaneList is popping 1 workplanes
+INFO:build123d:Exiting BuildSketch
+INFO:build123d:BuildPart context requested by extrude
+INFO:build123d:1 face(s) to extrude on 1 face plane(s)
+INFO:build123d:Completed integrating 1 object(s) into part with Mode=Mode.ADD
+INFO:build123d:BuildPart context requested by None
+INFO:build123d:Entering BuildSketch with mode=Mode.ADD which is in same scope as parent
+INFO:build123d:WorkplaneList is pushing 1 workplanes: [Plane((0, -17.5, 40), (1, 0, 0), (0, 0, 1))]
+INFO:build123d:LocationList is pushing 1 points: [Location((0, 0, 0), (0, 0, 0))]
+INFO:build123d:LocationList is popping 1 points
+INFO:build123d:WorkplaneList is popping 1 workplanes
+INFO:build123d:Exiting BuildSketch
+INFO:build123d:LocationList is popping 1 points
+INFO:build123d:WorkplaneList is popping 1 workplanes
+INFO:build123d:Exiting BuildPart
+ERROR:ExternalEngineBridge:Geometry engine error: 'float' object cannot be interpreted as an integer
+INFO:     127.0.0.1:41456 - "POST /api/geometry/create-part HTTP/1.1" 500 Internal Server Error
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [62534]

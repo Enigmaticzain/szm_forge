@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "huggingface-skills": {
+      "enabled": true
+    },
+    "grafana-assistant": {
+      "enabled": true
+    }
+  }
+}

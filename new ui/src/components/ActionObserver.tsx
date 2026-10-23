@@ -7,7 +7,7 @@ export const ActionObserver: React.FC = () => {
     // Check if we are actively observing
     const checkStatus = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/ai/observe/stats');
+        const res = await fetch('/api/ai/observe/stats');
         if (res.ok) {
           isObserving.current = true; // For now we assume if we can reach it, we'll try sending.
         }
@@ -31,7 +31,7 @@ export const ActionObserver: React.FC = () => {
       // Skip empty clicks on backgrounds
       if (type === 'DIV' && !text && !id) return;
 
-      fetch('http://localhost:8000/api/ai/observe/action', {
+      fetch('/api/ai/observe/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -58,7 +58,7 @@ export const ActionObserver: React.FC = () => {
         if (e.metaKey) keys.push('Meta');
         keys.push(e.key.toUpperCase());
 
-        fetch('http://localhost:8000/api/ai/observe/action', {
+        fetch('/api/ai/observe/action', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

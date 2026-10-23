@@ -1,0 +1,109 @@
+[0;34m[INFO][0m SZM Forge Launcher
+[1;33m[!][0m Source files changed
+[0;34m[INFO][0m Rebuilding SZM Forge...
+/mnt/D/projects/szm_forge/src/AI/MockOpenCV/opencv2/opencv.hpp:144:142: warning: unused parameter ‘maxLineGap’ [-Wunused-parameter]
+  144 | inline void HoughLinesP(const Mat& image, std::vector<Vec4i>& lines, double rho, double theta, int threshold, double minLineLength=0, double maxLineGap=0) {}
+      |                                                                                                                                       ~~~~~~~^~~~~~~~~~~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:982:80: warning: unused parameter ‘req’ [-Wunused-parameter]
+  982 |             g_Server->Post("/api/ai/observe/start", [](const httplib::Request& req, httplib::Response& res) {
+      |                                                        ~~~~~~~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:987:79: warning: unused parameter ‘req’ [-Wunused-parameter]
+  987 |             g_Server->Post("/api/ai/observe/stop", [](const httplib::Request& req, httplib::Response& res) {
+      |                                                       ~~~~~~~~~~~~~~~~~~~~~~~~^~~
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp: In lambda function:
+/mnt/D/projects/szm_forge/src/WebAPI/FastAPIBridge.cpp:1034:79: warning: unused parameter ‘req’ [-Wunused-parameter]
+ 1034 |             g_Server->Get("/api/ai/observe/stats", [](const httplib::Request& req, httplib::Response& res) {
+      |                                                       ~~~~~~~~~~~~~~~~~~~~~~~~^~~
+[ 94%] Linking CXX static library libSZM_WebAPI_Module.a
+[ 96%] Built target SZM_WebAPI_Module
+[ 98%] Built target SZM_Core
+[100%] Linking CXX executable SZM_Forge
+[100%] Built target SZM_Forge
+[0;32m[✓][0m Rebuild complete
+[0;32m[✓][0m Launching SZM Forge...
+[0;34m[INFO][0m Starting AI Bridge on port 8003...
+launch-auto.sh: line 94: venv/bin/activate: No such file or directory
+launch-auto.sh: line 97: deactivate: command not found
+[SZM Forge] Starting desktop application with React UI...
+SZM Forge [GPU]: OpenGL 4.5 Context Initialized.
+SZM Forge [GPU]: Hardware - Intel Mesa Intel(R) HD Graphics 4400 (HSW GT2)
+[Scheduler] Thread pool: 3 workers
+[SZM Materials] Loaded 48 materials from /mnt/D/projects/szm_forge/data/knowledge/materials.json.
+[Scheduler] Initializing Multi-Physics Orchestrator...
+[CouplingManager] Initialized.
+[SZM Simulation] Engine initialized.
+[SZM Physics] 200-Series Physics Engine initialised.
+[Workshop3D] Imported 56 code 8 examples from /mnt/D/projects/szm_forge/codes/code 8
+[SimulationAPI] Initialized on port 8000
+[AnalysisAPI] Initialized on port 8001
+[ExportAPI] Initialized on port 8002
+[APIManager] Initializing embedded HTTP server...
+[SimulationAPI] Server started on port 8000
+[SimulationAPI] API Documentation: http://localhost:8000/docs
+[AnalysisAPI] Server started on port 8001
+[ExportAPI] Server started on port 8002
+[SZM Materials] Loaded 48 materials from /mnt/D/projects/szm_forge/data/knowledge/materials.json.
+[SZM Knowledge] Loaded 10 domain(s) from /mnt/D/projects/szm_forge/data/knowledge.
+[APIManager] HTTP Server listening on port 8000
+[APIManager] Server started successfully
+[APIManager] Endpoints:
+  GET  /api/status
+  GET  /api/assembly
+  GET  /api/project
+  POST /api/project/new
+  POST /api/project/table
+  POST /api/project/limits
+  POST /api/ai/improve
+  POST /api/workshop/bootstrap
+  GET  /api/simulation/status
+  GET  /api/scene.json
+  POST /api/structural/solve
+  POST /api/simulation/fea/run
+  POST /api/freecad/parametric
+  POST /api/step/assembly/parse
+  POST /api/sketch/solve
+  POST /api/sketch/extrude
+  POST /api/brep/pick
+  POST /api/csg/boolean
+  GET  /api/machine/config
+  POST /api/machine/config
+  GET  /api/code8/catalog
+  GET  /api/materials
+  GET  /api/kb/domains
+  GET  /api/kb/{domain}
+  GET  /api/kb/search?q=
+[SZM Forge] Initializing new React UI (new ui/)...
+[ReactUIManager] Initialized successfully
+[ReactUIManager] UI path: /mnt/D/projects/szm_forge/new ui
+[ReactUIManager] Build path: /mnt/D/projects/szm_forge/new ui/dist
+[ReactUIManager] Build already exists. Skipping build step for faster startup.
+[SZM Forge] React UI built successfully
+[SZM Forge] Window initialised (1920×1080).
+[DigitalTwinManager] Initializing Digital Twin Core...
+[SensorTelemetry] Initializing telemetry ingestion engine...
+[MachineLearningSystem] Initializing...
+[MachineLearningSystem] Initialized successfully
+
+(SZM_Forge:19469): Gdk-WARNING **: 12:19:38.105: eglMakeCurrent failed
+CONSOLE NETWORK INFO Successfully preconnected to https://fonts.googleapis.com/
+http://127.0.0.1:8000/:4305:85722: CONSOLE JS ERROR ReferenceError: Can't find variable: ActionObserver
+CONSOLE NETWORK INFO Successfully preconnected to https://fonts.gstatic.com/
+[SZM Forge] Application initialized.
+[SZM Forge] Entering main loop...
+
+[SZM Forge] Launching Webview: http://127.0.0.1:8000/
+[DigitalTwinManager] Shutting down Digital Twin Core...
+[SensorTelemetry] Shutting down telemetry engine...
+[Scheduler] Shutting down...
+[CouplingManager] Shutdown.
+[SZM Simulation] Engine shutdown.
+[APIManager] Stopping HTTP server...
+[APIManager] Server stopped
+[SZM Forge] Terminated safely.
+
+[SZM Forge] Application terminated successfully.
+[SimulationAPI] Server stopped
+[0;34m[INFO][0m Cleaning up AI Bridge...
+launch-auto.sh: line 106: kill: (19467) - No such process

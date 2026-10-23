@@ -1,0 +1,5 @@
+-r group-06-physics-ml.txt
+deepxde>=1.11.0
+neuraloperator>=1.0.0
+jax>=0.4.23
+jaxlib>=0.4.23

@@ -10,6 +10,7 @@ import { HelpHint } from './ui/HelpHint';
 import { tooltips } from '../data/tooltips';
 import { useWorkspacePresets } from '../store/useWorkspacePresets';
 import { useForgeStore } from '../store/ForgeStoreContext';
+import { getApiBaseUrl } from '../services/forgeApi';
 
 interface Props {
   isOpen: boolean;
@@ -73,7 +74,7 @@ export const SettingsPanel: React.FC<Props> = ({ isOpen, onClose }) => {
   const handleMutate = async () => {
     setIsMutating(true);
     try {
-      const res = await fetch('http://localhost:8001/api/evolution/mutate', { method: 'POST' });
+      const res = await fetch(`${getApiBaseUrl()}/api/evolution/mutate`, { method: 'POST' });
       const data = await res.json();
       setEvolutionStats(data);
     } catch (e) {

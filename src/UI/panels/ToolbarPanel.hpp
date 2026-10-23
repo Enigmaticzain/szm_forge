@@ -1,6 +1,9 @@
 #pragma once
 
 #include "../IPanel.hpp"
+#include "../../Simulation/BridgeClient.hpp"
+#include <chrono>
+#include <optional>
 #include <string>
 
 /**
@@ -33,4 +36,7 @@ private:
     bool m_ShowStressHeatmap = true;
     bool m_ShowTemperatureHeatmap = false;
     float m_SimulationSpeed;
+    std::optional<SZM::BridgeClient::StackStatus> m_BridgeStatus;
+    std::chrono::steady_clock::time_point m_LastBridgeRefresh{};
+    double m_BridgeRefreshIntervalSec = 10.0;
 };

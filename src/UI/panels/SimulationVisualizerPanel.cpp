@@ -97,7 +97,7 @@ void SimulationVisualizerPanel::RenderViewport() {
         );
     } else {
         auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent, SZM::SceneGraph::TransformComponent>();
-        if (entities.empty()) {
+        if (entities.begin() == entities.end()) {
             drawList->AddText(
                 ImVec2(p0.x + 16.0f, p0.y + 16.0f),
                 IM_COL32(180, 185, 195, 255),
@@ -174,18 +174,6 @@ void SimulationVisualizerPanel::DrawComponentCube(SZM::SceneGraph::Entity e, con
         drawList->AddRect(ImVec2(p0.x - 2, p0.y - 2), ImVec2(p1.x + 2, p1.y + 2), dangerColor, 0.0f, 0, 2.0f);
     }
 
-    if (physics.activeContactCount > 0) {
-        const ImU32 contactColor = physics.isGrounded
-            ? IM_COL32(90, 190, 255, 220)
-            : IM_COL32(255, 210, 120, 220);
-        drawList->AddRect(ImVec2(p0.x - 3, p0.y - 3), ImVec2(p1.x + 3, p1.y + 3), contactColor, 0.0f, 0, 2.0f);
-        drawList->AddLine(
-            ImVec2(p0.x, p1.y + 4.0f),
-            ImVec2(p1.x, p1.y + 4.0f),
-            contactColor,
-            2.0f
-        );
-    }
 
     // Label
     if (m_ShowComponentLabels) {
@@ -197,7 +185,7 @@ void SimulationVisualizerPanel::DrawComponentCube(SZM::SceneGraph::Entity e, con
     }
 
     // Selection highlight
-    if (m_SelectedComponentId == e) {
+    if (m_SelectedComponentId == static_cast<uint32_t>(e)) {
         drawList->AddRect(ImVec2(p0.x - 4, p0.y - 4), ImVec2(p1.x + 4, p1.y + 4), 
                          IM_COL32(255, 200, 0, 255), 0.0f, 0, 3.0f);
     }
@@ -208,7 +196,7 @@ void SimulationVisualizerPanel::RenderComponentList() {
     if (!scene) return;
 
     auto entities = scene->View<SZM::SceneGraph::PhysicsStateComponent, SZM::SceneGraph::TransformComponent>();
-    ImGui::Text("Components (%zu)", entities.size());
+    ImGui::Text("Components (%zu)", static_cast<size_t>(std::distance(entities.begin(), entities.end())));
     ImGui::Separator();
     
     for (auto e : entities) {
@@ -221,11 +209,11 @@ void SimulationVisualizerPanel::RenderComponentList() {
             continue;
         }
 
-        ImGui::PushID(e);
+        ImGui::PushID(static_cast<int>(static_cast<uint32_t>(e)));
         
-        const bool isSelected = (m_SelectedComponentId == e);
+        const bool isSelected = (m_SelectedComponentId == static_cast<uint32_t>(e));
         if (ImGui::Selectable(name.c_str(), isSelected)) {
-            m_SelectedComponentId = e;
+            m_SelectedComponentId = static_cast<uint32_t>(e);
         }
 
         if (isSelected) {
@@ -241,7 +229,7 @@ void SimulationVisualizerPanel::RenderComponentList() {
 void SimulationVisualizerPanel::DrawComponentDetails(SZM::SceneGraph::Entity e, const SZM::SceneGraph::PhysicsStateComponent& physics,
                               const SZM::SceneGraph::TransformComponent& transform, const std::string& name) {
     ImGui::Indent();
-    ImGui::TextDisabled("ID: %u", e);
+    ImGui::TextDisabled("ID: %u", static_cast<uint32_t>(e));
     ImGui::TextDisabled("Pos: (%.2f, %.2f, %.2f)", transform.position.x, transform.position.y, transform.position.z);
     
     ImGui::Separator();
@@ -252,9 +240,7 @@ void SimulationVisualizerPanel::DrawComponentDetails(SZM::SceneGraph::Entity e, 
     ImGui::Text("Temp: %.1f°C", physics.temperature - 273.15f);
     ImGui::ProgressBar(physics.tempRatio, ImVec2(-1, 0), "");
 
-    ImGui::Text("Contacts: %u | Grounded: %s", physics.activeContactCount, physics.isGrounded ? "Yes" : "No");
-    ImGui::Text("Kinetic Energy: %.4f J", physics.kineticEnergy);
-    ImGui::Text("Penetration: %.4f m", physics.maxContactPenetration);
+
 
     ImGui::Separator();
     

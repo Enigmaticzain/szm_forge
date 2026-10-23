@@ -1,0 +1,14 @@
+{
+  "id": "generated_20260823_124232",
+  "name": "Generated Cnc_Mill",
+  "machine_type": "cnc_mill",
+  "components": [],
+  "capabilities": [],
+  "specifications": {
+    "power": 5.0,
+    "spindle_speed": 3000.0,
+    "travel_x": 1000.0,
+    "travel_y": 500.0,
+    "travel_z": 500.0
+  }
+}

@@ -39,6 +39,7 @@ void DrawBigMetric(const char* label, const char* value, const char* note, ImU32
 
 DashboardPanel::DashboardPanel() {
     m_LastUpdateTime = std::chrono::high_resolution_clock::now();
+    RefreshBridgeStatus();
     SZM::EventBus::GetInstance().Subscribe(
         "SimulationTick",
         [this](const std::any& /*payload*/) { this->UpdateMetrics(); }
@@ -62,6 +63,9 @@ void DashboardPanel::Draw() {
     ImGui::SameLine();
     ImGui::Checkbox("Warnings##dashboard", &m_ShowWarnings);
     SZM::UIStyleHelper::HorizontalSeparator();
+
+    RenderEngineeringStackStatus();
+    ImGui::Spacing();
 
     RenderMetricCards();
     ImGui::Spacing();
@@ -220,6 +224,76 @@ void DashboardPanel::RenderSimulationStatus() {
                 ImGui::SameLine();
                 ImGui::TextDisabled("(%.1f%% stress)", ratio * 100.0f);
             }
+        }
+    }
+    EndSurface();
+}
+
+void DashboardPanel::RefreshBridgeStatus() {
+    m_LastBridgeRefresh = std::chrono::steady_clock::now();
+    m_BridgeStatus = SZM::BridgeClient::FetchStackStatus();
+}
+
+void DashboardPanel::RenderEngineeringStackStatus() {
+    const auto now = std::chrono::steady_clock::now();
+    const double elapsed = std::chrono::duration<double>(now - m_LastBridgeRefresh).count();
+    if (elapsed >= m_BridgeRefreshIntervalSec) {
+        RefreshBridgeStatus();
+    }
+
+    BeginSurface("EngineeringStackStrip", 0.0f);
+    ImGui::Text("Engineering stack (Python bridge :8003)");
+    ImGui::SameLine();
+
+    const bool online = m_BridgeStatus && m_BridgeStatus->connected;
+    SZM::UIStyleHelper::StatusBadge(online ? "online" : "offline");
+
+    if (!online) {
+        ImGui::TextWrapped(
+            "Start: cd ai_service && uvicorn external_engine_bridge:app --port 8003");
+        EndSurface();
+        return;
+    }
+
+    ImGui::SameLine();
+    ImGui::Text("%d / %d tools",
+        m_BridgeStatus->available,
+        m_BridgeStatus->totalTools);
+
+    if (m_BridgeStatus->cadReady) {
+        ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.45f, 1.f),
+            "Group 2 CAD ready — open CAD Tools panel for text-to-CAD and STEP export");
+    } else {
+        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.2f, 1.f),
+            "Group 2 CAD partial — install ai_service/requirements/group-02.txt");
+    }
+
+    if (m_BridgeStatus->meshReady) {
+        ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.45f, 1.f),
+            "Group 3 Mesh ready — open Mesh Tools for volume mesh + tessellation");
+    } else {
+        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.2f, 1.f),
+            "Group 3 Mesh partial — pip install gmsh meshio");
+    }
+
+    if (m_BridgeStatus->feaReady) {
+        ImGui::TextColored(ImVec4(0.2f, 0.85f, 0.45f, 1.f),
+            "Group 4 FEA ready — open FEA Tools (CalculiX or analytical)");
+    } else {
+        ImGui::TextColored(ImVec4(0.95f, 0.75f, 0.2f, 1.f),
+            "Group 4 FEA partial — pip install scipy numpy");
+    }
+
+    if (m_BridgeStatus->raw.contains("groups")) {
+        for (const auto& g : m_BridgeStatus->raw["groups"]) {
+            const int grp = g.value("group", 0);
+            if (grp != 2 && grp != 3 && grp != 4) {
+                continue;
+            }
+            const float pct = g.value("health_pct", 0.0f) / 100.0f;
+            const char* label = grp == 2 ? "CAD layer health" : grp == 3 ? "Mesh layer health" : "FEA layer health";
+            ImGui::TextDisabled("%s", label);
+            SZM::UIStyleHelper::ProgressBar(pct, ImVec2(-1, 0), nullptr);
         }
     }
     EndSurface();

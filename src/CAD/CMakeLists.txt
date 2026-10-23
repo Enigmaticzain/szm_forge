@@ -10,6 +10,11 @@ target_include_directories(SZM_CAD_Module PUBLIC
 
 target_compile_features(SZM_CAD_Module PUBLIC cxx_std_20)
 
+target_link_libraries(SZM_CAD_Module PUBLIC
+    httplib::httplib
+    nlohmann_json::nlohmann_json
+)
+
 # Optional: Mayo CAD kernel
 # find_package(Mayo QUIET)
 # if(Mayo_FOUND)

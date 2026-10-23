@@ -179,6 +179,14 @@ cmake --build build-full --parallel
 - **Agent System** — 7 specialized agents (Planner, Engineering, Review, Research, Memory, Simulation, Optimization)
 - **Lightweight Build** — AI module now available in terminal mode without GUI dependencies
 - **Predictions Module** — Failure predictor with feature extraction and stress analysis
+- **Geometry Engine** — Python-based parametric solid modeling with build123d, trimesh, shapely:
+  - Smart part creation (bracket, shaft, flange, housing, gear, plate)
+  - 2D profile builder with shapely → 3D extrusion
+  - Mesh processing (import, boolean ops, repair, analysis, simplification)
+  - Format conversion (STEP ↔ STL ↔ DXF ↔ OBJ)
+  - Geometry analysis (interference, clearance, bounding box, DFM checks)
+  - Assembly support with compound STEP export
+  - See [docs/GEOMETRY.md](docs/GEOMETRY.md) for full documentation
 
 ## New in v0.2.0
 

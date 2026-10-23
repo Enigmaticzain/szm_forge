@@ -585,11 +585,11 @@ void {class_name}::Initialize() {{
         for comp in spec.get('components', []):
             source += f"    // {comp['name']} initialization\n"
         
-        source += """}
+        source += f"""}}
 
 void {class_name}::Update(float delta_time) {{
     // Update machine simulation
-""".format(class_name=class_name)
+"""
         
         for behavior in spec.get('behaviors', []):
             source += f"    // Behavior: {behavior.get('name', 'unnamed')}\n"

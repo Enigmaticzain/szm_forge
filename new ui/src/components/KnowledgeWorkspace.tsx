@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { MaterialLibrary } from './MaterialLibrary';
 import { KnowledgeBrowser } from './KnowledgeBrowser';
+import { GraphRAGPanel } from './GraphRAGPanel';
+import { DataCrawlersPanel } from './DataCrawlersPanel';
 
-type Tab = 'materials' | 'reference';
+type Tab = 'materials' | 'reference' | 'reasoning' | 'crawlers';
 
 export const KnowledgeWorkspace: React.FC = () => {
   const [tab, setTab] = useState<Tab>('materials');
@@ -13,6 +15,8 @@ export const KnowledgeWorkspace: React.FC = () => {
         {([
           ['materials', 'MATERIALS'],
           ['reference', 'ENGINEERING REFERENCE'],
+          ['reasoning', 'GRAPHRAG & REASONING'],
+          ['crawlers', 'DATA CRAWLERS'],
         ] as const).map(([id, label]) => (
           <button
             key={id}
@@ -29,7 +33,10 @@ export const KnowledgeWorkspace: React.FC = () => {
         ))}
       </div>
       <div className="flex-1 min-h-0">
-        {tab === 'materials' ? <MaterialLibrary /> : <KnowledgeBrowser />}
+        {tab === 'materials' && <MaterialLibrary />}
+        {tab === 'reference' && <KnowledgeBrowser />}
+        {tab === 'reasoning' && <GraphRAGPanel />}
+        {tab === 'crawlers' && <DataCrawlersPanel />}
       </div>
     </div>
   );

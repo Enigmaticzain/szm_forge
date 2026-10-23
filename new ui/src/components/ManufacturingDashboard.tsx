@@ -4,6 +4,7 @@ import {
   Ruler, Cpu, Printer,
   ArrowRight, Clock, Shield, Code, Download
 } from 'lucide-react';
+import { validateDFM, exportGCode } from '../services/forgeApi';
 
 const bomItems = [
   { part: 'Primary Blade', material: 'Ti-6Al-4V', qty: 12, weight: '2.34 kg', process: 'Forging + 5-Axis CNC', status: 'ready', tolerance: '±0.02mm' },
@@ -43,16 +44,7 @@ export const ManufacturingDashboard: React.FC = () => {
 
   useEffect(() => {
     // Fetch DFM validation
-    fetch('http://localhost:8001/api/manufacturability/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        component_name: 'AI Hub Assembly',
-        parameters: { thickness: 0.015 },
-        process: 'CNC'
-      })
-    })
-      .then(res => res.json())
+    validateDFM('AI Hub Assembly', { thickness: 0.015 }, 'CNC')
       .then(data => {
         if (data && data.checks) {
           setDfmResults(data.checks);
@@ -64,15 +56,7 @@ export const ManufacturingDashboard: React.FC = () => {
   const handleGenerateGCode = async () => {
     setIsGenerating(true);
     try {
-      const res = await fetch('http://localhost:8001/api/manufacturability/export-gcode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          component_name: 'AI Hub Assembly',
-          bounds: { length: 0.8, width: 0.4, depth: 0.15 }
-        })
-      });
-      const data = await res.json();
+      const data = await exportGCode('AI Hub Assembly', { length: 0.8, width: 0.4, depth: 0.15 });
       setGcode(data.gcode);
     } catch (e) {
       console.error(e);
@@ -84,7 +68,7 @@ export const ManufacturingDashboard: React.FC = () => {
     setIsSlicing(true);
     try {
       // Forward via the C++ WebAPI bridge
-      const res = await fetch('http://localhost:8000/api/manufacturing/slicer/run', {
+      const res = await fetch('/api/simulation/slicer/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

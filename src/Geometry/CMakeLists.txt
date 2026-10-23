@@ -19,3 +19,4 @@ target_include_directories(SZM_Geometry_Module PUBLIC
 )
 
 target_compile_features(SZM_Geometry_Module PUBLIC cxx_std_20)
+target_link_libraries(SZM_Geometry_Module PUBLIC nlohmann_json::nlohmann_json)

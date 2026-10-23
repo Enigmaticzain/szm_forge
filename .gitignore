@@ -41,6 +41,8 @@ Thumbs.db
 # Python
 __pycache__/
 venv/
+.venv/
+new ui/node_modules/
 *.pyc
 .env
 

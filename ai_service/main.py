@@ -211,6 +211,12 @@ class SZMForgeAIService:
         # Initialize knowledge base with core rules
         self._initialize_core_knowledge()
         self._initialize_core_rules()
+
+        try:
+            from kb_seed import seed_knowledge_graph
+            seed_knowledge_graph(self.knowledge_graph)
+        except Exception as exc:
+            logger.warning("KB seed skipped: %s", exc)
         
         logger.info("SZM Forge AI Service initialized successfully")
         
@@ -652,6 +658,8 @@ app.include_router(auth_router)
 szm_ai = SZMForgeAIService()  # New integrated AI service
 legacy_ai = AIService()  # Legacy service for backward compatibility
 
+
+
 # ======================== WebSocket Endpoint ========================
 from fastapi import WebSocket
 from typing import List
@@ -792,6 +800,55 @@ async def generate_cnc_toolpath(request: CNCToolpathRequest):
         spindle_speed_rpm=request.spindle_speed_rpm,
         safe_z_mm=request.safe_z_mm,
     )
+
+# ======================== Machine Learning Pipeline Endpoints ========================
+try:
+    from machine_learning_training import MachineLearningPipeline
+    ml_pipeline = MachineLearningPipeline('./machine_data')
+except ImportError as e:
+    logger.warning(f"Could not import MachineLearningPipeline: {e}")
+    ml_pipeline = None
+
+class MLGenerateRequest(BaseModel):
+    machine_type: str
+    count: int = 1
+    parameters: Optional[Dict[str, float]] = None
+
+@app.post("/api/ml/ingest")
+async def ml_ingest():
+    """Ingest machine data"""
+    if not ml_pipeline:
+        raise HTTPException(status_code=503, detail="ML Pipeline not initialized")
+    count = ml_pipeline.ingest_data()
+    return {"status": "success", "count": count}
+
+@app.post("/api/ml/learn")
+async def ml_learn():
+    """Learn patterns from ingested data"""
+    if not ml_pipeline:
+        raise HTTPException(status_code=503, detail="ML Pipeline not initialized")
+    count = ml_pipeline.learn_patterns()
+    return {"status": "success", "patterns_learned": count}
+
+@app.post("/api/ml/generate")
+async def ml_generate(req: MLGenerateRequest):
+    """Generate C++ code for new machines"""
+    if not ml_pipeline:
+        raise HTTPException(status_code=503, detail="ML Pipeline not initialized")
+    machines = ml_pipeline.generate_machines(req.machine_type, req.count, req.parameters)
+    results = []
+    for m in machines:
+        code = ml_pipeline.generate_code(m)
+        results.append({
+            "id": m.id,
+            "name": m.name,
+            "machine_type": m.machine_type,
+            "confidence": m.confidence_score,
+            "header": code.get("header_content", ""),
+            "source": code.get("source_content", ""),
+            "cmake": code.get("cmake_snippet", "")
+        })
+    return {"status": "success", "generated": results}
 
 # ======================== Evolution Endpoints ========================
 

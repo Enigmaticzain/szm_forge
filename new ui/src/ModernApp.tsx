@@ -21,6 +21,11 @@ import { NodeProgrammingWorkspace } from './components/NodeProgrammingWorkspace'
 import { TextToCADPanel } from './components/TextToCADPanel';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SettingsPanel } from './components/SettingsPanel';
+import { GeometryWorkspace } from './components/GeometryWorkspace';
+import { MechanicalWorkspace } from './components/MechanicalWorkspace';
+import { OpticsWorkspace } from './components/OpticsWorkspace';
+import { CombinedAssemblyWorkspace } from './components/CombinedAssemblyWorkspace';
+import { TestingLabWorkspace } from './components/TestingLabWorkspace';
 import { DockingWorkspaceManager } from './components/DockingWorkspaceManager';
 import { Resizer } from './components/Resizer';
 import { WorkspaceLayout } from './components/WorkspaceLayout';
@@ -31,6 +36,8 @@ import { tooltips } from './data/tooltips';
 import { useAuth } from './store/AuthContext';
 import { LoginScreen } from './components/LoginScreen';
 import { KnowledgeWorkspace } from './components/KnowledgeWorkspace';
+import { ActionObserver } from './components/ActionObserver';
+import { RoboticsWorkspace } from './components/RoboticsWorkspace';
 
 const ModernApp: React.FC = () => {
   const [loading, setLoading] = useState(true);
@@ -175,7 +182,7 @@ const ModernApp: React.FC = () => {
             right={rightPanel}
           />
         );
-      case 'designing':
+      case 'geometry':
         return (
           <WorkspaceLayout
             showLeft={false}
@@ -212,6 +219,54 @@ const ModernApp: React.FC = () => {
           <WorkspaceLayout
             showLeft={false}
             center={<KnowledgeWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'components':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<GeometryWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'mechanical':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<MechanicalWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'optics':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<OpticsWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'robotics':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<RoboticsWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'combined-assembly':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<CombinedAssemblyWorkspace />}
+            showRight={false}
+          />
+        );
+      case 'testing-lab':
+        return (
+          <WorkspaceLayout
+            showLeft={false}
+            center={<TestingLabWorkspace />}
             showRight={false}
           />
         );
@@ -331,6 +386,36 @@ const ModernApp: React.FC = () => {
       <NotificationCenter isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
       <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
       <DockingWorkspaceManager isOpen={showWorkspaces} onClose={() => setShowWorkspaces(false)} />
+
+      {store.importDialogOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-8 backdrop-blur-sm">
+          <div className="bg-forge-dark/95 border border-forge-border/40 rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-forge-border/30">
+              <h2 className="text-forge-text font-mono text-sm tracking-wider">IMPORT COMPONENT / MATERIAL</h2>
+              <button 
+                onClick={() => store.setImportDialogOpen(false)}
+                className="text-forge-text-muted hover:text-forge-red transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-8 text-center opacity-50 flex flex-col items-center">
+              <span className="text-forge-text font-mono text-xs mb-2">Global Import Module</span>
+              <span className="text-forge-text-dim font-sans text-xs max-w-md">
+                Here you can import external CAD models, chemical structures, or existing library parts to drop into the current workspace.
+              </span>
+            </div>
+            <div className="p-4 border-t border-forge-border/30 bg-forge-surface/50 flex justify-end">
+              <button 
+                onClick={() => store.setImportDialogOpen(false)}
+                className="px-4 py-2 bg-forge-accent/20 text-forge-accent border border-forge-accent/40 rounded hover:bg-forge-accent/30 text-xs font-bold font-mono transition-all"
+              >
+                CLOSE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

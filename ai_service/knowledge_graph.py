@@ -30,6 +30,10 @@ class EntityType(Enum):
     STANDARD = "standard"
     PROPERTY = "property"
     SYSTEM = "system"
+    PROCESS = "process"
+    MACHINE_ELEMENT = "machine_element"
+    EQUATION = "equation"
+    TREATMENT = "treatment"
 
 
 class RelationType(Enum):
@@ -129,13 +133,17 @@ class KnowledgeGraph:
         properties: Optional[Dict[str, Any]] = None,
         source: Optional[str] = None,
         confidence: float = 0.95,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        entity_id: Optional[str] = None,
     ) -> Entity:
         """Add entity to knowledge graph"""
-        entity_id = str(uuid.uuid4())
+        if entity_id and entity_id in self.entities:
+            return self.entities[entity_id]
+
+        resolved_id = entity_id or str(uuid.uuid4())
         
         entity = Entity(
-            id=entity_id,
+            id=resolved_id,
             name=name,
             entity_type=entity_type,
             description=description,
@@ -145,12 +153,12 @@ class KnowledgeGraph:
             metadata=metadata or {}
         )
         
-        self.entities[entity_id] = entity
+        self.entities[resolved_id] = entity
         
         # Index by type
         if entity_type not in self.entity_index:
             self.entity_index[entity_type] = set()
-        self.entity_index[entity_type].add(entity_id)
+        self.entity_index[entity_type].add(resolved_id)
         
         self.logger.info(f"Added entity: {name} ({entity_type.value})")
         return entity

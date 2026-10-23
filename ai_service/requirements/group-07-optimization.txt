@@ -1,0 +1,5 @@
+-r group-04-fea.txt
+openmdao>=3.35.0
+optuna>=3.5.0
+pymoo>=0.6.1
+deap>=1.4.1
