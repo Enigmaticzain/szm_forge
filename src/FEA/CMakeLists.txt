@@ -1,4 +1,4 @@
-find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+find_package(Eigen3 3.4 NO_MODULE)
 find_package(Threads REQUIRED)
 
 add_library(SZM_FEA_Module STATIC
@@ -13,7 +13,7 @@ target_include_directories(SZM_FEA_Module PUBLIC
 )
 
 target_link_libraries(SZM_FEA_Module PUBLIC
-    Eigen3::Eigen
+    $<$<BOOL:${Eigen3_FOUND}>:Eigen3::Eigen>
     SZM_Materials_Module
     Threads::Threads
 )
