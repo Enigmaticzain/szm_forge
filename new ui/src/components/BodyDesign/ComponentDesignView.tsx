@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import * as THREE from 'three';
 import { Box, Circle, Cylinder, Maximize, Minus, Move, Scissors, Square, Activity, Copy, Magnet, Undo2, Redo2, Type } from 'lucide-react';
 import { InteractivePartEditor } from './InteractivePartEditor';
-import type { DeformSelectionMode, SceneObject, ShapeType } from './InteractivePartEditor';
+import type { BooleanOperation, DeformSelectionMode, SceneObject, ShapeType } from './InteractivePartEditor';
 
 interface Props {
   parts: SceneObject[];
@@ -14,6 +14,7 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
   const [transformMode, setTransformMode] = useState<'translate' | 'scale'>('scale');
   const [deformSelectionMode, setDeformSelectionMode] = useState<DeformSelectionMode>('object');
   const [booleanToolMode, setBooleanToolMode] = useState(false);
+  const [booleanOperation, setBooleanOperation] = useState<BooleanOperation>('subtract');
   const [isSnappingEnabled, setIsSnappingEnabled] = useState(false);
   const [deformBrushSize, setDeformBrushSize] = useState(120);
 
@@ -328,11 +329,31 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
               }`}
           >
             <Scissors size={14} />
-            <span className="text-[9px] font-mono font-bold">BOOLEAN CUT (CSG)</span>
+            <span className="text-[9px] font-mono font-bold">BOOLEAN (CSG)</span>
           </button>
           {booleanToolMode && (
-             <div className="text-[8px] font-mono text-forge-red mt-2 px-1 leading-tight mb-2">
-               Select the shape you want to subtract from {selectedObject?.name}. It will be deleted after the cut.
+            <div className="flex gap-1 mt-2 mb-1">
+              {(['subtract', 'union', 'intersect'] as BooleanOperation[]).map(op => (
+                <button
+                  key={op}
+                  onClick={() => setBooleanOperation(op)}
+                  className={`flex-1 py-1 text-[8px] font-mono font-bold rounded uppercase
+                    ${booleanOperation === op
+                      ? 'bg-forge-red/30 text-forge-red border border-forge-red/50'
+                      : 'bg-forge-dark text-forge-text-muted border border-forge-border'}`}
+                >
+                  {op}
+                </button>
+              ))}
+            </div>
+          )}
+          {booleanToolMode && (
+             <div className="text-[8px] font-mono text-forge-red mt-1 px-1 leading-tight mb-2">
+               {booleanOperation === 'subtract'
+                 ? `Select shape to subtract from ${selectedObject?.name}. Tool will be deleted.`
+                 : booleanOperation === 'union'
+                   ? `Select shape to merge with ${selectedObject?.name}.`
+                   : `Select shape to intersect with ${selectedObject?.name}.`}
              </div>
           )}
           
@@ -503,6 +524,7 @@ export const ComponentDesignView: React.FC<Props> = ({ parts: objects, setParts:
             transformMode={transformMode}
             deformSelectionMode={deformSelectionMode}
             booleanToolMode={booleanToolMode}
+            booleanOperation={booleanOperation}
             isSnappingEnabled={isSnappingEnabled}
             deformBrushSize={deformBrushSize}
             onObjectChange={handleObjectChange}

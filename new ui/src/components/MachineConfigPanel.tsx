@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, Save, CheckCircle, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
-import { fetchMachineConfig, saveMachineConfig, type AxisLimit, type MachineConfigDto } from '../services/forgeApi';
+import { fetchMachineConfig, saveMachineConfig, validateMachineConfig, type AxisLimit, type MachineConfigDto } from '../services/forgeApi';
 
 const DEFAULT_LINEAR: AxisLimit = { travel_mm: 500, feed_mm_min: 5000, accel_mm_s2: 500 };
 const DEFAULT_ROTARY: AxisLimit = { travel_mm: 360, feed_mm_min: 3000, accel_mm_s2: 200 };
@@ -71,16 +71,7 @@ export const MachineConfigPanel: React.FC = () => {
   }, []);
 
   const validate = useCallback(async (config: MachineConfigDto) => {
-    try {
-      const res = await fetch('http://127.0.0.1:8003/machine/config/validate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_5axis: config.is_5axis, linear: config.linear, rotary: config.rotary }),
-      });
-      setVal(await res.json());
-    } catch {
-      setVal(null);
-    }
+    setVal(validateMachineConfig(config));
   }, []);
 
   const updateLinear = (i: number, ax: AxisLimit) => {

@@ -1,73 +1,58 @@
-import { getApiBaseUrl } from './forgeApi';
 import type { FurnitureType } from '../workshop/furnitureEngine';
-
-const base = () => getApiBaseUrl();
-
-async function postJson<T>(path: string, body: Record<string, unknown> = {}): Promise<T | null> {
-  try {
-    const res = await fetch(`${base()}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
-}
-
-async function getJson<T>(path: string): Promise<T | null> {
-  try {
-    const res = await fetch(`${base()}${path}`, { headers: { Accept: 'application/json' } });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
-  } catch {
-    return null;
-  }
-}
+import {
+  createProject,
+  loadProject,
+  createFurnitureOffline,
+  setLoadOffline,
+  runLimitSweepOffline,
+  runAIImproveOffline,
+} from '../offline/furnitureWorkshop';
+import { presetChair, presetLadder, presetTable } from '../workshop/structuralAssembly';
 
 export async function fetchProject() {
-  return getJson<{
-    projectName: string;
-    hasFurniture?: boolean;
-    hasTable?: boolean;
-    furnitureType?: string;
-    materialId: string;
-    material: string;
-    loadKg: number;
-    aiImproved: boolean;
-  }>('/api/project');
+  return loadProject();
 }
 
 export async function createNewProject(name: string) {
-  return postJson('/api/project/new', { name });
+  const project = createProject(name);
+  return { ok: true, project };
 }
 
 export async function createFurniture(type: FurnitureType, materialId: string, loadKg: number) {
-  if (type === 'table') {
-    return postJson<{ parts: unknown[] }>('/api/project/table', { materialId, loadKg });
-  }
-  return postJson<{ parts: unknown[] }>('/api/project/furniture', { type, materialId, loadKg });
+  const { project, members, parts } = createFurnitureOffline(type, materialId, loadKg);
+  return { ok: true, project, members, parts };
 }
 
-export async function setLoad(loadKg: number) {
-  return postJson<{ parts: unknown[] }>('/api/project/load', { loadKg });
+export async function setLoad(
+  loadKg: number,
+  members = presetTable('MAT-STEEL-STRUCT'),
+  materialId = 'MAT-STEEL-STRUCT',
+) {
+  const parts = setLoadOffline(members, materialId, loadKg);
+  return { ok: true, parts, loadKg };
 }
 
-export async function runLimitSweep() {
-  return postJson<{
-    results: unknown[];
-    maxSafeLoadKg?: number;
-    firstFailureLoadKg?: number;
-  }>('/api/project/limits', {});
+export async function runLimitSweep(
+  members = presetTable('MAT-STEEL-STRUCT'),
+  materialId = 'MAT-STEEL-STRUCT',
+) {
+  const results = runLimitSweepOffline(members, materialId);
+  const maxSafe = [...results].reverse().find(r => r.status !== 'FAIL')?.loadKg ?? 0;
+  const firstFailure = results.find(r => r.status === 'FAIL')?.loadKg;
+  return { ok: true, results, maxSafeLoadKg: maxSafe, firstFailureLoadKg: firstFailure };
 }
 
-export async function runAIImprove() {
-  return postJson<{
-    parts: unknown[];
-    insights: unknown[];
-    materialId?: string;
-    material?: string;
-  }>('/api/ai/improve', {});
+export async function runAIImprove(
+  members = presetTable('MAT-STEEL-STRUCT'),
+  materialId = 'MAT-STEEL-STRUCT',
+  loadKg = 200,
+) {
+  const { parts, insights, materialId: improvedMat } = runAIImproveOffline(members, materialId, loadKg);
+  return { ok: true, parts, insights, materialId: improvedMat };
+}
+
+export function getPresetMembers(preset: 'table' | 'chair' | 'ladder', materialId: string) {
+  if (preset === 'chair') return presetChair(materialId);
+  if (preset === 'ladder') return presetLadder(materialId);
+  return presetTable(materialId);
 }

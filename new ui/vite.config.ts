@@ -28,6 +28,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      "@kb": path.resolve(__dirname, "../data/knowledge"),
     },
   },
 });

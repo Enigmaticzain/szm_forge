@@ -13,6 +13,7 @@ import { SimulationWorkspace } from './components/SimulationWorkspace';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PropertyInspector } from './components/PropertyInspector';
 import { DesigningWorkspace } from './components/DesigningWorkspace';
+import { UnifiedGeometryWorkspace } from './components/geometry/UnifiedGeometryWorkspace';
 import { PhysicsWorkspace } from './components/PhysicsWorkspace';
 import ChemistryLabView from './components/ChemistryLabView';
 import CircuitDesigner from './components/CircuitDesigner';
@@ -186,7 +187,7 @@ const ModernApp: React.FC = () => {
         return (
           <WorkspaceLayout
             showLeft={false}
-            center={<DesigningWorkspace />}
+            center={<UnifiedGeometryWorkspace />}
             showRight={false}
           />
         );

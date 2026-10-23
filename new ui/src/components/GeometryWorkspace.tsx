@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useForgeStore } from '../store/ForgeStoreContext';
+import { createGeometryPart, analyzeGeometryPart, geometryBridgeUrl } from '../services/forgeApi';
 import { PenTool, Move, Layers, Settings, Maximize2, Play, Download, AlertTriangle } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -12,6 +13,7 @@ export const GeometryWorkspace: React.FC = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [stlUrl, setStlUrl] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
+  const [isOmniverseStreaming, setIsOmniverseStreaming] = useState(false);
   
   // Params
   const [params, setParams] = useState<Record<string, any>>({
@@ -37,17 +39,10 @@ export const GeometryWorkspace: React.FC = () => {
     setIsGenerating(true);
     setAnalysis(null);
     try {
-      const res = await fetch('http://localhost:8003/api/geometry/create-part', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ part_type: partType, parameters: params, format: 'stl' })
-      });
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      setStlUrl(`http://localhost:8003${data.render_url}`);
+      const data = await createGeometryPart(partType, params, 'stl');
+      if (!data?.render_url) throw new Error('Could not generate part');
+      setStlUrl(geometryBridgeUrl(data.render_url as string));
       store.showToast(`Successfully generated ${partType}!`);
-      
-      // Auto-analyze
       analyzePart();
     } catch (e: any) {
       store.showToast(`Error: ${e.message}`, 'error');
@@ -58,15 +53,8 @@ export const GeometryWorkspace: React.FC = () => {
 
   const analyzePart = async () => {
     try {
-      const res = await fetch('http://localhost:8003/api/geometry/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ part_type: partType, parameters: params })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setAnalysis(data);
-      }
+      const data = await analyzeGeometryPart(partType, params);
+      if (data) setAnalysis(data);
     } catch (e) {
       console.error(e);
     }
@@ -77,7 +65,16 @@ export const GeometryWorkspace: React.FC = () => {
       
       {/* 3D Canvas Area */}
       <div className="flex-1 relative">
-        {stlUrl ? (
+        {isOmniverseStreaming ? (
+          <div className="w-full h-full bg-forge-dark flex flex-col items-center justify-center relative">
+             <div className="absolute top-4 right-4 bg-black/60 px-3 py-1 rounded text-forge-accent font-mono text-xs animate-pulse border border-forge-accent/30 z-10 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-forge-accent"></span>
+                NUCLEUS LIVE SYNC
+             </div>
+             {/* Using standard Omniverse WebRTC streaming port 8211 for local development */}
+             <iframe src="http://localhost:8211/streaming/webrtc-demo/?server=localhost" className="w-full h-full border-none" title="Omniverse Stream" />
+          </div>
+        ) : stlUrl ? (
           <StlViewer url={stlUrl} />
         ) : (
           <div className="flex-1 w-full h-full flex items-center justify-center bg-[url('/grid-pattern.svg')] opacity-30">
@@ -97,7 +94,7 @@ export const GeometryWorkspace: React.FC = () => {
             <Layers size={18} className="text-forge-accent" />
             GEOMETRY ENGINE
           </h2>
-          <p className="text-xs text-forge-text-muted mt-1">Python OpenCASCADE Backend</p>
+          <p className="text-xs text-forge-text-muted mt-1">Offline parametric engine (Three.js)</p>
         </div>
         
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
@@ -165,6 +162,13 @@ export const GeometryWorkspace: React.FC = () => {
               className="w-full py-2 bg-forge-purple/20 hover:bg-forge-purple/40 text-forge-purple border border-forge-purple/50 rounded flex items-center justify-center gap-2 font-mono font-bold transition-all"
             >
               EXPORT USD (OMNIVERSE)
+            </button>
+            <button 
+              onClick={() => setIsOmniverseStreaming(!isOmniverseStreaming)}
+              className={`w-full py-2 ${isOmniverseStreaming ? 'bg-forge-accent text-black' : 'bg-forge-dark hover:bg-forge-accent/20 text-forge-accent'} border border-forge-accent/50 rounded flex items-center justify-center gap-2 font-mono font-bold transition-all mt-1`}
+            >
+              <Maximize2 size={16} />
+              {isOmniverseStreaming ? 'DISABLE NUCLEUS STREAM' : 'ENABLE NUCLEUS STREAM'}
             </button>
           </div>
           

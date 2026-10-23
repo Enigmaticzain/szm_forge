@@ -1,0 +1,13 @@
+# Generated / imported / dependency directories only (not authored source)
+codes/**
+build2/**
+external/**
+generated/**
+build/**
+dist/**
+cmake-build-*/
+node_modules/**
+
+# Binary artifacts (optional exclusions — safe)
+*.so
+*.a

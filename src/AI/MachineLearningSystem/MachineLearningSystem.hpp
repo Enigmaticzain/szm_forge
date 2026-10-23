@@ -250,6 +250,7 @@ public:
     bool IntegrateMachineIntoApp(GeneratedMachine& machine);
     bool RegisterMachineComponent(const std::string& component_id, 
                                   const GeneratedCode& code);
+    bool PushMachineToOmniverse(const GeneratedMachine& machine);
     std::string GetMachineHeader() const;
     
     // ===== DATABASE =====

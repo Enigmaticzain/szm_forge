@@ -1,4 +1,4 @@
-import mesh_engine as me
+import engines.mesh_engine as me
 
 
 def test_mesh_libraries_dict():

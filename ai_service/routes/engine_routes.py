@@ -73,7 +73,7 @@ async def surrogate_predict(req: SurrogatePredictRequest):
 
 @router.get("/mesh/libraries")
 async def mesh_libraries():
-    from mesh_engine import get_available_libraries, get_active_backend
+    from engines.mesh_engine import get_available_libraries, get_active_backend
     libs = get_available_libraries()
     return {
         "status": "success",
@@ -85,7 +85,7 @@ async def mesh_libraries():
 
 @router.post("/mesh/generate")
 async def mesh_generate(req: MeshGenerateRequest):
-    from mesh_engine import generate_mesh, get_active_backend, get_available_libraries
+    from engines.mesh_engine import generate_mesh, get_active_backend, get_available_libraries
     try:
         path = generate_mesh(
             geometry_path=req.geometry_path,
@@ -151,7 +151,7 @@ async def thermal_fluid_props(fluid: str = "Water", T_k: float = 300.0):
 
 @router.post("/mesh/convert")
 async def mesh_convert(req: MeshConvertRequest):
-    from mesh_engine import convert_mesh, get_available_libraries
+    from engines.mesh_engine import convert_mesh, get_available_libraries
     try:
         out = convert_mesh(req.src_path, req.dst_path)
         return {
@@ -199,7 +199,7 @@ async def iot_opcua_read(req: OpcuaReadRequest):
 
 @router.post("/pipeline/run")
 async def pipeline_run(req: PipelineRunRequest):
-    from pipeline_engine import get_pipeline_engine
+    from ai.pipeline_engine import get_pipeline_engine
     job = get_pipeline_engine().run_pipeline(req.geometry_path)
     return {
         "status": job.status.value,
@@ -211,7 +211,7 @@ async def pipeline_run(req: PipelineRunRequest):
 
 @router.get("/pipeline/job/{job_id}")
 async def pipeline_job(job_id: str):
-    from pipeline_engine import get_pipeline_engine
+    from ai.pipeline_engine import get_pipeline_engine
     job = get_pipeline_engine().get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")

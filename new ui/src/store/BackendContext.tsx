@@ -7,14 +7,17 @@ import React, {
   ReactNode,
 } from 'react';
 import {
-  pingBackend,
   fetchSimulationStatus,
   getApiBaseUrl,
+  getEngineInfo,
+  isOfflineMode,
   SimulationStatusDto,
 } from '../services/forgeApi';
 
 interface BackendContextType {
   connected: boolean;
+  offline: boolean;
+  engineName: string;
   apiBase: string;
   simulation: SimulationStatusDto | null;
   refresh: () => Promise<void>;
@@ -22,26 +25,23 @@ interface BackendContextType {
 }
 
 const BackendContext = createContext<BackendContextType>({
-  connected: false,
-  apiBase: getApiBaseUrl(),
+  connected: true,
+  offline: true,
+  engineName: 'SZM Forge Offline Engine',
+  apiBase: '',
   simulation: null,
   refresh: async () => {},
   lastError: null,
 });
 
 export const BackendProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [connected, setConnected] = useState(false);
+  const engine = getEngineInfo();
+  const [connected, setConnected] = useState(true);
   const [simulation, setSimulation] = useState<SimulationStatusDto | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    const ok = await pingBackend();
-    setConnected(ok);
-    if (!ok) {
-      setLastError('C++ backend offline — start SZM_Forge desktop build');
-      setSimulation(null);
-      return;
-    }
+    setConnected(true);
     setLastError(null);
     const sim = await fetchSimulationStatus();
     setSimulation(sim);
@@ -49,14 +49,19 @@ export const BackendProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   useEffect(() => {
     refresh();
-    const id = window.setInterval(refresh, 2000);
-    return () => window.clearInterval(id);
+    if (!isOfflineMode()) {
+      const id = window.setInterval(refresh, 5000);
+      return () => window.clearInterval(id);
+    }
+    return undefined;
   }, [refresh]);
 
   return (
     <BackendContext.Provider
       value={{
         connected,
+        offline: isOfflineMode(),
+        engineName: engine.name,
         apiBase: getApiBaseUrl(),
         simulation,
         refresh,

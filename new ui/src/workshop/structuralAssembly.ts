@@ -1,7 +1,8 @@
 /**
- * Structural kit: beams, rods, plates, blocks — attach + FEA-style stress (local solver).
- * Axial + simplified Euler–Bernoulli bending; von Mises combine for rectangular sections.
+ * Structural kit: beams, rods, plates, blocks — attach + in-browser stress solver.
  */
+
+import { getAllMaterials } from '../offline/materials';
 
 export type MemberKind = 'beam' | 'rod' | 'plate' | 'block';
 
@@ -34,17 +35,13 @@ export interface MemberStress {
   kind: MemberKind;
 }
 
-const MATERIALS: Record<string, { label: string; yieldMPa: number; E_GPa: number }> = {
-  'MAT-STEEL-STRUCT': { label: 'Structural Steel', yieldMPa: 250, E_GPa: 200 },
-  'MAT-AL-6061-T6': { label: '6061-T6 Aluminum', yieldMPa: 275, E_GPa: 69 },
-  'MAT-TI-6AL4V': { label: 'Ti-6Al-4V', yieldMPa: 880, E_GPa: 114 },
-  'MAT-CU-C110': { label: 'C110 Copper', yieldMPa: 70, E_GPa: 117 },
-};
-
-const G = 9.81;
-
 export function materialCatalog() {
-  return Object.entries(MATERIALS).map(([id, m]) => ({ id, label: m.label }));
+  return getAllMaterials().map(m => ({
+    id: m.id,
+    label: m.name,
+    yieldMPa: m.yieldStrength_MPa,
+    E_GPa: m.youngsModulus_GPa,
+  }));
 }
 
 function crossSection(member: StructuralMember): { area: number; I: number; c: number } {

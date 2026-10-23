@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import Optional
-from auth import (
+from .auth_core import (
     register_user, authenticate_user, create_token, verify_token,
     get_user_projects, add_user_project, remove_user_project,
 )

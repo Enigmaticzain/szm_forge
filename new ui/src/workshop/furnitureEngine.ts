@@ -1,7 +1,8 @@
 /**
- * In-browser furniture workshop (used when user clicks UI controls).
- * Syncs to C++ backend when SZM_Forge is running on :8000.
+ * In-browser furniture workshop — fully offline.
  */
+
+import { getAllMaterials } from '../offline/materials';
 
 export type FurnitureType = 'table' | 'chair' | 'ladder' | 'motor';
 
@@ -41,15 +42,6 @@ export interface ProjectState {
   aiImproved: boolean;
 }
 
-const MATERIALS: Record<string, { label: string; yieldMPa: number }> = {
-  'MAT-STEEL-STRUCT': { label: 'Structural Steel', yieldMPa: 250 },
-  'MAT-AL-6061-T6': { label: '6061-T6 Aluminum', yieldMPa: 275 },
-  'MAT-TI-6AL4V': { label: 'Ti-6Al-4V Titanium', yieldMPa: 880 },
-  'MAT-CU-C110': { label: 'C110 Copper', yieldMPa: 70 },
-};
-
-// Fallback math logic removed — we strictly use the C++ backend now.
-
 export function materialOptions() {
-  return Object.entries(MATERIALS).map(([id, m]) => ({ id, label: m.label }));
+  return getAllMaterials().map(m => ({ id: m.id, label: m.name }));
 }

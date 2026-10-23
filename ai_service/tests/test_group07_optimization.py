@@ -1,4 +1,4 @@
-from optimization_engine import optimize_design
+from engines.optimization_engine import optimize_design
 
 
 def test_optimize_design():

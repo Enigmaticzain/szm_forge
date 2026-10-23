@@ -62,7 +62,7 @@ class PipelineEngine:
         self._jobs[job_id] = job
         try:
             job.steps.append("ingest")
-            from mesh_engine import generate_mesh
+            from engines.mesh_engine import generate_mesh
             msh = generate_mesh(geometry_path=geometry_path if geometry_path else None)
             job.steps.append("mesh")
             job.result["mesh_path"] = msh
