@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
-import logging/mnt/D/projects/szm_forge/agent_plans
+import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ExternalEngineBridge")

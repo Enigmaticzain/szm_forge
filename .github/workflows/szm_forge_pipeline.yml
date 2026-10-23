@@ -57,17 +57,17 @@ jobs:
         with:
           node-version: 20
       - name: Install Dependencies
-        working-directory: new\ ui
+        working-directory: "new ui"
         run: npm ci
       - name: Build UI
-        working-directory: new\ ui
+        working-directory: "new ui"
         run: npm run build
       - name: Install Playwright Browsers
-        working-directory: new\ ui
+        working-directory: "new ui"
         run: npx playwright install --with-deps
       - name: Test UI (Unit)
-        working-directory: new\ ui
+        working-directory: "new ui"
         run: npm run test || true
       - name: Test UI (E2E)
-        working-directory: new\ ui
+        working-directory: "new ui"
         run: npm run test:e2e || true
