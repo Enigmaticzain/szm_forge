@@ -1,4 +1,5 @@
 #include "FluidProperties.hpp"
+#include <cmath>
 
 namespace SZM::Fluids {
 
