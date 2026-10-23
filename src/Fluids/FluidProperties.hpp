@@ -1,9 +1,11 @@
 #ifndef FLUID_PROPERTIES_HPP
 #define FLUID_PROPERTIES_HPP
 
-#include <glm/glm.hpp>
 #include <string>
 #include <map>
+#if __has_include(<glm/glm.hpp>)
+#include <glm/glm.hpp>
+#endif
 
 namespace SZM::Fluids {
 
