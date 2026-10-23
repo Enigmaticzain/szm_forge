@@ -19,14 +19,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - name: Install base + group 2
         run: |
-          pip install -r ai_service/requirements/base.txt
-          pip install build123d trimesh shapely numpy-stl ezdxf scipy numpy fastapi uvicorn pydantic
+          PYTHONPATH=. pip install -r ai_service/requirements/base.txt
+          PYTHONPATH=. pip install build123d trimesh shapely numpy-stl ezdxf scipy numpy fastapi uvicorn pydantic
       - name: Verify stack group 2
-        run: python3 scripts/verify_stack.py --group 2 --json
+        run: PYTHONPATH=. python3 scripts/verify_stack.py --group 2 --json
       - name: Run tests
+        env:
+          PYTHONPATH: .
         run: |
-          pip install pytest pytest-cov
-          cd ai_service && pytest tests/ -q --tb=short || true
+          PYTHONPATH=. pip install pytest pytest-cov
+          PYTHONPATH=. python3 -m pytest ai_service/tests/ -q --tb=short || true
