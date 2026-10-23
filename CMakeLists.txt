@@ -140,15 +140,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(cpp_httplib)
 
 if(SZM_BUILD_FULL_DESKTOP)
-    find_package(nlohmann_json QUIET)
-    if(NOT nlohmann_json_FOUND)
-        include(FetchContent)
-        FetchContent_Declare(
-            nlohmann_json
-            URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-        )
-        FetchContent_MakeAvailable(nlohmann_json)
-    endif()
 
     if(SZM_ENABLE_BULLET_BACKEND)
         unset(SZM_BULLET_SOURCE_DIR)
@@ -198,7 +189,7 @@ if(SZM_BUILD_FULL_DESKTOP)
     add_subdirectory(${CMAKE_SOURCE_DIR}/external/glfw EXCLUDE_FROM_ALL)
 
     # Eigen3 — Linear Algebra (Constraint Solver & Math)
-    find_package(Eigen3 3.4 REQUIRED NO_MODULE)
+    find_package(Eigen3 3.4 NO_MODULE)
 
     # OpenGL
     find_package(OpenGL REQUIRED)
