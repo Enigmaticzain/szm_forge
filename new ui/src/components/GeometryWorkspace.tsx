@@ -15,6 +15,10 @@ export const GeometryWorkspace: React.FC = () => {
   const [analysis, setAnalysis] = useState<any>(null);
   const [isOmniverseStreaming, setIsOmniverseStreaming] = useState(false);
   
+  // Phase 01 — isometric + selection scaffold (preserves existing logic)
+  const [isIsometric, setIsIsometric] = useState(true);
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
+  
   // Params
   const [params, setParams] = useState<Record<string, any>>({
     length: 80, width: 40, thickness: 5, holes: 2
@@ -45,7 +49,7 @@ export const GeometryWorkspace: React.FC = () => {
       store.showToast(`Successfully generated ${partType}!`);
       analyzePart();
     } catch (e: any) {
-      store.showToast(`Error: ${e.message}`, 'error');
+      store.showToast(`Error: ${e.message}`);
     } finally {
       setIsGenerating(false);
     }
@@ -180,19 +184,27 @@ export const GeometryWorkspace: React.FC = () => {
               <div className="text-xs font-mono text-forge-text-muted flex flex-col gap-1">
                 <div className="flex justify-between">
                   <span>Volume:</span>
-                  <span className="text-forge-text">{(analysis.bounding_box.volume / 1000).toFixed(2)} cm³</span>
+                  <span className="text-forge-text">
+                    {(((analysis.bounding_box?.volume ?? analysis.volume_mm3 ?? 0) as number) / 1000).toFixed(2)} cm³
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Bounds (X):</span>
-                  <span className="text-forge-text">{analysis.bounding_box.extents[0].toFixed(1)} mm</span>
+                  <span className="text-forge-text">
+                    {((analysis.bounding_box?.x ?? analysis.bounding_box?.extents?.[0] ?? 0) as number).toFixed(1)} mm
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Bounds (Y):</span>
-                  <span className="text-forge-text">{analysis.bounding_box.extents[1].toFixed(1)} mm</span>
+                  <span className="text-forge-text">
+                    {((analysis.bounding_box?.y ?? analysis.bounding_box?.extents?.[1] ?? 0) as number).toFixed(1)} mm
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span>Bounds (Z):</span>
-                  <span className="text-forge-text">{analysis.bounding_box.extents[2].toFixed(1)} mm</span>
+                  <span className="text-forge-text">
+                    {((analysis.bounding_box?.z ?? analysis.bounding_box?.extents?.[2] ?? 0) as number).toFixed(1)} mm
+                  </span>
                 </div>
               </div>
               
