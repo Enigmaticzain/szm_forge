@@ -74,33 +74,101 @@ const MachineCard: React.FC<{ machine: MachineUnit; selected: boolean; onClick: 
   );
 };
 
+import { DigitalTwinDashboard: React.FC } from "./DigitalTwinDashboard";
+// Phase 03 — All telemetry displayed is SIMULATED (see .data/sim_telemetry_contract.md)
+// No real-world sensor readings are used or claimed.
 export const DigitalTwinDashboard: React.FC = () => {
   const [selectedMachine, setSelectedMachine] = useState<string>('m1');
   const [liveValues, setLiveValues] = useState<Record<string, number>>({});
+  const [fleet, setFleet] = useState<MachineUnit[]>(machineFleet);
+  const [liveSource, setLiveSource] = useState<'api' | 'offline'>('offline');
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveValues({
-        rpm: 3200 + Math.random() * 100,
-        pressure: 142 + Math.random() * 5,
-        vibration: 0.04 + Math.random() * 0.02,
-        flowRate: 847 + Math.random() * 20,
-        oilTemp: 78 + Math.random() * 3,
-        bearingTemp: 124 + Math.random() * 5,
-      });
-    }, 1500);
-    return () => clearInterval(interval);
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const res = await fetch('/api/simulation/status');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const components = Array.isArray(data?.components) ? data.components : [];
+        if (components.length > 0) {
+          const mapped: MachineUnit[] = components.map((c: Record<string, unknown>, i: number) => {
+            const stressRatio = Number(c.stressRatio ?? 0);
+            const tempRatio = Number(c.tempRatio ?? 0);
+            const health = Math.max(5, Math.round(100 - stressRatio * 40 - tempRatio * 30));
+            const status: MachineUnit['status'] =
+              health < 40 ? 'critical' : health < 70 ? 'degraded' : 'online';
+            return {
+              id: `sim-${i}`,
+              name: String(c.name ?? `Component ${i + 1}`),
+              type: 'Simulation node',
+              status,
+              health,
+              uptime: 99,
+              temperature: Number(c.temperature_C ?? 0),
+              load: Math.round(stressRatio * 100),
+              efficiency: Math.max(50, 100 - stressRatio * 20),
+              location: 'Sim rack',
+              lastMaintenance: '—',
+              nextMaintenance: '—',
+              telemetry: [],
+            };
+          });
+          setFleet(mapped);
+          setSelectedMachine(prev => (mapped.some(m => m.id === prev) ? prev : mapped[0].id));
+          setLiveSource('api');
+          const first = components[0] as Record<string, unknown>;
+          setLiveValues({
+            rpm: Number(data.simTime ?? 0) * 60 || 3200,
+            pressure: Number(first?.stress_MPa ?? 142),
+            vibration: Number(first?.stressRatio ?? 0.04),
+            flowRate: Number(data.componentCount ?? components.length) * 100,
+            oilTemp: Number(first?.temperature_C ?? 78),
+            bearingTemp: Number(first?.temperature_C ?? 100) + 20,
+          });
+          return;
+        }
+        throw new Error('empty status');
+      } catch {
+        if (cancelled) return;
+        setLiveSource('offline');
+        setFleet(machineFleet);
+        // Deterministic offline telemetry (no Math.random)
+        const t = Date.now() / 1000;
+        setLiveValues({
+          rpm: 3200 + Math.sin(t / 3) * 40,
+          pressure: 142 + Math.sin(t / 5) * 2,
+          vibration: 0.05 + Math.sin(t / 2) * 0.01,
+          flowRate: 847 + Math.cos(t / 4) * 8,
+          oilTemp: 78 + Math.sin(t / 6) * 1.5,
+          bearingTemp: 124 + Math.cos(t / 7) * 2,
+        });
+      }
+    };
+    pull();
+    const interval = setInterval(pull, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, []);
 
-  const selected = machineFleet.find(m => m.id === selectedMachine) || machineFleet[0];
+  const selected = fleet.find(m => m.id === selectedMachine) || fleet[0] || machineFleet[0];
   const selStatus = statusConfig[selected.status];
 
   const fleetStats = {
-    online: machineFleet.filter(m => m.status === 'online').length,
-    degraded: machineFleet.filter(m => m.status === 'degraded').length,
-    critical: machineFleet.filter(m => m.status === 'critical' || m.status === 'maintenance').length,
-    avgHealth: Math.round(machineFleet.reduce((a, m) => a + m.health, 0) / machineFleet.length),
-    avgEfficiency: (machineFleet.filter(m => m.efficiency > 0).reduce((a, m) => a + m.efficiency, 0) / machineFleet.filter(m => m.efficiency > 0).length).toFixed(1),
+    online: fleet.filter(m => m.status === 'online').length,
+    degraded: fleet.filter(m => m.status === 'degraded').length,
+    critical: fleet.filter(m => m.status === 'critical' || m.status === 'maintenance').length,
+    avgHealth: fleet.length
+      ? Math.round(fleet.reduce((a, m) => a + m.health, 0) / fleet.length)
+      : 0,
+    avgEfficiency: (() => {
+      const active = fleet.filter(m => m.efficiency > 0);
+      if (!active.length) return '0.0';
+      return (active.reduce((a, m) => a + m.efficiency, 0) / active.length).toFixed(1);
+    })(),
   };
 
   return (
@@ -111,7 +179,9 @@ export const DigitalTwinDashboard: React.FC = () => {
           <Radio size={14} className="text-forge-accent" />
           <div>
             <div className="text-[10px] font-bold tracking-widest text-forge-accent">DIGITAL TWIN COMMAND CENTER</div>
-            <div className="text-[8px] font-mono text-forge-text-muted">INDUSTRIAL FLEET MANAGEMENT • REAL-TIME TELEMETRY</div>
+            <div className="text-[8px] font-mono text-forge-text-muted">
+              INDUSTRIAL FLEET · {liveSource === 'api' ? 'LIVE /api/simulation/status' : 'OFFLINE FALLBACK'}
+            </div>
           </div>
         </div>
 
@@ -119,7 +189,7 @@ export const DigitalTwinDashboard: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="text-center">
               <div className="text-[8px] font-mono text-forge-text-muted">FLEET</div>
-              <div className="text-[14px] font-bold font-mono text-forge-text">{machineFleet.length}</div>
+              <div className="text-[14px] font-bold font-mono text-forge-text">{fleet.length}</div>
             </div>
             <div className="text-center">
               <div className="text-[8px] font-mono text-forge-text-muted">ONLINE</div>
@@ -152,10 +222,10 @@ export const DigitalTwinDashboard: React.FC = () => {
         <div className="w-[380px] border-r border-forge-border bg-forge-panel overflow-y-auto p-3">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[9px] font-semibold tracking-widest text-forge-text-dim">MACHINE FLEET</span>
-            <span className="text-[8px] font-mono text-forge-text-muted">{machineFleet.length} units</span>
+            <span className="text-[8px] font-mono text-forge-text-muted">{fleet.length} units</span>
           </div>
           <div className="grid grid-cols-1 gap-2">
-            {machineFleet.map(machine => (
+            {fleet.map(machine => (
               <MachineCard
                 key={machine.id}
                 machine={machine}
