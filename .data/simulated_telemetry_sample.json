@@ -1,0 +1,11 @@
+{
+  "dataset_source": "simulated_telemetry_contract.md — SIMULATED ONLY",
+  "note": "NOT REAL SENSOR DATA. All values constructed for engineering visualization.",
+  "records": [
+    {"timestamp":"2026-11-02T21:35:00Z","machine_id":"m1","temperature":310.2,"stress":120000000,"stressRatio":0.48,"load_percent":48,"health_percent":52},
+    {"timestamp":"2026-11-02T21:36:00Z","machine_id":"m1","temperature":312.5,"stress":135000000,"stressRatio":0.54,"load_percent":54,"health_percent":46},
+    {"timestamp":"2026-11-02T21:37:00Z","machine_id":"m2","temperature":298.7,"stress":98000000,"stressRatio":0.39,"load_percent":39,"health_percent":61}
+  ],
+  "contract_version": "1.0-phase02",
+  "real_hardware_connected": false
+}
