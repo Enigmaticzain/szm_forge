@@ -167,11 +167,13 @@ void AdvancedViewportPanel::HandleViewportInput() {
     if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle)) {
         ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Middle);
         m_CameraController.HandleMouseDrag(delta.x, delta.y, Graphics::CameraMode::Orbit);
+        ImGui::ResetMouseDragDelta(ImGuiMouseButton_Middle);
     }
 
     if (ImGui::IsMouseDragging(ImGuiMouseButton_Right)) {
         ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
         m_CameraController.HandleMouseDrag(delta.x, delta.y, Graphics::CameraMode::Pan);
+        ImGui::ResetMouseDragDelta(ImGuiMouseButton_Right);
     }
 
     // Handle scroll

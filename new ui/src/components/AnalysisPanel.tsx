@@ -60,21 +60,8 @@ export const AnalysisPanel: React.FC = () => {
     severity: (ins.type === 'warning' ? 'critical' : 'info') as 'info' | 'warning' | 'critical' | 'success',
     timestamp: 'just now',
   })) : aiInsights;
-  const { limits, aiInsights: projectAi, parts, project } = useProject();
+  useProject();
   const { t } = useTooltips();
-
-  const liveInsights =
-    projectAi.length > 0
-      ? projectAi.map((ins, i) => ({
-          id: `proj-ai-${i}`,
-          type: (ins.type === 'optimization' ? 'optimization' : ins.type === 'warning' ? 'warning' : 'recommendation') as const,
-          title: ins.title,
-          description: ins.description,
-          confidence: ins.confidence,
-          severity: (ins.type === 'warning' ? 'warning' : 'info') as const,
-          timestamp: 'live',
-        }))
-      : aiInsights;
   const [activeTab, setActiveTab] = useState<PanelTab>('results');
   const [expandedInsight, setExpandedInsight] = useState<string | null>('ai-1');
 

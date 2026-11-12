@@ -66,7 +66,7 @@ public:
 private:
     std::vector<SceneChange> buffer_;
     std::map<std::string, SceneChange> latest_;  ///< Latest change per property
-    size_t original_size_;
+    size_t original_size_ = 0;
 };
 
 } // namespace SZM::Omniverse

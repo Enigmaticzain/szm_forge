@@ -118,6 +118,12 @@ void AssistantInterface::RenderMainPanel() {
         return;
     }
     
+    RenderContent();
+    
+    ImGui::End();
+}
+
+void AssistantInterface::RenderContent() {
     // Header with status
     RenderHeader();
     ImGui::Separator();
@@ -147,8 +153,6 @@ void AssistantInterface::RenderMainPanel() {
     if (m_ShowSettings) {
         RenderSettings();
     }
-    
-    ImGui::End();
 }
 
 void AssistantInterface::RenderHeader() {
@@ -680,7 +684,7 @@ void AssistantPanel::RenderExpanded() {
     ImGui::SetNextWindowPos(m_Position);
     ImGui::SetNextWindowSize(ImVec2(m_Size.x, m_Size.y * m_ExpandAnim));
     
-    ImGui::Begin("AI Assistant", nullptr,
+    ImGui::Begin("AI Assistant Panel##Expanded", nullptr,
                  ImGuiWindowFlags_NoResize |
                  ImGuiWindowFlags_NoMove |
                  ImGuiWindowFlags_NoCollapse);
@@ -734,8 +738,8 @@ void AssistantPanel::RenderHeader() {
 }
 
 void AssistantPanel::RenderBody() {
-    // Main content from AssistantInterface
-    m_Interface.RenderMainPanel();
+    // Main content from AssistantInterface without nested ImGui::Begin
+    m_Interface.RenderContent();
 }
 
 void AssistantPanel::RenderFooter() {

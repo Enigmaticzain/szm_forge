@@ -101,15 +101,17 @@ std::vector<ClashVolume> InterferenceChecker::RunStaticCheck(
     size_t chunk = static_cast<size_t>(
         std::ceil(static_cast<double>(N) / numThreads));
 
-    std::vector<std::jthread> workers;
-    workers.reserve(numThreads);
-    for (unsigned int t = 0; t < numThreads; ++t) {
-        size_t s = t * chunk;
-        size_t e = std::min(s + chunk, N);
-        if (s >= N) break;
-        workers.emplace_back(workerTask, s, e);
+    {
+        std::vector<std::jthread> workers;
+        workers.reserve(numThreads);
+        for (unsigned int t = 0; t < numThreads; ++t) {
+            size_t s = t * chunk;
+            size_t e = std::min(s + chunk, N);
+            if (s >= N) break;
+            workers.emplace_back(workerTask, s, e);
+        }
+        // std::jthread joins all workers at scope exit
     }
-    // std::jthread joins automatically on destruction
 
     std::cout << "[SZM Interference] Check complete: "
               << globalClashes.size() << " clash(es) detected.\n";

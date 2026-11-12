@@ -1,4 +1,6 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import * as THREE from 'three';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { useForgeStore } from './store/ForgeStoreContext';
 import { TopCommandBar } from './components/TopCommandBar';
 import { ProjectHierarchy } from './components/ProjectHierarchy';
@@ -12,7 +14,6 @@ import { FleetCommand } from './components/FleetCommand';
 import { SimulationWorkspace } from './components/SimulationWorkspace';
 import { LoadingScreen } from './components/LoadingScreen';
 import { PropertyInspector } from './components/PropertyInspector';
-import { DesigningWorkspace } from './components/DesigningWorkspace';
 import { UnifiedGeometryWorkspace } from './components/geometry/UnifiedGeometryWorkspace';
 import { PhysicsWorkspace } from './components/PhysicsWorkspace';
 import ChemistryLabView from './components/ChemistryLabView';
@@ -57,10 +58,98 @@ const ModernApp: React.FC = () => {
     refresh: refreshProject,
     bodyParts,
     bodyJoints,
+    setBodyParts,
   } = useProject();
   const furnitureLoadKg = project?.loadKg ?? 0;
   const { t } = useTooltips();
   const handleLoadComplete = useCallback(() => setLoading(false), []);
+  const [fps, setFps] = useState(0);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importDragging, setImportDragging] = useState(false);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let frames = 0;
+    let last = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      frames += 1;
+      if (now - last >= 1000) {
+        setFps(frames);
+        frames = 0;
+        last = now;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const handleImportFile = useCallback((file: File | null) => {
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!['step', 'stp', 'stl', 'dxf'].includes(ext)) {
+      store.showToast('Unsupported format — use .step .stp .stl .dxf');
+      return;
+    }
+    setImportFile(file);
+  }, [store]);
+
+  const addImportedToScene = useCallback(async () => {
+    if (!importFile) {
+      store.showToast('Select a CAD file first');
+      return;
+    }
+    const ext = importFile.name.split('.').pop()?.toLowerCase() ?? '';
+    const id = `import_${Date.now()}`;
+    const name = importFile.name.replace(/\.[^.]+$/, '');
+
+    try {
+      if (ext === 'stl') {
+        const buffer = await importFile.arrayBuffer();
+        const geo = new STLLoader().parse(buffer);
+        geo.computeBoundingBox();
+        const box = geo.boundingBox!;
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        setBodyParts(prev => [
+          ...prev,
+          {
+            id,
+            name,
+            type: 'box',
+            position: { x: 0, y: 0, z: 0 },
+            size: {
+              x: Math.max(size.x, 1),
+              y: Math.max(size.y, 1),
+              z: Math.max(size.z, 1),
+            },
+            customGeometry: geo,
+            bendAngle: 0,
+          },
+        ]);
+      } else {
+        // STEP/DXF: placeholder bounding box until OCCT bridge loads the solid
+        setBodyParts(prev => [
+          ...prev,
+          {
+            id,
+            name,
+            type: 'box',
+            position: { x: 0, y: 0, z: 0 },
+            size: { x: 80, y: 40, z: 20 },
+            bendAngle: 0,
+          },
+        ]);
+      }
+      store.setWorkspace('geometry');
+      store.setImportDialogOpen(false);
+      setImportFile(null);
+      store.showToast(`Added ${name} to scene`);
+    } catch (e: unknown) {
+      store.showToast(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [importFile, setBodyParts, store]);
 
   const partStress = Object.fromEntries(parts.map(p => [p.name, p.stressRatio]));
   const hasModel = (project?.hasFurniture && parts.length > 0) || members.length > 0 || bodyParts.length > 0;
@@ -99,6 +188,14 @@ const ModernApp: React.FC = () => {
   const rightPanel = <AnalysisPanel />;
 
   const runSolver = async () => {
+    if (!members.length && !project?.hasFurniture) {
+      const message = bodyParts.length
+        ? 'Simulation unavailable: imported scene parts are not connected to the structural solver yet.'
+        : 'Simulation unavailable: create or load a supported model before running.';
+      store.showToast(message);
+      return;
+    }
+
     store.setSimulationStatus('solving');
     store.setSolverProgress(0);
     for (let i = 1; i <= 10; i++) {
@@ -362,7 +459,7 @@ const ModernApp: React.FC = () => {
           <span className="text-[9px] font-mono text-forge-text-muted">
             {hasModel ? 'MODEL LIVE' : 'NO MODEL'}
           </span>
-          <span className="text-[9px] font-mono text-forge-green">● 60 FPS</span>
+          <span className="text-[9px] font-mono text-forge-green">● {fps} FPS</span>
           {user && (
             <>
               <span className="text-[9px] font-mono text-forge-accent">{user.username.toUpperCase()}</span>
@@ -393,25 +490,60 @@ const ModernApp: React.FC = () => {
           <div className="bg-forge-dark/95 border border-forge-border/40 rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-forge-border/30">
               <h2 className="text-forge-text font-mono text-sm tracking-wider">IMPORT COMPONENT / MATERIAL</h2>
-              <button 
-                onClick={() => store.setImportDialogOpen(false)}
+              <button
+                onClick={() => { store.setImportDialogOpen(false); setImportFile(null); }}
                 className="text-forge-text-muted hover:text-forge-red transition-colors"
               >
                 ✕
               </button>
             </div>
-            <div className="p-8 text-center opacity-50 flex flex-col items-center">
-              <span className="text-forge-text font-mono text-xs mb-2">Global Import Module</span>
-              <span className="text-forge-text-dim font-sans text-xs max-w-md">
-                Here you can import external CAD models, chemical structures, or existing library parts to drop into the current workspace.
-              </span>
-            </div>
-            <div className="p-4 border-t border-forge-border/30 bg-forge-surface/50 flex justify-end">
-              <button 
-                onClick={() => store.setImportDialogOpen(false)}
-                className="px-4 py-2 bg-forge-accent/20 text-forge-accent border border-forge-accent/40 rounded hover:bg-forge-accent/30 text-xs font-bold font-mono transition-all"
+            <div className="p-6 flex flex-col gap-4">
+              <p className="text-forge-text-dim font-sans text-xs">
+                Import STEP, STL, or DXF into the active scene. STL loads mesh geometry; STEP/DXF add a placeholder solid.
+              </p>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".step,.stp,.stl,.dxf"
+                className="hidden"
+                onChange={e => handleImportFile(e.target.files?.[0] ?? null)}
+              />
+              <div
+                onDragOver={e => { e.preventDefault(); setImportDragging(true); }}
+                onDragLeave={() => setImportDragging(false)}
+                onDrop={e => {
+                  e.preventDefault();
+                  setImportDragging(false);
+                  handleImportFile(e.dataTransfer.files?.[0] ?? null);
+                }}
+                onClick={() => importInputRef.current?.click()}
+                className={`cursor-pointer rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+                  importDragging
+                    ? 'border-forge-accent bg-forge-accent/10'
+                    : 'border-forge-border/60 bg-forge-surface/40 hover:border-forge-accent/40'
+                }`}
               >
-                CLOSE
+                <div className="text-forge-text font-mono text-xs mb-2">
+                  {importFile ? importFile.name : 'Drop file here or click to browse'}
+                </div>
+                <div className="text-forge-text-muted font-mono text-[10px]">
+                  Accepts .step · .stp · .stl · .dxf
+                </div>
+              </div>
+            </div>
+            <div className="p-4 border-t border-forge-border/30 bg-forge-surface/50 flex justify-end gap-2">
+              <button
+                onClick={() => { store.setImportDialogOpen(false); setImportFile(null); }}
+                className="px-4 py-2 text-forge-text-muted border border-forge-border/40 rounded hover:text-forge-text text-xs font-bold font-mono transition-all"
+              >
+                CANCEL
+              </button>
+              <button
+                onClick={addImportedToScene}
+                disabled={!importFile}
+                className="px-4 py-2 bg-forge-accent/20 text-forge-accent border border-forge-accent/40 rounded hover:bg-forge-accent/30 text-xs font-bold font-mono transition-all disabled:opacity-40"
+              >
+                ADD TO SCENE
               </button>
             </div>
           </div>

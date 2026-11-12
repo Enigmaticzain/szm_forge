@@ -35,6 +35,7 @@ protected:
 
 private:
     bool m_CardOpen = true;
+    int m_CardIndex = 0;
 };
 
 } // namespace SZM

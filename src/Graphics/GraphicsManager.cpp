@@ -11,7 +11,9 @@ GraphicsManager& GraphicsManager::GetInstance() {
 void GraphicsManager::Init() {
     if (m_Initialized) return;
     
-    m_Viewport = std::make_unique<Viewport>(1280, 720);
+    if (!m_Viewport) {
+        m_Viewport = std::make_unique<Viewport>(1280, 720);
+    }
     ComponentRenderer::Init();
     m_Initialized = true;
 }
@@ -25,7 +27,7 @@ void GraphicsManager::Shutdown() {
 }
 
 void GraphicsManager::Update(const SimulationEngine& engine) {
-    if (!m_Initialized) return;
+    if (!m_Initialized || !m_Viewport) return;
     
     m_Viewport->Render(engine, m_Heatmap);
 }

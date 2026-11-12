@@ -79,6 +79,12 @@ public:
 
     ScopeGuard& operator=(ScopeGuard&& other) noexcept {
         if (this != &other) {
+            if (m_OnExit) {
+                try {
+                    m_OnExit();
+                } catch (...) {
+                }
+            }
             m_OnExit = std::move(other.m_OnExit);
             other.m_OnExit = nullptr;
         }

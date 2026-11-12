@@ -162,6 +162,8 @@ void Application::Init(const WindowConfig& config) {
     glfwSetFramebufferSizeCallback(m_WindowHandle, FramebufferResizeCallback);
     glfwSetKeyCallback(m_WindowHandle, KeyCallback);
     glfwSetCursorPosCallback(m_WindowHandle, MouseMoveCallback);
+    glfwSetMouseButtonCallback(m_WindowHandle, MouseButtonCallback);
+    glfwSetScrollCallback(m_WindowHandle, ScrollCallback);
     glfwSetWindowFocusCallback(m_WindowHandle, FocusCallback);
 
     // --- Initialise sub-systems ----------------------------------------
@@ -301,10 +303,13 @@ void Application::Run() {
         
         std::atomic<bool> physicsRunning{true};
         std::thread physicsThread([this, &physicsRunning]() {
+            auto lastTick = std::chrono::high_resolution_clock::now();
             while (physicsRunning) {
                 auto now = std::chrono::high_resolution_clock::now();
-                m_DeltaTime = std::chrono::duration<double>(now - m_LastFrameTime).count();
-                m_LastFrameTime = now;
+                m_DeltaTime.store(
+                    std::chrono::duration<double>(now - lastTick).count(),
+                    std::memory_order_relaxed);
+                lastTick = now;
                 
                 TickSystems();
                 
@@ -325,7 +330,8 @@ void Application::Run() {
     while (!glfwWindowShouldClose(m_WindowHandle) && m_IsRunning) {
         // 1. Delta-Time
         auto now = std::chrono::high_resolution_clock::now();
-        m_DeltaTime     = std::chrono::duration<double>(now - m_LastFrameTime).count();
+        const double frameDt = std::chrono::duration<double>(now - m_LastFrameTime).count();
+        m_DeltaTime.store(frameDt, std::memory_order_relaxed);
         m_LastFrameTime = now;
 
         // 2. OS Events
@@ -338,7 +344,7 @@ void Application::Run() {
             ImGui::NewFrame();
 
             if (m_ShowStartupSplash) {
-                m_StartupSplashElapsed += m_DeltaTime;
+                m_StartupSplashElapsed += frameDt;
                 if (m_StartupSplashElapsed < m_StartupSplashDuration) {
                     RenderStartupSplash();
                 } else {
@@ -384,10 +390,10 @@ void Application::Run() {
 
         // 6. FPS Diagnostic
         ++frameCount;
-        timeAccumulator += m_DeltaTime;
+        timeAccumulator += frameDt;
         if (timeAccumulator >= 1.0) {
             std::cout << "[SZM Core] FPS: " << frameCount
-                      << " | dt: " << m_DeltaTime << "s\n";
+                      << " | dt: " << frameDt << "s\n";
             frameCount      = 0;
             timeAccumulator = 0.0;
         }
@@ -430,33 +436,34 @@ void Application::Shutdown() {
 // --------------------------------------------------------- TickSystems ----
 void Application::TickSystems() {
     auto& engine = SimulationEngine::GetInstance();
+    const double dt = m_DeltaTime.load(std::memory_order_relaxed);
 
     // If the simulation is paused, skip ticking simulation/physics/solvers.
     if (!engine.IsPaused()) {
         // Engine.Tick handles its own time scaling internally.
-        engine.Tick(m_DeltaTime);
+        engine.Tick(dt);
 
-        const double scaledDt = m_DeltaTime * engine.GetTimeScale();
+        const double scaledDt = dt * engine.GetTimeScale();
         m_Phase5PhysicsIntegration.PrePhysicsStep(scaledDt);
         Physics::PhysicsEngine::GetInstance().Tick(scaledDt);
         m_Phase5PhysicsIntegration.PostPhysicsStep();
 
         static double apiSimTime = 0.0;
         apiSimTime += scaledDt;
-    for (const auto& compPtr : engine.GetComponents()) {
-        if (!compPtr) {
-            continue;
+        for (const auto& compPtr : engine.GetComponents()) {
+            if (!compPtr) {
+                continue;
+            }
+            const auto& comp = *compPtr;
+            WebAPI::APIManager::GetInstance().PushComponentSnapshot(
+                comp.name,
+                comp.stress / 1e6f,
+                comp.temperature - 273.15f,
+                comp.stressRatio,
+                comp.tempRatio,
+                apiSimTime
+            );
         }
-        const auto& comp = *compPtr;
-        WebAPI::APIManager::GetInstance().PushComponentSnapshot(
-            comp.name,
-            comp.stress / 1e6f,
-            comp.temperature - 273.15f,
-            comp.stressRatio,
-            comp.tempRatio,
-            apiSimTime
-        );
-    }
         Thermal::ThermalSolver::GetInstance().SolveTransient(scaledDt);
         Electrical::CircuitSolver::GetInstance().SolveTransient(scaledDt);
     }
@@ -807,14 +814,31 @@ void Application::KeyCallback(GLFWwindow* window, int key, int /*scancode*/, int
     InputManager::UpdateKeyState(key, pressed);
 
     // Publish via EventBus
-    KeyPressedEvent evt(key, action == GLFW_REPEAT ? 1 : 0);
-    SZM::EventBus::GetInstance().Publish("KeyPressed", evt);
+    if (pressed) {
+        KeyPressedEvent evt(key, action == GLFW_REPEAT ? 1 : 0);
+        SZM::EventBus::GetInstance().Publish("KeyPressed", evt);
+    } else if (action == GLFW_RELEASE) {
+        KeyReleasedEvent evt(key);
+        SZM::EventBus::GetInstance().Publish("KeyReleased", evt);
+    }
 }
 
 void Application::MouseMoveCallback(GLFWwindow* window, double xpos, double ypos) {
     (void)window;
     InputManager::UpdateMousePosition(static_cast<float>(xpos),
                                       static_cast<float>(ypos));
+}
+
+void Application::MouseButtonCallback(GLFWwindow* window, int button, int action, int /*mods*/) {
+    (void)window;
+    bool pressed = (action == GLFW_PRESS);
+    InputManager::UpdateMouseState(button, pressed);
+}
+
+void Application::ScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    (void)window;
+    (void)xoffset;
+    (void)yoffset;
 }
 
 void Application::FocusCallback(GLFWwindow* window, int focused) {

@@ -46,14 +46,22 @@ def create_token(username: str) -> str:
     return f"{header}.{payload}.{sig}"
 
 
+def _b64url_decode(segment: str) -> bytes:
+    padding = "=" * (-len(segment) % 4)
+    return base64.urlsafe_b64decode(segment + padding)
+
+
 def verify_token(token: str) -> Optional[str]:
     """Returns username if valid, else None."""
     try:
         header, payload, sig = token.split(".")
+        header_data = json.loads(_b64url_decode(header))
+        if header_data.get("alg") != "HS256":
+            return None
         if not hmac.compare_digest(_sign(f"{header}.{payload}"), sig):
             return None
-        data = json.loads(base64.urlsafe_b64decode(payload + "=="))
-        if data.get("exp", 0) < time.time():
+        data = json.loads(_b64url_decode(payload))
+        if float(data.get("exp", 0)) < time.time():
             return None
         return data.get("sub")
     except Exception:

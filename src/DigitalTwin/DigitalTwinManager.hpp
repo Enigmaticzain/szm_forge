@@ -4,6 +4,8 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <mutex>
+#include <optional>
 
 namespace SZM {
 
@@ -42,14 +44,15 @@ namespace SZM {
         /// Update the operational state of a physical asset
         void UpdateOperationalState(const std::string& assetUUID, const std::string& state);
 
-        /// Get twin info by asset UUID
-        const DigitalTwinInstance* GetTwinByAssetUUID(const std::string& assetUUID) const;
+        /// Get twin info by asset UUID (thread-safe value copy)
+        std::optional<DigitalTwinInstance> GetTwinByAssetUUID(const std::string& assetUUID) const;
 
-        /// Get twin info by virtual component ID
-        const DigitalTwinInstance* GetTwinByComponentID(uint32_t componentId) const;
+        /// Get twin info by virtual component ID (thread-safe value copy)
+        std::optional<DigitalTwinInstance> GetTwinByComponentID(uint32_t componentId) const;
 
-        /// Get all registered twins
-        const std::unordered_map<std::string, DigitalTwinInstance>& GetAllTwins() const {
+        /// Get a thread-safe snapshot of all registered twins
+        std::unordered_map<std::string, DigitalTwinInstance> GetAllTwins() const {
+            std::lock_guard<std::mutex> lock(m_TwinsMutex);
             return m_Twins;
         }
 
@@ -57,6 +60,7 @@ namespace SZM {
         DigitalTwinManager() = default;
         ~DigitalTwinManager() = default;
 
+        mutable std::mutex m_TwinsMutex;
         std::unordered_map<std::string, DigitalTwinInstance> m_Twins;
         bool m_IsInitialized = false;
     };

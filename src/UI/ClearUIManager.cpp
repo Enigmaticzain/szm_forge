@@ -44,7 +44,7 @@ void UITab::AddSection(std::shared_ptr<UISection> section) {
 void UITab::Draw() {
     if (!m_IsActive) return;
 
-    ImGui::BeginChild("TabContent", ImVec2(0, 0), false);
+    ImGui::BeginChild(("TabBody_" + m_Name).c_str(), ImVec2(0, 0), false);
     
     for (auto& section : m_Sections) {
         section->Draw();

@@ -15,8 +15,12 @@ void OptimizationToolsPanel::Draw() {
     ImGui::InputInt("Iterations", &m_Iterations);
     if (ImGui::Button("Run optimization (Optuna/pymoo)", ImVec2(-1, 0))) {
         auto r = SZM::BridgeClient::RunOptimization(m_InitialStress, m_InitialMass, m_TargetStress, m_Iterations);
-        std::snprintf(m_Log, sizeof(m_Log), r.success ? "OK backend=%s\n%s" : "FAIL: %s",
-            r.raw.value("backend", r.backend).c_str(), r.success ? r.raw.dump(2).substr(0, 400).c_str() : r.message.c_str());
+        if (r.success) {
+            std::snprintf(m_Log, sizeof(m_Log), "OK backend=%s\n%s",
+                r.raw.value("backend", r.backend).c_str(), r.raw.dump(2).substr(0, 400).c_str());
+        } else {
+            std::snprintf(m_Log, sizeof(m_Log), "FAIL: %s", r.message.c_str());
+        }
     }
     ImGui::TextWrapped("%s", m_Log[0] ? m_Log : "(run optimization)");
     ImGui::End();
@@ -49,9 +53,12 @@ void ManufacturingToolsPanel::Draw() {
     ImGui::DragFloat("Layer height (mm)", &m_LayerHeight, 0.01f, 0.05f, 1.f);
     if (ImGui::Button("Run slicer (Cura/fallback G-code)", ImVec2(-1, 0))) {
         auto r = SZM::BridgeClient::RunSlicer(m_ComponentId, m_PartName, m_LayerHeight);
-        std::snprintf(m_Log, sizeof(m_Log), r.success ? "OK engine=%s\n%s" : "FAIL: %s",
-            r.raw.value("engine_used", "?").c_str(),
-            r.success ? "G-code generated" : r.message.c_str());
+        if (r.success) {
+            std::snprintf(m_Log, sizeof(m_Log), "OK engine=%s\nG-code generated",
+                r.raw.value("engine_used", "?").c_str());
+        } else {
+            std::snprintf(m_Log, sizeof(m_Log), "FAIL: %s", r.message.c_str());
+        }
     }
     ImGui::TextWrapped("%s", m_Log[0] ? m_Log : "(slice part)");
     ImGui::End();
@@ -119,8 +126,12 @@ void PipelineToolsPanel::Draw() {
         if (r.success && r.raw.contains("job_id")) {
             std::snprintf(m_JobId, sizeof(m_JobId), "%s", r.raw["job_id"].get<std::string>().c_str());
         }
-        std::snprintf(m_Log, sizeof(m_Log), r.success ? "Pipeline job=%s status=%s" : "FAIL: %s",
-            m_JobId, r.raw.value("status", "?").c_str(), r.message.c_str());
+        if (r.success) {
+            std::snprintf(m_Log, sizeof(m_Log), "Pipeline job=%s status=%s",
+                m_JobId, r.raw.value("status", "?").c_str());
+        } else {
+            std::snprintf(m_Log, sizeof(m_Log), "FAIL: %s", r.message.c_str());
+        }
     }
     if (m_JobId[0] && ImGui::Button("Poll job status", ImVec2(-1, 0))) {
         auto r = SZM::BridgeClient::GetPipelineJob(m_JobId);

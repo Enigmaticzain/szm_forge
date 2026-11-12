@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Factory, Package, Settings, CheckCircle,
   Ruler, Cpu, Printer,
-  ArrowRight, Clock, Shield, Code, Download
+  ArrowRight, Clock, Code, Download
 } from 'lucide-react';
 import { validateDFM, exportGCode } from '../services/forgeApi';
 

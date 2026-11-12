@@ -4,16 +4,19 @@
 #include <cmath>
 #include <numeric>
 #include <sstream>
+#include <nlohmann/json.hpp>
 
 namespace SZM {
 
 void SensorTelemetry::Initialize() {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     if (m_IsInitialized) return;
     std::cout << "[SensorTelemetry] Initializing telemetry ingestion engine...\n";
     m_IsInitialized = true;
 }
 
 void SensorTelemetry::Shutdown() {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     if (!m_IsInitialized) return;
     std::cout << "[SensorTelemetry] Shutting down telemetry engine...\n";
     m_Streams.clear();
@@ -21,7 +24,7 @@ void SensorTelemetry::Shutdown() {
     m_IsInitialized = false;
 }
 
-bool SensorTelemetry::CreateStream(const std::string& streamId, const std::string& assetUUID) {
+bool SensorTelemetry::CreateStreamUnlocked(const std::string& streamId, const std::string& assetUUID) {
     if (m_Streams.find(streamId) != m_Streams.end()) {
         std::cerr << "[SensorTelemetry] Stream ID already exists: " << streamId << "\n";
         return false;
@@ -37,7 +40,13 @@ bool SensorTelemetry::CreateStream(const std::string& streamId, const std::strin
     return true;
 }
 
+bool SensorTelemetry::CreateStream(const std::string& streamId, const std::string& assetUUID) {
+    std::lock_guard<std::mutex> lock(m_Mutex);
+    return CreateStreamUnlocked(streamId, assetUUID);
+}
+
 bool SensorTelemetry::DeleteStream(const std::string& streamId) {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     auto it = m_Streams.find(streamId);
     if (it != m_Streams.end()) {
         m_Streams.erase(it);
@@ -47,48 +56,71 @@ bool SensorTelemetry::DeleteStream(const std::string& streamId) {
     return false;
 }
 
-void SensorTelemetry::PushData(const std::string& streamId, const std::string& sensorType, double timestamp, double value) {
+std::optional<SensorDataPoint> SensorTelemetry::PushDataUnlocked(const std::string& streamId,
+                                                                 const std::string& sensorType,
+                                                                 double timestamp,
+                                                                 double value) {
     auto it = m_Streams.find(streamId);
-    if (it != m_Streams.end()) {
-        SensorDataPoint point{timestamp, sensorType, value};
-        it->second.history.push_back(point);
-        
-        // Simple rolling average over the last 10 points of the same type
-        double sum = 0.0;
-        int count = 0;
-        int maxPoints = 10;
-        int startIdx = std::max(0, static_cast<int>(it->second.history.size()) - maxPoints);
-        
-        for (size_t i = startIdx; i < it->second.history.size(); ++i) {
-            if (it->second.history[i].sensorType == sensorType) {
-                sum += it->second.history[i].value;
-                count++;
-            }
-        }
-        
-        if (count > 0) {
-            it->second.currentAverage = sum / count;
-        }
+    if (it == m_Streams.end()) {
+        return std::nullopt;
+    }
 
-        PruneHistory(it->second);
-        NotifyDataArrival(streamId, point);
+    SensorDataPoint point{timestamp, sensorType, value};
+    it->second.history.push_back(point);
+
+    // Simple rolling average over the last 10 points of the same type
+    double sum = 0.0;
+    int count = 0;
+    int maxPoints = 10;
+    int startIdx = std::max(0, static_cast<int>(it->second.history.size()) - maxPoints);
+
+    for (size_t i = startIdx; i < it->second.history.size(); ++i) {
+        if (it->second.history[i].sensorType == sensorType) {
+            sum += it->second.history[i].value;
+            count++;
+        }
+    }
+
+    if (count > 0) {
+        it->second.currentAverage = sum / count;
+    }
+
+    PruneHistory(it->second);
+    return point;
+}
+
+void SensorTelemetry::PushData(const std::string& streamId, const std::string& sensorType, double timestamp, double value) {
+    std::optional<SensorDataPoint> pushed;
+    {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        pushed = PushDataUnlocked(streamId, sensorType, timestamp, value);
+    }
+    if (pushed.has_value()) {
+        NotifyDataArrival(streamId, *pushed);
     }
 }
 
+double SensorTelemetry::GetLatestValueUnlocked(const TelemetryStream& stream, const std::string& sensorType) const {
+    for (auto rit = stream.history.rbegin(); rit != stream.history.rend(); ++rit) {
+        if (rit->sensorType == sensorType) {
+            return rit->value;
+        }
+    }
+    return 0.0;
+}
+
 double SensorTelemetry::GetLatestValue(const std::string& streamId, const std::string& sensorType) const {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     auto it = m_Streams.find(streamId);
     if (it != m_Streams.end()) {
-        for (auto rit = it->second.history.rbegin(); rit != it->second.history.rend(); ++rit) {
-            if (rit->sensorType == sensorType) {
-                return rit->value;
-            }
-        }
+        return GetLatestValueUnlocked(it->second, sensorType);
     }
     return 0.0;
 }
 
 std::vector<SensorDataPoint> SensorTelemetry::QueryByTimeRange(const std::string& streamId, 
                                                                 double startTime, double endTime) const {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     std::vector<SensorDataPoint> result;
     auto it = m_Streams.find(streamId);
     if (it != m_Streams.end()) {
@@ -104,6 +136,7 @@ std::vector<SensorDataPoint> SensorTelemetry::QueryByTimeRange(const std::string
 TelemetryStatistics SensorTelemetry::GetStatistics(const std::string& streamId, 
                                                     const std::string& sensorType,
                                                     double timeWindowSeconds) const {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     TelemetryStatistics stats;
     auto it = m_Streams.find(streamId);
     if (it == m_Streams.end()) return stats;
@@ -143,6 +176,7 @@ TelemetryStatistics SensorTelemetry::GetStatistics(const std::string& streamId,
 }
 
 void SensorTelemetry::SetAlertThreshold(const std::string& streamId, const AlertThreshold& threshold) {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     auto it = m_Streams.find(streamId);
     if (it != m_Streams.end()) {
         it->second.thresholds[threshold.sensorType] = threshold;
@@ -152,11 +186,12 @@ void SensorTelemetry::SetAlertThreshold(const std::string& streamId, const Alert
 }
 
 bool SensorTelemetry::CheckAlerts(const std::string& streamId) const {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     auto it = m_Streams.find(streamId);
     if (it == m_Streams.end()) return false;
 
     for (const auto& [sensorType, threshold] : it->second.thresholds) {
-        double latestValue = GetLatestValue(streamId, sensorType);
+        double latestValue = GetLatestValueUnlocked(it->second, sensorType);
         
         if (latestValue < threshold.criticalLow || latestValue > threshold.criticalHigh) {
             return true;
@@ -166,6 +201,7 @@ bool SensorTelemetry::CheckAlerts(const std::string& streamId) const {
 }
 
 std::string SensorTelemetry::ExportToJSON(const std::string& streamId) const {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     auto it = m_Streams.find(streamId);
     if (it == m_Streams.end()) return "{}";
 
@@ -192,6 +228,7 @@ std::string SensorTelemetry::ExportToJSON(const std::string& streamId) const {
 }
 
 std::string SensorTelemetry::ExportToCSV(const std::string& streamId) const {
+    std::lock_guard<std::mutex> lock(m_Mutex);
     auto it = m_Streams.find(streamId);
     if (it == m_Streams.end()) return "";
 
@@ -206,21 +243,75 @@ std::string SensorTelemetry::ExportToCSV(const std::string& streamId) const {
 }
 
 bool SensorTelemetry::ImportFromJSON(const std::string& jsonData) {
-    // Basic JSON parsing (simplified - in production, use a JSON library)
-    // This is a placeholder that acknowledges the feature
-    std::cout << "[SensorTelemetry] Importing telemetry from JSON (simplified parser)\n";
-    return true;
+    try {
+        auto parsed = nlohmann::json::parse(jsonData);
+        std::vector<std::pair<std::string, SensorDataPoint>> pushedEvents;
+
+        auto ingestObject = [&](const nlohmann::json& obj) {
+            std::string streamId = obj.value("streamId", "");
+            if (streamId.empty()) return;
+            std::string assetUUID = obj.value("assetUUID", "");
+            if (m_Streams.find(streamId) == m_Streams.end()) {
+                CreateStreamUnlocked(streamId, assetUUID);
+            }
+            if (obj.contains("data") && obj["data"].is_array()) {
+                for (const auto& dp : obj["data"]) {
+                    double ts = dp.value("timestamp", 0.0);
+                    std::string st = dp.value("sensorType", "Generic");
+                    double val = dp.value("value", 0.0);
+                    if (auto pt = PushDataUnlocked(streamId, st, ts, val)) {
+                        pushedEvents.emplace_back(streamId, *pt);
+                    }
+                }
+            }
+        };
+
+        {
+            std::lock_guard<std::mutex> lock(m_Mutex);
+            if (parsed.is_array()) {
+                for (const auto& item : parsed) {
+                    ingestObject(item);
+                }
+            } else if (parsed.is_object()) {
+                ingestObject(parsed);
+            }
+        }
+
+        for (const auto& [streamId, pt] : pushedEvents) {
+            NotifyDataArrival(streamId, pt);
+        }
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[SensorTelemetry] JSON parse error: " << e.what() << "\n";
+        return false;
+    }
 }
 
 bool SensorTelemetry::SaveToDisk(const std::string& filePath) {
     try {
+        nlohmann::json outArr = nlohmann::json::array();
+        {
+            std::lock_guard<std::mutex> lock(m_Mutex);
+            for (const auto& [streamId, stream] : m_Streams) {
+                nlohmann::json sObj;
+                sObj["streamId"] = streamId;
+                sObj["assetUUID"] = stream.assetUUID;
+                nlohmann::json pts = nlohmann::json::array();
+                for (const auto& p : stream.history) {
+                    pts.push_back({
+                        {"timestamp", p.timestamp},
+                        {"sensorType", p.sensorType},
+                        {"value", p.value}
+                    });
+                }
+                sObj["data"] = pts;
+                outArr.push_back(sObj);
+            }
+        }
+
         std::ofstream file(filePath);
         if (!file.is_open()) return false;
-
-        for (const auto& [streamId, stream] : m_Streams) {
-            file << ExportToJSON(streamId);
-        }
-        
+        file << outArr.dump(2);
         file.close();
         std::cout << "[SensorTelemetry] Saved telemetry to " << filePath << "\n";
         return true;
@@ -247,7 +338,8 @@ bool SensorTelemetry::LoadFromDisk(const std::string& filePath) {
 }
 
 void SensorTelemetry::RegisterDataCallback(DataCallback callback) {
-    m_DataCallbacks.push_back(callback);
+    std::lock_guard<std::mutex> lock(m_Mutex);
+    m_DataCallbacks.push_back(std::move(callback));
 }
 
 void SensorTelemetry::PruneHistory(TelemetryStream& stream) {
@@ -259,8 +351,15 @@ void SensorTelemetry::PruneHistory(TelemetryStream& stream) {
 }
 
 void SensorTelemetry::NotifyDataArrival(const std::string& streamId, const SensorDataPoint& point) {
-    for (auto& callback : m_DataCallbacks) {
-        callback(streamId, point);
+    std::vector<DataCallback> callbacksCopy;
+    {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        callbacksCopy = m_DataCallbacks;
+    }
+    for (auto& callback : callbacksCopy) {
+        if (callback) {
+            callback(streamId, point);
+        }
     }
 }
 

@@ -1063,19 +1063,19 @@ print("SZM_FREECAD_OK")
                 area = 2 * (request.length * request.width +
                             request.width * request.height +
                             request.length * request.height)
-            feature_tree = {{
+            feature_tree = {
                 "name": "SZM_Part",
                 "shape": request.shape,
-                "params": {{
+                "params": {
                     "length": request.length, "width": request.width,
                     "height": request.height, "fillet_radius": request.fillet_radius
-                }},
+                },
                 "volume_m3": vol,
                 "area_m2": area,
-                "bbox": {{"x": request.length, "y": request.width, "z": request.height}},
+                "bbox": {"x": request.length, "y": request.width, "z": request.height},
                 "edge_count": 12 if request.shape == "box" else 0,
                 "face_count": 6 if request.shape == "box" else 1
-            }}
+            }
             engine_used = "Analytical fallback (FreeCAD not found)"
     finally:
         os.unlink(script_path)

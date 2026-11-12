@@ -1,1 +1,1 @@
-"""SZM Forge AI Service package."""
+# AI service package root (minimal, does not affect production code)

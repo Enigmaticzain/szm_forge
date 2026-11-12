@@ -66,6 +66,38 @@ bool CollisionDetection::HandleSimplex(Simplex& s, PhysVec3& dir) {
             dir = (abc.dot(ao) > 0) ? abc : PhysVec3{-abc.x,-abc.y,-abc.z};
         }
     } else if (s.Size == 4) {
+        PhysVec3 a = s.Points[0];
+        PhysVec3 b = s.Points[1];
+        PhysVec3 c = s.Points[2];
+        PhysVec3 d = s.Points[3];
+        PhysVec3 ab = b - a;
+        PhysVec3 ac = c - a;
+        PhysVec3 ad = d - a;
+        PhysVec3 ao = {-a.x, -a.y, -a.z};
+
+        auto orientOutward = [](const PhysVec3& n, const PhysVec3& opp) {
+            return (n.dot(opp) > 0.f) ? PhysVec3{-n.x, -n.y, -n.z} : n;
+        };
+        PhysVec3 abc = orientOutward(ab.cross(ac), ad);
+        PhysVec3 acd = orientOutward(ac.cross(ad), ab);
+        PhysVec3 adb = orientOutward(ad.cross(ab), ac);
+
+        if (abc.dot(ao) > 0.f) {
+            s.Size = 3; // Keep {a, b, c}
+            return HandleSimplex(s, dir);
+        }
+        if (acd.dot(ao) > 0.f) {
+            s.Points[1] = c;
+            s.Points[2] = d;
+            s.Size = 3;
+            return HandleSimplex(s, dir);
+        }
+        if (adb.dot(ao) > 0.f) {
+            s.Points[1] = d;
+            s.Points[2] = b;
+            s.Size = 3;
+            return HandleSimplex(s, dir);
+        }
         return true; // Origin enclosed in tetrahedron
     }
     return false;

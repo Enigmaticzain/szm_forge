@@ -44,11 +44,15 @@ namespace SZM::UI {
         bool m_HasResults = false;
 
         // UI State
+        int m_ModeSelect = 0;
         float m_AmbientTempInput = 20.0f;
         float m_HeatInputInput = 100.0f;
         float m_ConvectionInput = 10.0f;
         float m_DurationInput = 60.0f;
         int m_TimeStepsInput = 100;
+        float m_DensityInput = 7850.0f;
+        float m_ThermalCondInput = 50.0f;
+        float m_SpecificHeatInput = 490.0f;
         
         static constexpr int THERMAL_TAB_INPUT = 0;
         static constexpr int THERMAL_TAB_RESULTS = 1;

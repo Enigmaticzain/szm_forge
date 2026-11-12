@@ -1,6 +1,7 @@
 #include "ConflictResolver.hpp"
 #include <iostream>
 #include <algorithm>
+#include <map>
 
 namespace SZM::Omniverse {
 
@@ -120,65 +121,69 @@ std::vector<SceneChange> ConflictResolver::ThreeWayMerge(
     const std::vector<SceneChange>& local,
     const std::vector<SceneChange>& remote) {
     
-    std::vector<SceneChange> merged;
-    
-    // Find what changed from ancestor to local
-    std::vector<SceneChange> local_edits;
+    // Index ancestor changes by property key
+    std::map<std::string, SceneChange> ancestor_map;
+    for (const auto& change : ancestor) {
+        ancestor_map[GetPropertyKey(change)] = change;
+    }
+
+    // Collect actual local modifications relative to ancestor
+    std::map<std::string, SceneChange> local_edits;
     for (const auto& local_change : local) {
-        bool in_ancestor = false;
-        for (const auto& ancestor_change : ancestor) {
-            if (IsSameProperty(local_change, ancestor_change)) {
-                in_ancestor = true;
-                break;
-            }
-        }
-        if (!in_ancestor) {
-            local_edits.push_back(local_change);
+        const std::string key = GetPropertyKey(local_change);
+        auto it = ancestor_map.find(key);
+        if (it == ancestor_map.end() || it->second.new_value != local_change.new_value) {
+            local_edits[key] = local_change;
         }
     }
     
-    // Find what changed from ancestor to remote
-    std::vector<SceneChange> remote_edits;
+    // Collect actual remote modifications relative to ancestor
+    std::map<std::string, SceneChange> remote_edits;
     for (const auto& remote_change : remote) {
-        bool in_ancestor = false;
-        for (const auto& ancestor_change : ancestor) {
-            if (IsSameProperty(remote_change, ancestor_change)) {
-                in_ancestor = true;
-                break;
-            }
-        }
-        if (!in_ancestor) {
-            remote_edits.push_back(remote_change);
+        const std::string key = GetPropertyKey(remote_change);
+        auto it = ancestor_map.find(key);
+        if (it == ancestor_map.end() || it->second.new_value != remote_change.new_value) {
+            remote_edits[key] = remote_change;
         }
     }
     
-    // Start with ancestor
-    merged = ancestor;
-    
-    // Apply non-conflicting edits
-    for (const auto& edit : local_edits) {
-        bool conflicts = false;
-        for (const auto& remote_edit : remote_edits) {
-            if (IsSameProperty(edit, remote_edit)) {
-                conflicts = true;
-                break;
-            }
+    // Start with ancestor state keyed by property so updates replace stale values
+    std::map<std::string, SceneChange> merged_map = ancestor_map;
+    std::vector<std::string> ordered_keys;
+    ordered_keys.reserve(ancestor.size() + local_edits.size() + remote_edits.size());
+    for (const auto& change : ancestor) {
+        ordered_keys.push_back(GetPropertyKey(change));
+    }
+
+    auto upsert = [&](const std::string& key, const SceneChange& change) {
+        if (merged_map.find(key) == merged_map.end()) {
+            ordered_keys.push_back(key);
         }
-        if (!conflicts) {
-            merged.push_back(edit);
+        merged_map[key] = change;
+    };
+
+    for (const auto& [key, local_edit] : local_edits) {
+        auto remote_it = remote_edits.find(key);
+        if (remote_it == remote_edits.end()) {
+            upsert(key, local_edit);
+        } else {
+            upsert(key, Resolve(local_edit, remote_it->second, MergeStrategy::LAST_WRITE_WINS));
         }
     }
-    
-    for (const auto& edit : remote_edits) {
-        bool conflicts = false;
-        for (const auto& local_edit : local_edits) {
-            if (IsSameProperty(edit, local_edit)) {
-                conflicts = true;
-                break;
-            }
+
+    for (const auto& [key, remote_edit] : remote_edits) {
+        if (local_edits.find(key) == local_edits.end()) {
+            upsert(key, remote_edit);
         }
-        if (!conflicts) {
-            merged.push_back(edit);
+    }
+
+    std::vector<SceneChange> merged;
+    merged.reserve(merged_map.size());
+    std::map<std::string, bool> emitted;
+    for (const auto& key : ordered_keys) {
+        if (!emitted[key]) {
+            emitted[key] = true;
+            merged.push_back(merged_map[key]);
         }
     }
     

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { InteractivePhysicsViewport } from './InteractivePhysicsViewport';
-import { Activity, Play, Pause, RotateCcw, Settings, Zap } from 'lucide-react';
+import { Activity, Play, Pause, RotateCcw, Zap } from 'lucide-react';
 
 export const PhysicsWorkspace: React.FC = () => {
   const [gravity, setGravity] = useState(-9.81);

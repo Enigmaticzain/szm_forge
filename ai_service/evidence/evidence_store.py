@@ -11,7 +11,7 @@ import tempfile
 from datetime import datetime
 from typing import List, Optional
 
-from .spec_models import EvidenceRecord, ReconstructionSpec, EvidenceCategory
+from .spec_models import EvidenceCollection, EvidenceRecord, ReconstructionSpec, EvidenceCategory
 
 # ── Default production store location ────────────────────────────────────────
 DEFAULT_STORE_PATH = os.path.join(

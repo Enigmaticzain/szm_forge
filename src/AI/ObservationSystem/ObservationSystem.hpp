@@ -72,13 +72,13 @@ enum class ActionOutcome {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 struct MousePosition {
-    int x;
-    int y;
-    int screen_width;
-    int screen_height;
+    int x = 0;
+    int y = 0;
+    int screen_width = 1920;
+    int screen_height = 1080;
     
-    float normalized_x() const { return (float)x / screen_width; }
-    float normalized_y() const { return (float)y / screen_height; }
+    float normalized_x() const { return screen_width > 0 ? (float)x / screen_width : 0.0f; }
+    float normalized_y() const { return screen_height > 0 ? (float)y / screen_height : 0.0f; }
 };
 
 struct KeyCombination {
@@ -169,8 +169,8 @@ struct LearningPattern {
     
     // Learning metadata
     float confidence = 0.0f;
-    uint64_t last_used;
-    uint64_t first_demonstrated;
+    uint64_t last_used = 0;
+    uint64_t first_demonstrated = 0;
     std::vector<std::string> generalizations;
 };
 
@@ -269,7 +269,7 @@ private:
     bool m_IsPaused = false;
     
     std::string m_CurrentSessionId;
-    uint64_t m_SessionStartTime;
+    uint64_t m_SessionStartTime = 0;
     std::string m_CurrentGoal;
     
     std::vector<UserAction> m_RecordedActions;
@@ -288,6 +288,7 @@ private:
     
     // Pattern detection algorithms
     std::vector<LearningPattern> DetectNGramPatterns(int n);
+    std::vector<LearningPattern> DetectNGramPatternsInActions(const std::vector<UserAction>& actions, int n);
     std::vector<LearningPattern> DetectRepetitivePatterns();
     std::vector<LearningPattern> DetectConditionalPatterns();
     

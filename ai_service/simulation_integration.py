@@ -462,12 +462,17 @@ S
                 except (subprocess.TimeoutExpired, FileNotFoundError):
                     pass
 
-        force = inputs.loads.get("force", 1000)
-        area = inputs.loads.get("area", 100)
-        
-        outputs.max_stress = force / area * 1.1  # Slightly different results
+        force = float(inputs.loads.get("force", 1000))
+        area = float(inputs.loads.get("area", 100))
+        yield_strength = float(inputs.material_properties.get("yield_strength", 300))
+
+        outputs.max_stress = (force / area * 1.1) if area > 0 else 0.0
         outputs.max_deflection = 2.3
-        outputs.min_safety_factor = inputs.material_properties.get("yield_strength", 300) / outputs.max_stress
+        outputs.min_safety_factor = (
+            yield_strength / outputs.max_stress
+            if outputs.max_stress > 0
+            else float("inf")
+        )
 
         return outputs
 
@@ -481,15 +486,15 @@ S
         )
 
         # Generate plausible results
-        force = inputs.loads.get("force", 1000)
-        area = inputs.loads.get("area", 100)
-        yield_strength = inputs.material_properties.get("yield_strength", 300)
-        
-        stress = force / area
+        force = float(inputs.loads.get("force", 1000))
+        area = float(inputs.loads.get("area", 100))
+        yield_strength = float(inputs.material_properties.get("yield_strength", 300))
+
+        stress = (force / area) if area > 0 else 0.0
         outputs.max_stress = stress
         outputs.max_deflection = 1.5 + (force / 1000) * 0.5
-        outputs.min_safety_factor = max(1.0, yield_strength / stress)
-        
+        outputs.min_safety_factor = max(1.0, yield_strength / stress) if stress > 0 else float("inf")
+
         return outputs
 
     def run_coupled_analysis(

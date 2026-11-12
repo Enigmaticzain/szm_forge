@@ -16,40 +16,36 @@ SolidBody SweepOp::SweepProfileAlongPath(const SketchProfile& profile, const std
               << " points along path of length " << path.size() << "...\n";
 
     SolidBody body;
-    
-    // For now, implement a stub geometry generation (e.g. bounding box or simplified tube)
-    // A robust sweeping implementation requires sweeping a coordinate frame (Frenet-Serret)
-    // along the path. Here we will mock the solid by adding the bottom and top faces,
-    // and connecting sides using simple translation along the first and last segments.
-    // Real implementation would loft each segment along the polyline.
-    
-    // Start face
-    std::vector<Vector3> startFace;
-    Vector3 startPos = path.front();
-    for (const auto& v : profile.Loops[0]) {
-        startFace.push_back({v.x + startPos.x, v.y + startPos.y, startPos.z});
-    }
-    body.AddFaceFlipped(startFace); // Bottom cap
 
-    // End face
-    std::vector<Vector3> endFace;
-    Vector3 endPos = path.back();
-    for (const auto& v : profile.Loops[0]) {
-        endFace.push_back({v.x + endPos.x, v.y + endPos.y, endPos.z});
-    }
-    body.AddFace(endFace); // Top cap
+    const auto& loop = profile.Loops[0];
+    const size_t count = loop.size();
+    std::vector<std::vector<Vector3>> rings;
+    rings.reserve(path.size());
 
-    // Connect sides linearly from start to end (ignores intermediate path points for this stub)
-    size_t count = profile.Loops[0].size();
-    for (size_t i = 0; i < count; ++i) {
-        size_t next = (i + 1) % count;
-        std::vector<Vector3> sideFace = {
-            startFace[i],
-            endFace[i],
-            endFace[next],
-            startFace[next]
-        };
-        body.AddFace(sideFace);
+    for (const auto& pos : path) {
+        std::vector<Vector3> ring;
+        ring.reserve(count);
+        for (const auto& v : loop) {
+            ring.push_back({v.x + pos.x, v.y + pos.y, v.z + pos.z});
+        }
+        rings.push_back(std::move(ring));
+    }
+
+    body.AddFaceFlipped(rings.front()); // Start cap
+    body.AddFace(rings.back());         // End cap
+
+    // Connect consecutive rings along the path (CCW outward winding)
+    for (size_t p = 0; p + 1 < rings.size(); ++p) {
+        for (size_t i = 0; i < count; ++i) {
+            size_t next = (i + 1) % count;
+            std::vector<Vector3> sideFace = {
+                rings[p][i],
+                rings[p][next],
+                rings[p + 1][next],
+                rings[p + 1][i]
+            };
+            body.AddFace(sideFace);
+        }
     }
 
     body.Stitch();

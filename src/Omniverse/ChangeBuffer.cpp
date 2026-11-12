@@ -49,8 +49,8 @@ bool ChangeBuffer::IsEmpty() const {
 }
 
 double ChangeBuffer::GetCompressionRatio() const {
-    if (original_size_ == 0) return 1.0;
-    return static_cast<double>(original_size_) / latest_.size();
+    if (original_size_ == 0 || latest_.empty()) return 1.0;
+    return static_cast<double>(original_size_) / static_cast<double>(latest_.size());
 }
 
 } // namespace SZM::Omniverse

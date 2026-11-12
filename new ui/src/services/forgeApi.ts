@@ -15,10 +15,10 @@ import {
   parseTextToCad,
   loadMachineConfig,
   saveMachineConfigLocal,
-  validateMachineConfig,
   OFFLINE_ENGINE_NAME,
   OFFLINE_ENGINE_VERSION,
 } from '../offline';
+import type { TextToCadResult } from '../offline/geometry';
 
 /** Network backend only when explicitly enabled */
 const NETWORK_ENABLED = import.meta.env.VITE_ENABLE_BACKEND === 'true';
@@ -28,6 +28,48 @@ const API_BASE = (
   (import.meta.env.VITE_FORGE_API_URL as string | undefined)?.replace(/\/$/, '') ??
   (import.meta.env.DEV && NETWORK_ENABLED ? '' : '')
 );
+
+const CAN_USE_BACKEND = NETWORK_ENABLED && (Boolean(API_BASE) || import.meta.env.DEV);
+
+function requireBackend(feature: string): void {
+  if (!CAN_USE_BACKEND) {
+    throw new Error(`${feature} requires backend connectivity (set VITE_ENABLE_BACKEND=true)`);
+  }
+}
+
+async function handleResponse<T = any>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    if (errorData.detail) {
+      // Pydantic validation error parsing
+      const msgs = Array.isArray(errorData.detail)
+        ? errorData.detail.map((e: any) => `${Array.isArray(e.loc) ? e.loc.join('.') : e.loc}: ${e.msg}`).join(', ')
+        : errorData.detail;
+      throw new Error(`API Error (${res.status}): ${msgs}`);
+    }
+    throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function getBackendJson<T = any>(feature: string, path: string): Promise<T> {
+  requireBackend(feature);
+  const res = await fetch(`${API_BASE}${path}`);
+  return handleResponse<T>(res);
+}
+
+async function postBackendJson<T = any>(feature: string, path: string, body?: unknown): Promise<T> {
+  requireBackend(feature);
+  const init: RequestInit = body === undefined
+    ? { method: 'POST' }
+    : {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      };
+  const res = await fetch(`${API_BASE}${path}`, init);
+  return handleResponse<T>(res);
+}
 
 export interface ForgeStatus {
   status: string;
@@ -59,7 +101,7 @@ export interface AssemblyNodeDto {
 }
 
 export async function fetchJson<T>(path: string, timeoutMs = 2500): Promise<T | null> {
-  if (!NETWORK_ENABLED || !API_BASE) return null;
+  if (!CAN_USE_BACKEND) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -135,7 +177,7 @@ export async function fetchMachineConfig(id = 'default'): Promise<MachineConfigD
 
 export async function saveMachineConfig(cfg: MachineConfigDto): Promise<boolean> {
   const local = saveMachineConfigLocal(cfg);
-  if (!NETWORK_ENABLED || !API_BASE) return local;
+  if (!CAN_USE_BACKEND) return local;
   try {
     const res = await fetch(`${API_BASE}/api/machine/config`, {
       method: 'POST',
@@ -222,14 +264,12 @@ export async function searchKnowledge(query: string, domain = ''): Promise<KbSea
 // ======================== Machine Learning Pipeline ========================
 
 export async function mlIngestData(): Promise<number> {
-  const res = await fetch(`${API_BASE}/api/ml/ingest`, { method: 'POST' });
-  const data = await res.json();
+  const data = await postBackendJson<{ count?: number }>('ML data ingestion', '/api/ml/ingest');
   return data?.count ?? 0;
 }
 
 export async function mlLearnPatterns(): Promise<number> {
-  const res = await fetch(`${API_BASE}/api/ml/learn`, { method: 'POST' });
-  const data = await res.json();
+  const data = await postBackendJson<{ patterns_learned?: number }>('ML pattern learning', '/api/ml/learn');
   return data?.patterns_learned ?? 0;
 }
 
@@ -248,215 +288,124 @@ export async function mlGenerateMachine(
   count = 1,
   parameters?: Record<string, number>
 ): Promise<GeneratedMachineCode[]> {
-  const res = await fetch(`${API_BASE}/api/ml/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ machine_type, count, parameters }),
-  });
-  const data = await res.json();
+  const data = await postBackendJson<{ generated?: GeneratedMachineCode[] }>(
+    'ML machine generation',
+    '/api/ml/generate',
+    { machine_type, count, parameters },
+  );
   return data?.generated ?? [];
 }
 
 // ======================== GraphRAG & Reasoning ========================
 
 export async function queryGraphRAG(query: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/graphrag/query`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-  return res.json();
+  return postBackendJson('GraphRAG query', '/api/graphrag/query', { query });
 }
 
 export async function queryReasoning(problem: string, reasoning_mode = 'forward_chain'): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/reason`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ problem, reasoning_mode }),
-  });
-  return res.json();
+  return postBackendJson('Reasoning query', '/api/reason', { problem, reasoning_mode });
 }
 
 // ======================== Manufacturing Endpoints ========================
 
 export async function validateDFM(component_name: string, parameters: any, process = 'CNC'): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/manufacturability/validate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_name, parameters, process }),
+  return postBackendJson('DFM validation', '/api/manufacturability/validate', {
+    component_name,
+    parameters,
+    process,
   });
-  return res.json();
 }
 
 export async function exportGCode(component_name: string, bounds: any): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/manufacturability/export-gcode`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_name, bounds }),
-  });
-  return res.json();
+  return postBackendJson('G-Code export', '/api/manufacturability/export-gcode', { component_name, bounds });
 }
 
 export async function generateCNCToolpath(component_name: string, bounds: any, options: any = {}): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/manufacturability/cnc-toolpath`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_name, bounds, ...options }),
+  return postBackendJson('CNC toolpath generation', '/api/manufacturability/cnc-toolpath', {
+    component_name,
+    bounds,
+    ...options,
   });
-  return res.json();
 }
 
 // ======================== Simulation & Batching ========================
 
 export async function runBatchSimulation(num_variations = 50): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/batch-simulate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ num_variations }),
-  });
-  return res.json();
-  return res.json();
+  return postBackendJson('Batch simulation', '/api/batch-simulate', { num_variations });
 }
 
 // ======================== Data Crawlers ========================
 
 export async function searchArxiv(query: string, limit = 5): Promise<any> {
-  const res = await fetch(`${API_BASE}/data/search/arxiv?q=${encodeURIComponent(query)}&limit=${limit}`);
-  return res.json();
+  return getBackendJson('arXiv search', `/data/search/arxiv?q=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
 export async function searchPatents(query: string, limit = 5): Promise<any> {
-  const res = await fetch(`${API_BASE}/data/search/patents?q=${encodeURIComponent(query)}&limit=${limit}`);
-  return res.json();
+  return getBackendJson('Patent search', `/data/search/patents?q=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
 export async function searchNasa(query: string, limit = 5): Promise<any> {
-  const res = await fetch(`${API_BASE}/data/search/nasa?q=${encodeURIComponent(query)}&limit=${limit}`);
-  return res.json();
+  return getBackendJson('NASA search', `/data/search/nasa?q=${encodeURIComponent(query)}&limit=${limit}`);
 }
 
 // ======================== Robotics ========================
 
 export async function parseUrdf(content: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/robotics/urdf/parse`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-  });
-  return res.json();
+  return postBackendJson('URDF parser', '/api/robotics/urdf/parse', { content });
 }
 
 export async function runPybulletSimulation(steps = 240): Promise<any> {
-  const res = await fetch(`${API_BASE}/robotics/simulate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ steps }),
-  });
-  return res.json();
+  return postBackendJson('PyBullet simulation', '/api/robotics/simulate', { steps });
 }
 
 // ======================== Surrogates (Physics ML) ========================
 
 export async function trainSurrogate(name: string, backend = "torch", epochs = 100): Promise<any> {
-  const res = await fetch(`${API_BASE}/simulation/surrogate/train`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, backend, epochs }),
-  });
-  return res.json();
+  return postBackendJson('Surrogate training', '/api/simulation/surrogate/train', { name, backend, epochs });
 }
 
 export async function predictSurrogate(name: string, inputs: Record<string, number>): Promise<any> {
-  const res = await fetch(`${API_BASE}/simulation/surrogate/predict`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, inputs }),
-  });
-  return res.json();
+  return postBackendJson('Surrogate prediction', '/api/simulation/surrogate/predict', { name, inputs });
 }
 
 // ======================== IoT ========================
 
 export async function startMqtt(broker = "localhost", port = 1883, topic = "szm/telemetry/#"): Promise<any> {
-  const res = await fetch(`${API_BASE}/iot/mqtt/start`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ broker, port, topic }),
-  });
-  return res.json();
+  return postBackendJson('MQTT client', '/iot/mqtt/start', { broker, port, topic });
 }
 
 export async function readOpcUa(endpoint: string, node_id: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/iot/opcua/read`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint, node_id }),
-  });
-  return res.json();
+  return postBackendJson('OPC-UA client', '/iot/opcua/read', { endpoint, node_id });
 }
 
 // ======================== Multiphysics Solvers ========================
 
-async function handleResponse(res: Response) {
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    if (errorData.detail) {
-      // Pydantic validation error parsing
-      const msgs = Array.isArray(errorData.detail) 
-        ? errorData.detail.map((e: any) => `${e.loc.join('.')}: ${e.msg}`).join(', ')
-        : errorData.detail;
-      throw new Error(`API Error (${res.status}): ${msgs}`);
-    }
-    throw new Error(`HTTP Error ${res.status}: ${res.statusText}`);
-  }
-  return res.json();
-}
-
 export async function runFea(component_id: number, material_id: string, force_n: number, area_m2: number, thickness_m: number): Promise<any> {
-  const res = await fetch(`${API_BASE}/simulation/fea/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_id, material_id, force_n, area_m2, thickness_m }),
+  return postBackendJson('FEA solver', '/api/simulation/fea/run', {
+    component_id,
+    material_id,
+    force_n,
+    area_m2,
+    thickness_m,
   });
-  return handleResponse(res);
 }
 
 export async function runThermal(component_id: number, temp_c: number): Promise<any> {
-  const res = await fetch(`${API_BASE}/simulation/thermal/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_id, temp_c }),
-  });
-  return handleResponse(res);
+  return postBackendJson('Thermal solver', '/api/simulation/thermal/run', { component_id, temp_c });
 }
 
 export async function runModal(component_id: number, modes: number = 6): Promise<any> {
-  const res = await fetch(`${API_BASE}/simulation/modal/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_id, modes }),
-  });
-  return handleResponse(res);
+  return postBackendJson('Modal solver', '/api/simulation/modal/run', { component_id, modes });
 }
 
 export async function runCfd(component_id: number, velocity_m_s: number): Promise<any> {
-  const res = await fetch(`${API_BASE}/simulation/cfd/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_id, velocity_m_s }),
-  });
-  return handleResponse(res);
+  return postBackendJson('CFD solver', '/api/simulation/cfd/run', { component_id, velocity_m_s });
 }
 
 // ======================== Pipelines & Automation ========================
 
 export async function runPipeline(job_name: string, tasks: string[]): Promise<any> {
-  const res = await fetch(`${API_BASE}/pipeline/run`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_name, tasks }),
-  });
-  return handleResponse(res);
+  return postBackendJson('Automation pipeline', '/api/pipeline/run', { job_name, tasks });
 }
 
 // ======================== Geometry (offline Three.js + optional backend) ========================
@@ -483,7 +432,7 @@ export interface SketchSolveResult extends SketchDto {
 }
 
 export async function solveSketch(sketch: SketchDto): Promise<SketchSolveResult | null> {
-  if (NETWORK_ENABLED && API_BASE) {
+  if (CAN_USE_BACKEND) {
     try {
       const res = await fetch(`${API_BASE}/api/sketch/solve`, {
         method: 'POST',
@@ -500,7 +449,7 @@ export async function extrudeSketch(
   sketch: SketchDto,
   distance = 0.01,
 ): Promise<Record<string, unknown> | null> {
-  if (NETWORK_ENABLED && API_BASE) {
+  if (CAN_USE_BACKEND) {
     try {
       const res = await fetch(`${API_BASE}/api/sketch/extrude`, {
         method: 'POST',
@@ -520,7 +469,7 @@ export async function csgBoolean(
   bodyA: Record<string, unknown>,
   bodyB: Record<string, unknown>,
 ): Promise<Record<string, unknown> | null> {
-  if (!NETWORK_ENABLED || !API_BASE) {
+  if (!CAN_USE_BACKEND) {
     return { ok: true, operation, engine: 'client-three-bvh-csg', note: 'Use mesh mode boolean tools' };
   }
   const res = await fetch(`${API_BASE}/api/csg/boolean`, {
@@ -533,7 +482,7 @@ export async function csgBoolean(
 }
 
 export async function freecadParametric(script: string): Promise<Record<string, unknown> | null> {
-  if (!NETWORK_ENABLED || !API_BASE) {
+  if (!CAN_USE_BACKEND) {
     return { ok: false, error: 'FreeCAD scripting requires VITE_ENABLE_BACKEND=true' };
   }
   const res = await fetch(`${API_BASE}/api/freecad/parametric`, {
@@ -560,8 +509,87 @@ export async function analyzeGeometryPart(
   return analyzePart(partType, parameters);
 }
 
-export async function textToCad(prompt: string): Promise<Record<string, unknown> | null> {
+export async function textToCad(prompt: string): Promise<TextToCadResult | null> {
   return parseTextToCad(prompt);
+}
+
+export interface DesignCadSpecDto {
+  shape: string;
+  material: string;
+  features: Record<string, boolean>;
+  length?: number;
+  width?: number;
+  height?: number;
+  radius?: number;
+  radius1?: number;
+  radius2?: number;
+  major_radius?: number;
+  minor_radius?: number;
+}
+
+export interface DesignWorkflowDto {
+  design_id: string;
+  status: string;
+  design: {
+    status: string;
+    spec: DesignCadSpecDto;
+    geometry: Record<string, unknown>;
+    engine: string | null;
+    step_available: boolean;
+    step_download_url: string | null;
+  };
+  analysis: {
+    status: string;
+    reason?: string;
+    nominal_volume_mm3?: number | null;
+    structural_analysis?: { status: string; reason: string };
+  };
+  manufacturing: {
+    status: string;
+    dfm_status: string;
+    toolpath_status?: string;
+    toolpath_message?: string;
+    toolpath_preview: { gcode: string; warnings?: string[] } | null;
+    limitations?: string[];
+  };
+}
+
+const AI_WORKFLOW_BASE = (
+  (import.meta.env.VITE_AI_WORKFLOW_URL as string | undefined)?.replace(/\/$/, '') ??
+  'http://127.0.0.1:8001'
+);
+
+export async function runDesignWorkflow(
+  prompt: string,
+  includeToolpathPreview = false,
+): Promise<DesignWorkflowDto> {
+  if (!NETWORK_ENABLED) {
+    throw new Error('Design workflow service requires backend connectivity (set VITE_ENABLE_BACKEND=true)');
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+  try {
+    const response = await fetch(`${AI_WORKFLOW_BASE}/api/workflow/design-to-manufacture`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        include_toolpath_preview: includeToolpathPreview,
+      }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Design workflow service returned ${response.status}: ${detail}`);
+    }
+    return await response.json() as DesignWorkflowDto;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function getAiWorkflowUrl(path: string): string {
+  return `${AI_WORKFLOW_BASE}${path}`;
 }
 
 export function geometryBridgeUrl(path: string): string {
@@ -574,10 +602,5 @@ export { validateMachineConfig } from '../offline/machineConfig';
 // ======================== CAD & Export ========================
 
 export async function exportUsd(component_id: string): Promise<any> {
-  const res = await fetch(`${API_BASE}/export/usd`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ component_id }),
-  });
-  return handleResponse(res);
+  return postBackendJson('USD export', '/export/usd', { component_id });
 }

@@ -41,16 +41,16 @@ struct IMaterial {
     std::string name;
 
     // --- Mechanical ---------------------------------------------------
-    double youngsModulus;       ///< E  — Elastic modulus [GPa]
-    double poissonsRatio;       ///< ν  — Poisson's ratio [dimensionless]
-    double shearModulus;        ///< G  — Auto-derived: G = E / 2(1+ν) [GPa]
-    double yieldStrength;       ///< σ_y  — Yield stress [MPa]
-    double ultimateStrength;    ///< σ_uts — Ultimate tensile stress [MPa]
-    double density;             ///< ρ  — Mass density [kg/m³]
+    double youngsModulus = 0.0;       ///< E  — Elastic modulus [GPa]
+    double poissonsRatio = 0.0;       ///< ν  — Poisson's ratio [dimensionless]
+    double shearModulus = 0.0;        ///< G  — Auto-derived: G = E / 2(1+ν) [GPa]
+    double yieldStrength = 0.0;       ///< σ_y  — Yield stress [MPa]
+    double ultimateStrength = 0.0;    ///< σ_uts — Ultimate tensile stress [MPa]
+    double density = 0.0;             ///< ρ  — Mass density [kg/m³]
 
     // --- Thermal (optional — defaults to 0) --------------------------
-    double thermalExpansion;    ///< α  — CTE [1/K]
-    double thermalConductivity; ///< k  — Thermal conductivity [W/(m·K)]
+    double thermalExpansion = 0.0;    ///< α  — CTE [1/K]
+    double thermalConductivity = 0.0; ///< k  — Thermal conductivity [W/(m·K)]
 
     // --- Metadata (optional — from knowledge base) -------------------
     std::string category;           ///< e.g. "Ferrous / Alloy Steel"

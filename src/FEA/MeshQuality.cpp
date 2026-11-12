@@ -12,6 +12,15 @@ ElementQuality MeshQuality::ComputeElementQuality(const FEAElement& el, const FE
     q.edgeLengthRatio = 1.0;
 
     if (el.NodeIDs.size() < 4) return q;
+    for (size_t idx = 0; idx < 4; ++idx) {
+        if (el.NodeIDs[idx] >= mesh.Nodes.size()) {
+            q.aspectRatio = 1000.0;
+            q.jacobianRatio = 0.0;
+            q.skewness = 1.0;
+            q.edgeLengthRatio = 1000.0;
+            return q;
+        }
+    }
 
     const Vec3d& p0 = mesh.Nodes[el.NodeIDs[0]].Position;
     const Vec3d& p1 = mesh.Nodes[el.NodeIDs[1]].Position;
@@ -43,26 +52,21 @@ ElementQuality MeshQuality::ComputeElementQuality(const FEAElement& el, const FE
         q.edgeLengthRatio = 1000.0; // arbitrarily large
     }
 
-    // Volume
-    double vol = std::abs(e01.dot(e02.cross(e03))) / 6.0;
+    // Signed determinant (6 * signed volume)
+    double signedDet = e01.dot(e02.cross(e03));
+    double vol = std::abs(signedDet) / 6.0;
 
-    // Radius of circumsphere (approximate for aspect ratio)
-    // For a regular tetrahedron, ratio is 1.0. 
-    // Simplified aspect ratio = max_edge / min_altitude
-    // Here we just use edge length ratio as a simple proxy for aspect ratio
     q.aspectRatio = q.edgeLengthRatio;
 
     // Skewness proxy (0 = equilateral, 1 = degenerate)
-    // Ideal volume of tet with edge = maxEdge:
     double idealVol = (std::sqrt(2.0) / 12.0) * maxEdge * maxEdge * maxEdge;
     if (idealVol > 1e-12) {
         q.skewness = std::max(0.0, 1.0 - (vol / idealVol));
+        q.jacobianRatio = (signedDet <= 0.0) ? -vol / idealVol : std::min(1.0, vol / idealVol);
     } else {
         q.skewness = 1.0;
+        q.jacobianRatio = 0.0;
     }
-
-    // Jacobian determinant is related to volume
-    q.jacobianRatio = 1.0; // Requires full integration points for Tet10 to be meaningful
 
     return q;
 }

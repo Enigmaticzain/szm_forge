@@ -56,6 +56,11 @@ target_link_libraries(SZM_AI_Module PUBLIC
     entt
 )
 
+if(UNIX AND NOT APPLE)
+    find_package(X11 REQUIRED)
+    target_link_libraries(SZM_AI_Module PUBLIC ${X11_LIBRARIES})
+endif()
+
 if(SZM_BUILD_FULL_DESKTOP)
     target_link_libraries(SZM_AI_Module PUBLIC imgui)
 endif()

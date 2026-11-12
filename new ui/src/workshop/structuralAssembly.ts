@@ -44,28 +44,6 @@ export function materialCatalog() {
   }));
 }
 
-function crossSection(member: StructuralMember): { area: number; I: number; c: number } {
-  const { kind, length, width, height } = member;
-  const L = Math.max(length, 1e-4);
-  const W = Math.max(width, 1e-4);
-  const H = Math.max(height, 1e-4);
-
-  if (kind === 'rod') {
-    const d = W;
-    const r = d / 2;
-    const area = Math.PI * r * r;
-    const I = (Math.PI * d ** 4) / 64;
-    return { area, I, c: d / 2 };
-  }
-  if (kind === 'plate') {
-    return { area: W * H, I: (W * H ** 3) / 12, c: H / 2 };
-  }
-  // beam / block — rectangular along length (Y)
-  const area = W * H;
-  const I = (W * H ** 3) / 12;
-  return { area, I: I > 0 ? I : area * L * L / 12, c: H / 2 };
-}
-
 // Fallback math logic (vonMises, solveAssembly) removed — we strictly use the C++ backend now.
 
 export function attachPosition(
@@ -194,17 +172,13 @@ export function membersToViewportBoxes(
 ): import('../utils/viewportFurniture3d').IsoBox[] {
   return members.map(m => {
     const ratio = partStress[m.name] ?? 0.2;
-    const w = m.kind === 'rod' ? m.width : m.width;
-    const h = m.kind === 'plate' ? m.length : m.height;
-    const d = m.kind === 'beam' || m.kind === 'block' ? m.width : m.width;
-    const len = m.kind === 'plate' ? m.height : m.length;
     return {
       cx: m.cx,
       cy: m.cy,
       cz: m.cz,
-      w: m.kind === 'rod' ? m.width * 2 : w,
-      d: m.kind === 'plate' ? m.height : d,
-      h: len,
+      w: m.width,
+      d: m.kind === 'rod' ? m.width : m.height,
+      h: m.length,
       stressRatio: ratio,
       label: m.name,
     };

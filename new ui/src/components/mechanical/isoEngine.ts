@@ -185,10 +185,6 @@ export function shaftPaths(
   cam: IsoCamera,
   steps: number = 32,
 ): { outline: string; topCap: string } {
-  // Left and right silhouette lines
-  const leftPts: string[] = [];
-  const rightPts: string[] = [];
-
   // Find the two silhouette angles (where the normal is perpendicular to view)
   const viewAngle = cam.azimuth + Math.PI / 2;
   const leftAngle = viewAngle;
@@ -216,12 +212,9 @@ export function shaftPaths(
     topArcPts.push(`${sx.toFixed(1)},${sy.toFixed(1)}`);
   }
 
-  // Left side line
-  const [lbx, lby] = project(cx + radius * Math.cos(leftAngle), cy + radius * Math.sin(leftAngle), z0, cam);
+  // Left top and right bottom silhouette endpoints
   const [ltx, lty] = project(cx + radius * Math.cos(leftAngle), cy + radius * Math.sin(leftAngle), z1, cam);
-  // Right side line
   const [rbx, rby] = project(cx + radius * Math.cos(rightAngle), cy + radius * Math.sin(rightAngle), z0, cam);
-  const [rtx, rty] = project(cx + radius * Math.cos(rightAngle), cy + radius * Math.sin(rightAngle), z1, cam);
 
   const outline = `M ${arcPts.join(' L ')} L ${ltx.toFixed(1)},${lty.toFixed(1)} L ${topArcPts.join(' L ')} L ${rbx.toFixed(1)},${rby.toFixed(1)} Z`;
 

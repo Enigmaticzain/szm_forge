@@ -5,6 +5,7 @@ namespace SZM {
 
 void ModernPanelBase::Draw() {
     if (!IsVisible) return;
+    m_CardIndex = 0;
 
     ImGui::SetNextWindowClass(nullptr);
     if (ImGui::Begin(GetTitle().c_str(), &IsVisible)) {
@@ -23,7 +24,8 @@ void ModernPanelBase::BeginCard() {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_Border, UIStyleHelper::GetBorderColor());
-    ImGui::BeginChild(ImGui::GetID(GetName()), ImVec2(0, 0), true);
+    const std::string cardId = std::string(GetName()) + "##card_" + std::to_string(m_CardIndex++);
+    ImGui::BeginChild(ImGui::GetID(cardId.c_str()), ImVec2(0, 0), true);
 }
 
 void ModernPanelBase::EndCard() {

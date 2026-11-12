@@ -1,28 +1,31 @@
 #include "BridgeClient.hpp"
 
+#include <chrono>
+#include <condition_variable>
 #include <httplib.h>
 #include <map>
+#include <mutex>
 #include <set>
+#include <thread>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace SZM {
 
 namespace {
 
-httplib::Client MakeClient(uint16_t port) {
+httplib::Client MakeClient(uint16_t port, int connectTimeoutMs = 2000, int readTimeoutSec = 30) {
     httplib::Client cli(SZM::BridgeClient::DefaultHost, port);
-    cli.set_connection_timeout(2, 0);
-    cli.set_read_timeout(30, 0);
+    cli.set_connection_timeout(connectTimeoutMs / 1000, (connectTimeoutMs % 1000) * 1000);
+    cli.set_read_timeout(readTimeoutSec, 0);
     return cli;
 }
 
-} // namespace
-
-bool BridgeClient::IsReachable(uint16_t port) {
-    return GetJson("/stack/status", port).has_value() || GetJson("/stack/health", port).has_value();
-}
-
-std::optional<nlohmann::json> BridgeClient::GetJson(const std::string& path, uint16_t port) {
-    auto cli = MakeClient(port);
+std::optional<nlohmann::json> GetJsonWithTimeout(const std::string& path,
+                                                 uint16_t port,
+                                                 int connectTimeoutMs,
+                                                 int readTimeoutSec) {
+    auto cli = MakeClient(port, connectTimeoutMs, readTimeoutSec);
     auto res = cli.Get(path.c_str());
     if (!res || res->status != 200) {
         return std::nullopt;
@@ -34,10 +37,110 @@ std::optional<nlohmann::json> BridgeClient::GetJson(const std::string& path, uin
     }
 }
 
-std::optional<BridgeClient::StackStatus> BridgeClient::FetchStackStatus(uint16_t port) {
-    auto j = GetJson("/stack/status", port);
+class StatusPoller {
+public:
+    static StatusPoller& Instance() {
+        static StatusPoller instance;
+        return instance;
+    }
+
+    ~StatusPoller() {
+        {
+            std::lock_guard<std::mutex> lock(m_Mutex);
+            m_Stop = true;
+        }
+        m_Cv.notify_all();
+        if (m_Worker.joinable()) {
+            m_Worker.join();
+        }
+    }
+
+    BridgeClient::StackStatus GetOrSchedule(uint16_t port,
+                                            bool forceRefresh,
+                                            BridgeClient::StackStatus (*probeFn)(uint16_t)) {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        m_ProbeFn = probeFn;
+        const auto now = std::chrono::steady_clock::now();
+        auto& entry = m_Cache[port];
+        const bool stale = !entry.initialized ||
+                           (now - entry.updatedAt >= std::chrono::seconds(2));
+        if (forceRefresh || stale) {
+            if (m_PendingPorts.insert(port).second) {
+                m_Cv.notify_one();
+            }
+        }
+        if (!entry.initialized) {
+            BridgeClient::StackStatus initial;
+            initial.connected = false;
+            initial.lastError = "Checking bridge on port " + std::to_string(port) + "...";
+            return initial;
+        }
+        return entry.status;
+    }
+
+    void RequestRefresh(uint16_t port, BridgeClient::StackStatus (*probeFn)(uint16_t)) {
+        std::lock_guard<std::mutex> lock(m_Mutex);
+        m_ProbeFn = probeFn;
+        if (m_PendingPorts.insert(port).second) {
+            m_Cv.notify_one();
+        }
+    }
+
+private:
+    StatusPoller() : m_Worker([this]() { WorkerLoop(); }) {}
+
+    void WorkerLoop() {
+        while (true) {
+            uint16_t port = 0;
+            BridgeClient::StackStatus (*probeFn)(uint16_t) = nullptr;
+            {
+                std::unique_lock<std::mutex> lock(m_Mutex);
+                m_Cv.wait(lock, [this]() { return m_Stop || !m_PendingPorts.empty(); });
+                if (m_Stop) {
+                    return;
+                }
+                auto it = m_PendingPorts.begin();
+                port = *it;
+                m_PendingPorts.erase(it);
+                probeFn = m_ProbeFn;
+            }
+            if (!probeFn) {
+                continue;
+            }
+            auto probed = probeFn(port);
+            std::lock_guard<std::mutex> lock(m_Mutex);
+            if (m_Stop) {
+                return;
+            }
+            m_Cache[port] = {std::move(probed), std::chrono::steady_clock::now(), true};
+        }
+    }
+
+    struct CacheEntry {
+        BridgeClient::StackStatus status;
+        std::chrono::steady_clock::time_point updatedAt{};
+        bool initialized = false;
+    };
+
+    std::mutex m_Mutex;
+    std::condition_variable m_Cv;
+    std::unordered_map<uint16_t, CacheEntry> m_Cache;
+    std::unordered_set<uint16_t> m_PendingPorts;
+    BridgeClient::StackStatus (*m_ProbeFn)(uint16_t) = nullptr;
+    bool m_Stop = false;
+    std::thread m_Worker;
+};
+
+} // namespace
+
+std::optional<nlohmann::json> BridgeClient::GetJson(const std::string& path, uint16_t port) {
+    return GetJsonWithTimeout(path, port, 2000, 30);
+}
+
+BridgeClient::StackStatus BridgeClient::ProbeStackStatus(uint16_t port) {
+    auto j = GetJsonWithTimeout("/stack/status", port, 250, 2);
     if (!j) {
-        j = GetJson("/stack/health", port);
+        j = GetJsonWithTimeout("/stack/health", port, 250, 2);
     }
     if (!j) {
         StackStatus s;
@@ -45,6 +148,7 @@ std::optional<BridgeClient::StackStatus> BridgeClient::FetchStackStatus(uint16_t
         s.lastError = "Bridge unreachable on port " + std::to_string(port);
         return s;
     }
+
     StackStatus s;
     s.raw = *j;
     s.connected = true;
@@ -52,10 +156,14 @@ std::optional<BridgeClient::StackStatus> BridgeClient::FetchStackStatus(uint16_t
     s.totalTools = j->value("total_tools", 0);
     s.status = j->value("status", "unknown");
     ApplyReadyFlags(s, *j);
-    if (!j->contains("groups") && j->contains("tools")) {
+
+    if (!j->contains("groups") && j->contains("tools") && (*j)["tools"].is_array()) {
         nlohmann::json groups = nlohmann::json::array();
         std::map<int, nlohmann::json> byGroup;
         for (const auto& t : (*j)["tools"]) {
+            if (!t.is_object()) {
+                continue;
+            }
             const int g = t.value("group", 0);
             auto& entry = byGroup[g];
             if (!entry.contains("group")) {
@@ -72,9 +180,22 @@ std::optional<BridgeClient::StackStatus> BridgeClient::FetchStackStatus(uint16_t
             g["health_pct"] = total > 0 ? 100.0f * ok / total : 0.0f;
             groups.push_back(std::move(g));
         }
-        s.raw["groups"] = groups;
+        s.raw["groups"] = std::move(groups);
     }
     return s;
+}
+
+bool BridgeClient::IsReachable(uint16_t port) {
+    const auto st = FetchStackStatus(port);
+    return st && st->connected;
+}
+
+void BridgeClient::RequestStatusRefresh(uint16_t port) {
+    StatusPoller::Instance().RequestRefresh(port, &BridgeClient::ProbeStackStatus);
+}
+
+std::optional<BridgeClient::StackStatus> BridgeClient::FetchStackStatus(uint16_t port) {
+    return StatusPoller::Instance().GetOrSchedule(port, false, &BridgeClient::ProbeStackStatus);
 }
 
 BridgeClient::JobResult BridgeClient::PostJson(

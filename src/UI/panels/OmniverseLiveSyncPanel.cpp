@@ -13,6 +13,9 @@ ImGuiOmniverseLiveSyncPanel::ImGuiOmniverseLiveSyncPanel()
       sync_interval_(1.0f),
       merge_strategy_(0),
       auto_sync_(false),
+      request_timeout_(5.0f),
+      enable_compression_(false),
+      enable_caching_(false),
       active_tab_(0),
       selected_session_(-1),
       selected_conflict_(-1) {
@@ -309,9 +312,9 @@ void ImGuiOmniverseLiveSyncPanel::RenderSettingsTab() {
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Text("Network");
-    ImGui::SliderFloat("Request Timeout (s)", &sync_interval_, 0.5f, 30.0f);
-    ImGui::Checkbox("Enable Compression", (bool*)&merge_strategy_);
-    ImGui::Checkbox("Enable Caching", (bool*)&auto_sync_);
+    ImGui::SliderFloat("Request Timeout (s)", &request_timeout_, 0.5f, 30.0f);
+    ImGui::Checkbox("Enable Compression", &enable_compression_);
+    ImGui::Checkbox("Enable Caching", &enable_caching_);
     
     ImGui::Spacing();
     ImGui::Separator();

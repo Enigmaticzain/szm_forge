@@ -149,9 +149,11 @@ void ModalAnalysisPanel::RenderFrequencySection() {
 
         float minFreq = *std::min_element(freqData.begin(), freqData.end());
         float maxFreq = *std::max_element(freqData.begin(), freqData.end());
+        float scaleMin = minFreq * 0.9f;
+        float scaleMax = (maxFreq > minFreq) ? (maxFreq * 1.1f) : (scaleMin + 1.0f);
 
-        ImGui::PlotBars("Frequencies (Hz)##modal", freqData.data(), freqData.size(), 0,
-                       nullptr, minFreq * 0.9f, maxFreq * 1.1f, ImVec2(500, 200));
+        ImGui::PlotHistogram("Frequencies (Hz)##modal", freqData.data(), static_cast<int>(freqData.size()), 0,
+                             nullptr, scaleMin, scaleMax, ImVec2(500, 200));
 
         ImGui::Separator();
         ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "Frequency List");
@@ -190,12 +192,18 @@ void ModalAnalysisPanel::RenderModeShapesSection() {
     ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.8f, 1.0f), "Mode Shapes");
     ImGui::Separator();
 
-    if (ImGui::SliderInt("Selected Mode##shape", &m_SelectedModeIndex, 0, 
-                        static_cast<int>(m_LastResults.modeShapes.size()) - 1)) {
+    if (m_LastResults.modeShapes.empty()) {
+        ImGui::TextDisabled("No mode shapes available.");
+        return;
+    }
+
+    const int maxModeIdx = static_cast<int>(m_LastResults.modeShapes.size()) - 1;
+    m_SelectedModeIndex = std::clamp(m_SelectedModeIndex, 0, maxModeIdx);
+    if (ImGui::SliderInt("Selected Mode##shape", &m_SelectedModeIndex, 0, maxModeIdx)) {
         // Mode selection changed
     }
 
-    if (m_SelectedModeIndex < static_cast<int>(m_LastResults.modeShapes.size())) {
+    if (m_SelectedModeIndex >= 0 && m_SelectedModeIndex < static_cast<int>(m_LastResults.modeShapes.size())) {
         const auto& modeShape = m_LastResults.modeShapes[m_SelectedModeIndex];
 
         ImGui::Separator();

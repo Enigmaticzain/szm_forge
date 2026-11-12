@@ -2,21 +2,16 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Wand2, Loader2, Box, Cylinder, Circle, Triangle, Donut, Download, Plus, AlertCircle } from 'lucide-react';
 import * as THREE from 'three';
 
-import { textToCad } from '../services/forgeApi';
+import {
+  getAiWorkflowUrl,
+  runDesignWorkflow,
+  textToCad,
+  type DesignCadSpecDto,
+  type DesignWorkflowDto,
+} from '../services/forgeApi';
+import { exportGeometryStlBlob } from '../offline/geometry';
 
-interface CADSpec {
-  shape: string;
-  material: string;
-  features: Record<string, boolean>;
-  length?: number;
-  width?: number;
-  height?: number;
-  radius?: number;
-  radius1?: number;
-  radius2?: number;
-  major_radius?: number;
-  minor_radius?: number;
-}
+type CADSpec = DesignCadSpecDto;
 
 interface T2CADResult {
   status: string;
@@ -137,11 +132,17 @@ export const TextToCADPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<T2CADResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [workflow, setWorkflow] = useState<DesignWorkflowDto | null>(null);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [workflowError, setWorkflowError] = useState<string | null>(null);
+  const [includeToolpathPreview, setIncludeToolpathPreview] = useState(false);
 
   const generate = async (p = prompt) => {
     if (!p.trim()) return;
     setLoading(true);
     setError(null);
+    setWorkflow(null);
+    setWorkflowError(null);
     setResult(null);
     try {
       const data = await textToCad(p) as T2CADResult | null;
@@ -151,6 +152,34 @@ export const TextToCADPanel: React.FC = () => {
       setError(e instanceof Error ? e.message : 'Request failed');
     }
     setLoading(false);
+  };
+
+  const runFullWorkflow = async () => {
+    if (!result) return;
+    setWorkflowLoading(true);
+    setWorkflowError(null);
+    setWorkflow(null);
+    try {
+      const workflowResult = await runDesignWorkflow(result.prompt, includeToolpathPreview);
+      setWorkflow(workflowResult);
+      if (workflowResult.design.status === 'success') {
+        setResult(current => current ? {
+          ...current,
+          spec: workflowResult.design.spec,
+          geometry: workflowResult.design.geometry,
+          engine: workflowResult.design.engine ?? current.engine,
+          step_available: workflowResult.design.step_available,
+        } : current);
+      }
+    } catch (e: unknown) {
+      setWorkflowError(
+        e instanceof Error
+          ? e.message
+          : 'Unable to reach the SZM Forge design workflow service.',
+      );
+    } finally {
+      setWorkflowLoading(false);
+    }
   };
 
   const spec = result?.spec;
@@ -287,21 +316,114 @@ export const TextToCADPanel: React.FC = () => {
               )}
             </div>
 
+            {/* Integrated design, analysis, and manufacturing workflow */}
+            <div className="p-3 rounded-lg border border-forge-accent/25 bg-forge-accent/5 space-y-3">
+              <div>
+                <div className="text-[9px] font-bold tracking-widest text-forge-accent">DESIGN → ANALYZE → MANUFACTURE</div>
+                <p className="mt-1 text-[8px] leading-relaxed text-forge-text-muted">
+                  Run SZM Forge's engineering workflow for this prompt. Analysis is preliminary; structural FEA and machine-ready DFM require reviewed inputs.
+                </p>
+              </div>
+              <label className="flex items-start gap-2 text-[8px] leading-relaxed text-forge-text-dim">
+                <input
+                  type="checkbox"
+                  checked={includeToolpathPreview}
+                  onChange={event => setIncludeToolpathPreview(event.target.checked)}
+                  className="mt-0.5 accent-cyan-400"
+                />
+                <span>Request an illustrative 2.5D toolpath preview for box-shaped designs only.</span>
+              </label>
+              <button
+                onClick={runFullWorkflow}
+                disabled={workflowLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-forge-accent/15 text-forge-accent border border-forge-accent/30 text-[9px] font-bold tracking-wider hover:bg-forge-accent/25 transition-all disabled:opacity-40"
+              >
+                {workflowLoading ? <Loader2 size={11} className="animate-spin" /> : <Wand2 size={11} />}
+                {workflowLoading ? 'RUNNING WORKFLOW…' : 'RUN ENGINEERING WORKFLOW'}
+              </button>
+
+              {workflowError && (
+                <div role="alert" className="flex items-start gap-2 rounded border border-forge-red/30 bg-forge-red/10 p-2 text-[8px] leading-relaxed text-forge-red">
+                  <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
+                  <span>{workflowError}. The local CAD preview remains available.</span>
+                </div>
+              )}
+
+              {workflow && (
+                <div className="space-y-2 border-t border-forge-border/50 pt-3">
+                  <div className="grid grid-cols-3 gap-1.5 text-center">
+                    <div className="rounded border border-forge-border/50 bg-forge-dark/70 p-2">
+                      <div className="text-[7px] font-mono text-forge-text-muted">DESIGN</div>
+                      <div className="mt-1 text-[8px] font-semibold text-forge-accent">{workflow.design.status}</div>
+                    </div>
+                    <div className="rounded border border-forge-border/50 bg-forge-dark/70 p-2">
+                      <div className="text-[7px] font-mono text-forge-text-muted">ANALYSIS</div>
+                      <div className="mt-1 text-[8px] font-semibold text-forge-yellow">{workflow.analysis.status}</div>
+                    </div>
+                    <div className="rounded border border-forge-border/50 bg-forge-dark/70 p-2">
+                      <div className="text-[7px] font-mono text-forge-text-muted">MANUFACTURING</div>
+                      <div className="mt-1 text-[8px] font-semibold text-forge-yellow">{workflow.manufacturing.status}</div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-[8px] leading-relaxed text-forge-text-dim">
+                    {workflow.analysis.nominal_volume_mm3 != null && (
+                      <p>Nominal primitive volume: {workflow.analysis.nominal_volume_mm3.toLocaleString()} mm³</p>
+                    )}
+                    <p>
+                      Structural FEA: {workflow.analysis.structural_analysis?.status ?? 'not run'}.
+                      {' '}{workflow.analysis.structural_analysis?.reason ?? workflow.analysis.reason ?? ''}
+                    </p>
+                    <p>DFM: {workflow.manufacturing.dfm_status.replace(/_/g, ' ')}; geometry-aware checks are not performed by this prompt-only workflow.</p>
+                    {workflow.manufacturing.toolpath_status && (
+                      <p>
+                        Toolpath: {workflow.manufacturing.toolpath_status.replace(/_/g, ' ')}
+                        {workflow.manufacturing.toolpath_message ? ` — ${workflow.manufacturing.toolpath_message}` : ''}
+                      </p>
+                    )}
+                    {workflow.design.step_download_url && (
+                      <a
+                        href={getAiWorkflowUrl(workflow.design.step_download_url)}
+                        className="inline-flex items-center gap-1 rounded border border-forge-green/30 bg-forge-green/10 px-2 py-1 font-mono text-forge-green hover:bg-forge-green/20"
+                      >
+                        <Download size={10} /> DOWNLOAD STEP
+                      </a>
+                    )}
+                  </div>
+
+                  {workflow.manufacturing.toolpath_preview?.gcode && (
+                    <details className="rounded border border-forge-border/50 bg-forge-dark/70 p-2">
+                      <summary className="cursor-pointer text-[8px] font-bold tracking-wider text-forge-cyan">
+                        VIEW NON-PRODUCTION TOOLPATH PREVIEW
+                      </summary>
+                      <pre className="mt-2 max-h-40 overflow-auto text-[7px] leading-relaxed text-forge-text-dim">
+                        {workflow.manufacturing.toolpath_preview.gcode}
+                      </pre>
+                    </details>
+                  )}
+
+                  <p className="text-[7px] leading-relaxed text-forge-yellow">
+                    Preview output is not machine-ready. Verify geometry, stock, tooling, fixtures, and all machine settings before any fabrication.
+                  </p>
+                </div>
+              )}
+            </div>
+
             {/* Actions */}
             <div className="flex gap-2">
               <button
                 onClick={() => {
-                  const json = JSON.stringify(result.spec, null, 2);
-                  const blob = new Blob([json], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
+                  const url = exportGeometryStlBlob(result.geometry);
                   const a = document.createElement('a');
-                  a.href = url; a.download = `szm_t2cad_${spec.shape}.json`;
-                  a.click(); URL.revokeObjectURL(url);
+                  a.href = url;
+                  a.download = `szm_t2cad_${spec.shape}.stl`;
+                  a.click();
+                  URL.revokeObjectURL(url);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-forge-green/10 text-forge-green border border-forge-green/20 text-[10px] font-semibold hover:bg-forge-green/20 transition-all"
               >
                 <Download size={11} />
-                EXPORT STL SPEC
+                EXPORT STL
               </button>
               <button
                 onClick={() => { setResult(null); setPrompt(''); }}

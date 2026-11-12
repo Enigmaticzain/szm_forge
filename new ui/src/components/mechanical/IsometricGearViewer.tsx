@@ -538,7 +538,7 @@ const MachineBase: React.FC<{
   const [haloRight, haloBottom] = project(maxX + 10, -bedD / 2 - 10, -2, cam);
 
   // Calibration tick marks along the front top edge
-  const ticks: JSX.Element[] = [];
+  const ticks: React.ReactElement[] = [];
   const tickStep = 15;
   for (let x = minX + 15; x <= maxX - 15; x += tickStep) {
     const isMajor = Math.round((x - minX) / tickStep) % 2 === 0;

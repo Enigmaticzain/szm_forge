@@ -37,6 +37,7 @@ const renderModeColors: Record<ViewportRenderMode, { primary: string; secondary:
   stress: { primary: '#ff8800', secondary: '#ffcc00', label: 'STRESS FEA' },
   pressure: { primary: '#00ccaa', secondary: '#00ff88', label: 'PRESSURE' },
   electrical: { primary: '#ffcc00', secondary: '#ff8800', label: 'ELECTRICAL' },
+  raytraced: { primary: '#a855f7', secondary: '#ec4899', label: 'RAYTRACED' },
 };
 
 const viewportTools: { label: string; tip: string; icon: React.ReactNode }[] = [

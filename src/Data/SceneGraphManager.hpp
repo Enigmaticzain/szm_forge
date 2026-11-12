@@ -116,29 +116,34 @@ namespace SZM {
             // Pass 1: Instantiate all nodes with their original UUIDs
             for (const auto& sNode : diskData) {
                 auto entity = std::make_shared<Entity>(sNode.id, sNode.name);
-                // In a full implementation, apply sNode.localTransform here
+                entity->SetLocalTransform(sNode.localTransform);
                 uuidRegistry[sNode.id] = entity;
+                if (sNode.parentId.high == 0 && sNode.parentId.low == 0) {
+                    rootNode = entity;
+                }
             }
 
             // Pass 2: Re-link pointers using the UUID Registry (Swizzling resolution)
             for (const auto& sNode : diskData) {
-                auto currentNode = uuidRegistry[sNode.id];
-                
+                auto curIt = uuidRegistry.find(sNode.id);
+                if (curIt == uuidRegistry.end() || !curIt->second) {
+                    continue;
+                }
+                auto& currentNode = curIt->second;
+
                 // Re-attach to parent
                 if (sNode.parentId.high != 0 || sNode.parentId.low != 0) {
-                    auto parentNode = uuidRegistry[sNode.parentId];
-                    if (parentNode) {
-                        parentNode->AddChild(currentNode);
+                    auto parentIt = uuidRegistry.find(sNode.parentId);
+                    if (parentIt != uuidRegistry.end() && parentIt->second) {
+                        parentIt->second->AddChild(currentNode);
                     } else {
                         // Handle "Ghost Nodes" or corrupted hierarchies
-                        std::cerr << "SZM Warning: Parent UUID missing. Re-parenting " 
+                        std::cerr << "SZM Warning: Parent UUID missing. Re-parenting "
                                   << sNode.name << " to Root." << std::endl;
                         if (rootNode && currentNode != rootNode) {
                             rootNode->AddChild(currentNode);
                         }
                     }
-                } else {
-                    rootNode = currentNode; // This is the root
                 }
             }
         }

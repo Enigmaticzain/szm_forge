@@ -12,8 +12,8 @@ void SkillSystem::RegisterSkill(const SkillDefinition& skill) {
     skill_definitions[skill.id] = skill;
     SkillCapability cap;
     cap.skill_id = skill.id;
-    cap.current_level = 1;
-    cap.confidence = 0.0f;
+    cap.current_level = skill.prerequisite_skills.empty() ? 1 : 0;
+    cap.confidence = cap.current_level > 0 ? 0.1f : 0.0f;
     skill_capabilities[skill.id] = cap;
     skill_xp[skill.id] = 0.0f;
 }
@@ -25,6 +25,7 @@ void SkillSystem::RegisterSkillTree(const std::vector<SkillDefinition>& skills) 
 }
 
 void SkillSystem::AwardXP(const std::string& skill_id, float amount) {
+    if (amount <= 0.0f) return;
     auto it = skill_xp.find(skill_id);
     if (it != skill_xp.end()) {
         it->second += amount;
@@ -39,8 +40,11 @@ bool SkillSystem::TryLevelUp(const std::string& skill_id) {
     if (xp_it == skill_xp.end() || cap_it == skill_capabilities.end() || def_it == skill_definitions.end()) {
         return false;
     }
+    if (!CanLearnSkill(skill_id)) {
+        return false;
+    }
 
-    float xp_needed = def_it->second.xp_per_level;
+    float xp_needed = std::max(1.0f, def_it->second.xp_per_level);
     if (xp_it->second >= xp_needed && cap_it->second.current_level < def_it->second.max_level) {
         cap_it->second.current_level++;
         xp_it->second -= xp_needed;
@@ -52,8 +56,11 @@ bool SkillSystem::TryLevelUp(const std::string& skill_id) {
 
 void SkillSystem::UnlockCapability(const std::string& skill_id, const std::string& capability) {
     auto it = skill_capabilities.find(skill_id);
-    if (it != skill_capabilities.end()) {
-        it->second.unlocked_capabilities.push_back(capability);
+    if (it != skill_capabilities.end() && IsSkillUnlocked(skill_id)) {
+        auto& caps = it->second.unlocked_capabilities;
+        if (std::find(caps.begin(), caps.end(), capability) == caps.end()) {
+            caps.push_back(capability);
+        }
     }
 }
 

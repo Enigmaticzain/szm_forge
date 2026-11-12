@@ -7,13 +7,15 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar, Dict, List, Optional, Set
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, ConfigDict, validator
 
 # ── Evidence category enumeration ────────────────────────────────────────────
 
-class EvidenceCategory(str):
+from enum import Enum
+
+class EvidenceCategory(str, Enum):
     """Six required evidence categories."""
     MEASURED = "measured"
     DOCUMENTED = "documented"
@@ -82,9 +84,7 @@ class EvidenceRecord(BaseModel):
             raise ValueError(f"invalid evidence category: {v}")
         return v
 
-    class Config:
-        """Pydantic v1 inner config."""
-        str_strip_whitespace = True
+    model_config = ConfigDict(str_strip_whitespace=True)
 
 
 # ── EvidenceCollection ───────────────────────────────────────────────────────
@@ -111,8 +111,7 @@ class EvidenceCollection(BaseModel):
             raise ValueError("collection_name must be non-empty")
         return v
 
-    class Config:
-        str_strip_whitespace = True
+    model_config = ConfigDict(str_strip_whitespace=True)
 
 
 # ── ReconstructionSpec ───────────────────────────────────────────────────────
@@ -173,14 +172,14 @@ class ReconstructionSpec(BaseModel):
 
     # ── Explicit status transitions ──────────────────────────────────────────
 
-    TRANSITIONS = {
+    TRANSITIONS: ClassVar[Dict[str, List[str]]] = {
         "pending": ["under_review", "rejected"],
         "under_review": ["approved", "rejected", "pending"],
         "approved": [],  # terminal acceptance
         "rejected": [],  # terminal non-acceptance
     }
 
-    _ALLOWED_VALUES = set(TRANSITIONS.keys())
+    _ALLOWED_VALUES: ClassVar[Set[str]] = set(TRANSITIONS.keys())
 
     @validator("review_status")
     def _status_must_be_valid(cls, v: str) -> str:
@@ -195,9 +194,7 @@ class ReconstructionSpec(BaseModel):
         """Explicit guard: unknowns must not become zero/arbitrary geometry defaults."""
         return v
 
-    class Config:
-        """Pydantic v1 inner config."""
-        str_strip_whitespace = True
+    model_config = ConfigDict(str_strip_whitespace=True)
 
     # ── Status transition methods ─────────────────────────────────────────────
 

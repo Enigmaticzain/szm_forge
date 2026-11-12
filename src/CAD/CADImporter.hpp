@@ -73,7 +73,7 @@ namespace SZM::CAD {
             float width              = 0.05f;
             float height             = 0.02f;
             float filletRadius       = 0.0f;
-            std::string outputPath   = "/tmp/szm_freecad_part.step";
+            std::string outputPath;  // empty → std::filesystem::temp_directory_path()/szm_freecad_part.step
         };
         ImportResult ImportFromFreeCAD(const FreeCADParams& params);
 

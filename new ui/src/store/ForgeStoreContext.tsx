@@ -31,7 +31,7 @@ export interface ForgeState {
   showViewportGrid: boolean;
   toggleViewportGrid: () => void;
   toast: string | null;
-  showToast: (msg: string) => void;
+  showToast: (msg: string, level?: 'info' | 'success' | 'warning' | 'error') => void;
   activeTheme: 'theme1' | 'theme2';
   setTheme: (theme: 'theme1' | 'theme2') => void;
   floatingComponents: any[];
@@ -63,7 +63,7 @@ export const ForgeStoreProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [floatingComponents, setFloatingComponents] = useState<any[]>([]);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
-  const showToast = useCallback((msg: string) => {
+  const showToast = useCallback((msg: string, _level?: 'info' | 'success' | 'warning' | 'error') => {
     setToast(msg);
     setTimeout(() => setToast(null), 2800);
   }, []);

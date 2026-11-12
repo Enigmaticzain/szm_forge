@@ -10,8 +10,15 @@ std::string Logger::GetTimestamp() const {
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()) % 1000;
 
+    std::tm tmBuf{};
+#ifdef _WIN32
+    localtime_s(&tmBuf, &time);
+#else
+    localtime_r(&time, &tmBuf);
+#endif
+
     std::ostringstream oss;
-    oss << std::put_time(std::localtime(&time), "%Y-%m-%d %H:%M:%S")
+    oss << std::put_time(&tmBuf, "%Y-%m-%d %H:%M:%S")
         << '.' << std::setfill('0') << std::setw(3) << ms.count();
     return oss.str();
 }
@@ -47,12 +54,12 @@ void Logger::Log(
     const std::string& module,
     const std::source_location& location)
 {
-    // Filter by minimum level
+    std::lock_guard<std::mutex> lock(m_Mutex);
+
+    // Filter by minimum level under mutex
     if (level < m_MinimumLevel) {
         return;
     }
-
-    std::lock_guard<std::mutex> lock(m_Mutex);
 
     // Format the log message
     std::ostringstream oss;
@@ -74,7 +81,10 @@ void Logger::Log(
         if (!m_LogFile || !m_LogFile->is_open()) {
             // Lazy initialization of log file
             std::filesystem::path log_path(m_LogFilePath);
-            std::filesystem::create_directories(log_path.parent_path());
+            if (log_path.has_parent_path()) {
+                std::error_code ec;
+                std::filesystem::create_directories(log_path.parent_path(), ec);
+            }
             m_LogFile = std::make_unique<std::ofstream>(
                 m_LogFilePath, std::ios::app);
             if (!m_LogFile->is_open()) {

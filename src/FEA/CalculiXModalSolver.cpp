@@ -5,6 +5,7 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
+#include <filesystem>
 
 namespace SZM::FEA {
 
@@ -16,17 +17,16 @@ const std::vector<double> CalculiXModalSolver::CANTILEVER_MODE_COEFFICIENTS = {
 std::string CalculiXModalSolver::GenerateModalInputFile(const CalculiXModalConfig& config) {
     std::ostringstream inp;
 
-    // Define geometry: 0.1m cantilever beam
+    // Define geometry: 0.1m cantilever beam (valid 8-node C3D8 hex element)
     inp << "*NODE\n";
     inp << " 1, 0.0, 0.0, 0.0\n";
-    inp << " 2, 0.05, 0.0, 0.0\n";
-    inp << " 3, 0.1, 0.0, 0.0\n";
+    inp << " 2, 0.1, 0.0, 0.0\n";
+    inp << " 3, 0.1, 0.05, 0.0\n";
     inp << " 4, 0.0, 0.05, 0.0\n";
-    inp << " 5, 0.05, 0.05, 0.0\n";
-    inp << " 6, 0.1, 0.05, 0.0\n";
-    inp << " 7, 0.0, 0.0, 0.05\n";
-    inp << " 8, 0.05, 0.0, 0.05\n";
-    inp << " 9, 0.1, 0.0, 0.05\n";
+    inp << " 5, 0.0, 0.0, 0.05\n";
+    inp << " 6, 0.1, 0.0, 0.05\n";
+    inp << " 7, 0.1, 0.05, 0.05\n";
+    inp << " 8, 0.0, 0.05, 0.05\n";
 
     // Define 8-node structural elements (C3D8)
     inp << "*ELEMENT, TYPE=C3D8, ELSET=EALL\n";
@@ -41,9 +41,17 @@ std::string CalculiXModalSolver::GenerateModalInputFile(const CalculiXModalConfi
 
     inp << "*SOLID SECTION, ELSET=EALL, MATERIAL=MODAL_MAT\n";
 
-    // Boundary conditions: fix all DOFs at node 1 (cantilever)
+    // Boundary conditions: clamp root face at x = 0 (nodes 1, 4, 5, 8) or configured nodes
     inp << "*BOUNDARY\n";
-    inp << " 1, 1, 3\n";  // Fixed: U1, U2, U3 at node 1
+    if (!config.fixedNodes.empty()) {
+        for (int nid : config.fixedNodes) {
+            inp << " " << nid << ", 1, 3\n";
+        }
+    } else {
+        for (int nid : {1, 4, 5, 8}) {
+            inp << " " << nid << ", 1, 3\n";
+        }
+    }
 
     // Frequency step
     inp << "*STEP\n";
@@ -83,10 +91,13 @@ ModalAnalysisResult CalculiXModalSolver::RunModalAnalysis(const CalculiXModalCon
     std::string inputContent = GenerateModalInputFile(config);
 
     // Create temporary directory and write input file
-    std::string tempDir = "/tmp/szm_modal_analysis";
-    system("mkdir -p " + tempDir);
-    
-    std::string inputPath = tempDir + "/modal_job.inp";
+    const std::filesystem::path tempDirPath =
+        std::filesystem::temp_directory_path() / "szm_modal_analysis";
+    std::error_code ec;
+    std::filesystem::create_directories(tempDirPath, ec);
+    const std::string tempDir = tempDirPath.string();
+
+    std::string inputPath = (tempDirPath / "modal_job.inp").string();
     std::ofstream inputFile(inputPath);
     if (!inputFile.is_open()) {
         result.success = false;
@@ -102,16 +113,23 @@ ModalAnalysisResult CalculiXModalSolver::RunModalAnalysis(const CalculiXModalCon
     int ret = system(cmd.c_str());
 
     if (ret != 0) {
-        // Fall back to analytical
         result = SolveAnalytical(config);
-        result.engineUsed += " (fallback, CalculiX run failed)";
+        result.engineUsed = ccxBinary + " (fallback, CalculiX run failed)";
         return result;
     }
 
-    // Parse results
-    result = ParseModalResults(tempDir + "/modal_job.frd", config.numModes);
+    // Parse eigenvalue table from CalculiX .dat output (fall back to .frd if present)
+    result = ParseModalResults((tempDirPath / "modal_job.dat").string(), config.numModes);
+    if (!result.success) {
+        result = ParseModalResults((tempDirPath / "modal_job.frd").string(), config.numModes);
+    }
+    if (!result.success) {
+        ModalAnalysisResult fallback = SolveAnalytical(config);
+        fallback.engineUsed = ccxBinary + " (fallback, result parse failed)";
+        fallback.message = result.message;
+        return fallback;
+    }
     result.engineUsed = ccxBinary;
-    result.success = true;
     
     return result;
 }
@@ -128,24 +146,52 @@ ModalAnalysisResult CalculiXModalSolver::ParseModalResults(const std::string& ou
 
     std::vector<double> frequencies;
     std::string line;
+    bool inEigenvalueTable = false;
 
-    // Parse .frd file for eigenvalues (frequencies)
     while (std::getline(file, line)) {
-        // Look for eigenvalue lines in output
+        if (static_cast<int>(frequencies.size()) >= numModes) {
+            break;
+        }
+        if (line.find("EIGENVALUE OUTPUT") != std::string::npos ||
+            line.find("MODE NO") != std::string::npos) {
+            inEigenvalueTable = true;
+            continue;
+        }
+        if (inEigenvalueTable) {
+            std::istringstream iss(line);
+            int modeNo = 0;
+            double eigenvalue = 0.0;
+            double realFreqRad = 0.0;
+            double freqHz = 0.0;
+            if (iss >> modeNo >> eigenvalue >> realFreqRad >> freqHz) {
+                if (freqHz > 0.0) {
+                    frequencies.push_back(freqHz);
+                } else if (eigenvalue > 0.0) {
+                    frequencies.push_back(std::sqrt(eigenvalue) / (2.0 * M_PI));
+                }
+                continue;
+            }
+            if (!frequencies.empty() && line.find_first_not_of(" \t\r\n") != std::string::npos) {
+                inEigenvalueTable = false;
+            }
+        }
+        // Fallback for summary lines mentioning eigenvalue/FREQ
         if (line.find("eigenvalue") != std::string::npos || 
             line.find("frequency") != std::string::npos ||
             line.find("FREQ") != std::string::npos) {
-            try {
-                size_t pos = line.find_last_of("0123456789.eE+-");
-                if (pos != std::string::npos) {
-                    std::string numStr = line.substr(pos);
-                    double eigenvalue = std::stod(numStr);
-                    // Convert eigenvalue to frequency (Hz)
-                    double freq = std::sqrt(eigenvalue) / (2.0 * M_PI);
-                    frequencies.push_back(freq);
+            std::istringstream iss(line);
+            std::string token;
+            double eigenvalue = 0.0;
+            bool foundVal = false;
+            while (iss >> token) {
+                try {
+                    eigenvalue = std::stod(token);
+                    foundVal = true;
+                } catch (...) {
                 }
-            } catch (...) {
-                // Skip invalid lines
+            }
+            if (foundVal && eigenvalue > 0.0) {
+                frequencies.push_back(std::sqrt(eigenvalue) / (2.0 * M_PI));
             }
         }
     }
@@ -153,23 +199,25 @@ ModalAnalysisResult CalculiXModalSolver::ParseModalResults(const std::string& ou
     file.close();
 
     if (!frequencies.empty()) {
-        result.numModesComputed = frequencies.size();
+        result.numModesComputed = static_cast<int>(frequencies.size());
         result.naturalFrequencies = frequencies;
         result.firstNaturalFrequency = frequencies[0];
         result.lowestFrequency = *std::min_element(frequencies.begin(), frequencies.end());
         result.highestFrequency = *std::max_element(frequencies.begin(), frequencies.end());
         
-        // Create mode shapes (simplified)
         for (size_t i = 0; i < frequencies.size(); ++i) {
             ModeShape mode;
-            mode.modeNumber = i + 1;
+            mode.modeNumber = static_cast<int>(i) + 1;
             mode.frequency = frequencies[i];
-            mode.wavelength = 1.0 / frequencies[i];
-            mode.dampingRatio = 0.05 * (i + 1);  // Estimated damping
+            mode.wavelength = (frequencies[i] > 0.0) ? (1.0 / frequencies[i]) : 0.0;
+            mode.dampingRatio = 0.05 * (i + 1);
             result.modeShapes.push_back(mode);
         }
         
         result.success = true;
+    } else {
+        result.success = false;
+        result.message = "No eigenvalues found in CalculiX output";
     }
 
     return result;
@@ -192,7 +240,8 @@ ModalAnalysisResult CalculiXModalSolver::SolveAnalytical(const CalculiXModalConf
                            config.numModes);
     
     for (int i = 0; i < numModes; ++i) {
-        double freq = CANTILEVER_MODE_COEFFICIENTS[i] * baseFreq;
+        const double lambda = CANTILEVER_MODE_COEFFICIENTS[i];
+        double freq = (lambda * lambda) * baseFreq;
         
         // Filter by frequency range
         if (freq >= config.minFrequency && freq <= config.maxFrequency) {
@@ -202,14 +251,12 @@ ModalAnalysisResult CalculiXModalSolver::SolveAnalytical(const CalculiXModalConf
             ModeShape mode;
             mode.modeNumber = i + 1;
             mode.frequency = freq;
-            mode.wavelength = 1.0 / freq;
+            mode.wavelength = (freq > 0.0) ? (1.0 / freq) : 0.0;
             mode.dampingRatio = 0.02 * (i + 1);  // Estimated damping
             mode.nodalDisplacements.resize(9);   // 9 nodes
             
-            // Simple amplitude estimation (decreases with mode number)
             double amplitude = 1.0 / (1.0 + 0.5 * i);
             for (int j = 0; j < 9; ++j) {
-                // Simple sine distribution (0 at node 1, max at node 9)
                 double x = j / 8.0;
                 mode.nodalDisplacements[j] = amplitude * std::sin(M_PI * x * (i + 1));
             }
@@ -219,7 +266,7 @@ ModalAnalysisResult CalculiXModalSolver::SolveAnalytical(const CalculiXModalConf
     }
 
     if (!result.naturalFrequencies.empty()) {
-        result.numModesComputed = result.naturalFrequencies.size();
+        result.numModesComputed = static_cast<int>(result.naturalFrequencies.size());
         result.firstNaturalFrequency = result.naturalFrequencies[0];
         result.lowestFrequency = result.naturalFrequencies[0];
         result.highestFrequency = result.naturalFrequencies.back();
@@ -233,9 +280,9 @@ ModalAnalysisResult CalculiXModalSolver::SolveAnalytical(const CalculiXModalConf
 
 double CalculiXModalSolver::ComputeBeamFrequency(double youngsModulus, double density,
                                                 double length, double area, double momentOfInertia) {
-    // f = (λ² / (2*π)) * sqrt(E*I / (ρ*A*L⁴))
-    
-    if (momentOfInertia <= 0 || area <= 0 || length <= 0) {
+    // Returns sqrt(E*I / (ρ*A*L⁴)) / (2*π); multiply by λ_n² for mode n.
+    if (youngsModulus <= 0.0 || density <= 0.0 || momentOfInertia <= 0.0 ||
+        area <= 0.0 || length <= 0.0) {
         return 0.0;
     }
 

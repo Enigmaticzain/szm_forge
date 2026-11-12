@@ -4,7 +4,6 @@ import {
   Columns, Minus, Square,
 } from 'lucide-react';
 import { useProject } from '../store/ProjectContext';
-import { useTooltips } from '../store/TooltipContext';
 import { HelpHint } from './ui/HelpHint';
 import type { MemberKind, AttachEnd } from '../workshop/structuralAssembly';
 import { materialCatalog } from '../workshop/structuralAssembly';
@@ -42,7 +41,6 @@ export const StructuralWorkshopPanel: React.FC<{ onBuilt?: () => void }> = ({ on
     improveWithAI,
     previewLoad,
   } = useProject();
-  const { t } = useTooltips();
 
   const [tab, setTab] = useState<'kit' | 'presets' | 'code8'>('kit');
   const [materialId, setMaterialId] = useState('MAT-STEEL-STRUCT');

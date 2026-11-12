@@ -1,6 +1,7 @@
 add_library(SZM_Core STATIC
     Application.cpp
     ApplicationModule.cpp
+    Logger.cpp
     Phase5PhysicsIntegration.cpp
     ExternalEngineManager.cpp
 )

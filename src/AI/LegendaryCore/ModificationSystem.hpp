@@ -2,7 +2,8 @@
 
 #include <string>
 #include <vector>
-#include <memory>
+#include <map>
+#include <set>
 #include <nlohmann/json.hpp>
 
 namespace SZM::AI::Legendary {
@@ -119,6 +120,7 @@ private:
     std::vector<ModificationProposal> proposals;
     std::vector<ModificationResult> modification_history;
     std::vector<Snapshot> snapshots;
+    std::set<std::string> tracked_files;
 };
 
 } // namespace SZM::AI::Legendary

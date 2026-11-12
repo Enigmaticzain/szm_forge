@@ -27,7 +27,6 @@ def run_test(name: str, fn):
 
 
 # ── Test 1: Smart Part Creation ───────────────────────────────────────────────
-print("\n═══ Test 1: Smart Part Creation ═══")
 
 
 def test_bracket():
@@ -66,15 +65,7 @@ def test_plate():
     assert os.path.exists(path) and os.path.getsize(path) > 0
 
 
-run_test("Bracket → STEP", test_bracket)
-run_test("Shaft → STEP", test_shaft)
-run_test("Flange → STEP", test_flange)
-run_test("Housing → STEP", test_housing)
-run_test("Gear → STEP", test_gear)
-run_test("Plate → STEP", test_plate)
-
 # ── Test 2: 2D Profile → 3D ──────────────────────────────────────────────────
-print("\n═══ Test 2: 2D Profile → 3D Extrusion ═══")
 
 
 def test_2d_profile():
@@ -87,10 +78,7 @@ def test_2d_profile():
     assert os.path.exists(path) and os.path.getsize(path) > 0
 
 
-run_test("2D profile → offset → extrude → STEP", test_2d_profile)
-
 # ── Test 3: Mesh Operations ──────────────────────────────────────────────────
-print("\n═══ Test 3: Mesh Import/Convert/Analyze ═══")
 
 
 def test_mesh_from_step():
@@ -113,11 +101,7 @@ def test_mesh_repair():
     assert repaired.is_watertight
 
 
-run_test("STEP → STL → mesh analysis", test_mesh_from_step)
-run_test("Mesh repair", test_mesh_repair)
-
 # ── Test 4: Interference Check ───────────────────────────────────────────────
-print("\n═══ Test 4: Interference Checking ═══")
 
 
 def test_interference():
@@ -148,13 +132,7 @@ def test_dfm():
     assert isinstance(warnings, list)
 
 
-run_test("Interference check", test_interference)
-run_test("Clearance calculation", test_clearance)
-run_test("Bounding box", test_bounding_box)
-run_test("Manufacturability check", test_dfm)
-
 # ── Test 5: Assembly ─────────────────────────────────────────────────────────
-print("\n═══ Test 5: Assembly Creation + Export ═══")
 
 
 def test_assembly():
@@ -168,14 +146,13 @@ def test_assembly():
     assert os.path.exists(path) and os.path.getsize(path) > 0
 
 
-run_test("Assembly with 2 parts → STEP", test_assembly)
-
 # ── Test 6: Format Conversion ────────────────────────────────────────────────
-print("\n═══ Test 6: Format Conversion ═══")
 
 
 def test_step_to_stl():
     step_in = os.path.join(OUTPUT_DIR, "flange.step")
+    if not os.path.exists(step_in):
+        test_flange()
     stl_out = os.path.join(OUTPUT_DIR, "flange_converted.stl")
     ge.convert_format(step_in, stl_out)
     assert os.path.exists(stl_out) and os.path.getsize(stl_out) > 0
@@ -189,23 +166,53 @@ def test_dxf_export_import():
     assert reimported.area > 0
 
 
-run_test("STEP → STL conversion", test_step_to_stl)
-run_test("DXF export + reimport", test_dxf_export_import)
+def main() -> int:
+    print("\n═══ Test 1: Smart Part Creation ═══")
+    run_test("Bracket → STEP", test_bracket)
+    run_test("Shaft → STEP", test_shaft)
+    run_test("Flange → STEP", test_flange)
+    run_test("Housing → STEP", test_housing)
+    run_test("Gear → STEP", test_gear)
+    run_test("Plate → STEP", test_plate)
 
-# ── Summary ──────────────────────────────────────────────────────────────────
-print(f"\n{'═' * 50}")
-print(f"Results: {passed} passed, {failed} failed out of {passed + failed}")
-if failed == 0:
-    print("🎉 ALL TESTS PASSED!")
-else:
-    print(f"⚠️  {failed} test(s) need attention")
-print(f"Output files in: {OUTPUT_DIR}")
-print(f"{'═' * 50}")
+    print("\n═══ Test 2: 2D Profile → 3D Extrusion ═══")
+    run_test("2D profile → offset → extrude → STEP", test_2d_profile)
 
-# List generated files
-print("\nGenerated files:")
-for f in sorted(os.listdir(OUTPUT_DIR)):
-    size = os.path.getsize(os.path.join(OUTPUT_DIR, f))
-    print(f"  {f:30s} {size:>8,d} bytes")
+    print("\n═══ Test 3: Mesh Import/Convert/Analyze ═══")
+    run_test("STEP → STL → mesh analysis", test_mesh_from_step)
+    run_test("Mesh repair", test_mesh_repair)
 
-sys.exit(0 if failed == 0 else 1)
+    print("\n═══ Test 4: Interference Checking ═══")
+    run_test("Interference check", test_interference)
+    run_test("Clearance calculation", test_clearance)
+    run_test("Bounding box", test_bounding_box)
+    run_test("Manufacturability check", test_dfm)
+
+    print("\n═══ Test 5: Assembly Creation + Export ═══")
+    run_test("Assembly with 2 parts → STEP", test_assembly)
+
+    print("\n═══ Test 6: Format Conversion ═══")
+    run_test("STEP → STL conversion", test_step_to_stl)
+    run_test("DXF export + reimport", test_dxf_export_import)
+
+    # ── Summary ──────────────────────────────────────────────────────────────
+    print(f"\n{'═' * 50}")
+    print(f"Results: {passed} passed, {failed} failed out of {passed + failed}")
+    if failed == 0:
+        print("🎉 ALL TESTS PASSED!")
+    else:
+        print(f"⚠️  {failed} test(s) need attention")
+    print(f"Output files in: {OUTPUT_DIR}")
+    print(f"{'═' * 50}")
+
+    # List generated files
+    print("\nGenerated files:")
+    for f in sorted(os.listdir(OUTPUT_DIR)):
+        size = os.path.getsize(os.path.join(OUTPUT_DIR, f))
+        print(f"  {f:30s} {size:>8,d} bytes")
+
+    return 0 if failed == 0 else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

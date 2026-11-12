@@ -4,7 +4,6 @@ import {
   ChevronDown, ChevronRight
 } from 'lucide-react';
 import { useProject } from '../store/ProjectContext';
-import { useTooltips } from '../store/TooltipContext';
 import { HelpHint } from './ui/HelpHint';
 import { tooltips } from '../data/tooltips';
 import { materialOptions } from '../workshop/furnitureEngine';

@@ -44,9 +44,12 @@ class TensorFlowModelManager:
         """Estimate material properties using TensorFlow"""
         if not self.material_model:
             return {"error": "Model not loaded"}
+        if not known_properties:
+            return {"error": "known_properties must not be empty"}
         
-        # Prepare input
-        input_vector = np.array([[list(known_properties.values())]])
+        # Prepare deterministic 2D (1, N) feature matrix
+        ordered_keys = sorted(known_properties.keys())
+        input_vector = np.array([[float(known_properties[k]) for k in ordered_keys]], dtype=np.float32)
         
         # Predict
         prediction = self.material_model.predict(input_vector, verbose=0)

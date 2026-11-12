@@ -3,6 +3,7 @@
 #include <glad/gl.h>
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
+#include <atomic>
 #include <string>
 #include <chrono>
 #include <memory>
@@ -47,7 +48,7 @@ namespace SZM {
 
         // ----- Accessors ------------------------------------------------
         GLFWwindow* GetNativeWindow() const { return m_WindowHandle; }
-        double      GetDeltaTime()    const { return m_DeltaTime;    }
+        double      GetDeltaTime()    const { return m_DeltaTime.load(std::memory_order_relaxed); }
 
     private:
         Application();
@@ -57,6 +58,8 @@ namespace SZM {
         static void FramebufferResizeCallback(GLFWwindow* window, int width, int height);
         static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
         static void MouseMoveCallback(GLFWwindow* window, double xpos, double ypos);
+        static void MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
+        static void ScrollCallback(GLFWwindow* window, double xoffset, double yoffset);
         static void FocusCallback(GLFWwindow* window, int focused);
 
         // Internal helpers
@@ -72,7 +75,7 @@ namespace SZM {
         bool        m_ImGuiInitialized = false;
         std::unique_ptr<Graphics::GraphicsContext> m_GraphicsContext;
 
-        double m_DeltaTime = 0.0;
+        std::atomic<double> m_DeltaTime{0.0};
         std::chrono::time_point<std::chrono::high_resolution_clock> m_LastFrameTime;
         UIManager m_UIManager;
         Phase5PhysicsIntegration m_Phase5PhysicsIntegration;

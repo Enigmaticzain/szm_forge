@@ -48,8 +48,8 @@ private:
     OmniverseConnector(const OmniverseConnector&) = delete;
     OmniverseConnector& operator=(const OmniverseConnector&) = delete;
 
-    bool m_initialized = false;
-    bool m_connected = false;
+    std::atomic<bool> m_initialized{false};
+    std::atomic<bool> m_connected{false};
     OmniverseConfig m_config;
     
     // Nucleus connection token (simulated)

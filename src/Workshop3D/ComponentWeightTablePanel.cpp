@@ -233,7 +233,8 @@ void ComponentWeightTablePanel::DrawExportTab() {
     
     if (UIStyleHelper::ModernButtonPrimary("Export Scene Weights")) {
         if (m_ExportPath[0]) {
-            ExportWeightsToCSV(m_ExportPath);
+            RefreshSceneWeights();
+            ExportSceneWeightsToCSV(m_ExportPath);
         }
     }
     
@@ -252,6 +253,19 @@ void ComponentWeightTablePanel::DrawExportTab() {
     ImGui::TextDisabled("3. Open CSV in Excel or spreadsheet app");
 }
 
+void ComponentWeightTablePanel::SortWeights(std::vector<std::pair<std::string, float>>& weights) const {
+    if (m_SortMode == 1) {
+        std::sort(weights.begin(), weights.end(),
+            [](const auto& a, const auto& b) { return a.second < b.second; });
+    } else if (m_SortMode == 2) {
+        std::sort(weights.begin(), weights.end(),
+            [](const auto& a, const auto& b) { return a.second > b.second; });
+    } else {
+        std::sort(weights.begin(), weights.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+    }
+}
+
 void ComponentWeightTablePanel::RefreshComponentWeights() {
     m_LibraryWeights.clear();
     m_TotalLibraryWeight = 0.0f;
@@ -266,20 +280,12 @@ void ComponentWeightTablePanel::RefreshComponentWeights() {
         }
     }
     
-    // Sort based on mode
-    if (m_SortMode == 1) {
-        std::sort(m_LibraryWeights.begin(), m_LibraryWeights.end(),
-            [](const auto& a, const auto& b) { return a.second < b.second; });
-    } else if (m_SortMode == 2) {
-        std::sort(m_LibraryWeights.begin(), m_LibraryWeights.end(),
-            [](const auto& a, const auto& b) { return a.second > b.second; });
-    } else {
-        std::sort(m_LibraryWeights.begin(), m_LibraryWeights.end(),
-            [](const auto& a, const auto& b) { return a.first < b.first; });
-    }
+    SortWeights(m_LibraryWeights);
     
     if (!m_LibraryWeights.empty()) {
-        m_AverageComponentWeight = m_TotalLibraryWeight / m_LibraryWeights.size();
+        m_AverageComponentWeight = m_TotalLibraryWeight / static_cast<float>(m_LibraryWeights.size());
+    } else {
+        m_AverageComponentWeight = 0.0f;
     }
 }
 
@@ -290,15 +296,28 @@ void ComponentWeightTablePanel::RefreshSceneWeights() {
     auto assembly = WorkshopManager::GetInstance().GetActiveAssembly();
     if (!assembly) return;
     
-    // Get instances from assembly
-    // Note: This is a simplified version - actual implementation depends on Assembly structure
-    // For now, we'll populate from library as placeholder
-    RefreshComponentWeights();
-    m_SceneWeights = m_LibraryWeights;
-    m_TotalSceneWeight = m_TotalLibraryWeight;
+    for (const auto& [instId, instance] : assembly->GetAllInstances()) {
+        if (!instance) continue;
+        float weight = static_cast<float>(instance->GetScaledMass());
+        std::string label = instance->GetInstanceName();
+        if (label.empty() && instance->GetPart()) {
+            label = instance->GetPart()->GetProperties().name;
+        }
+        if (label.empty()) {
+            label = "Instance #" + std::to_string(instId);
+        }
+        m_SceneWeights.emplace_back(std::move(label), weight);
+        m_TotalSceneWeight += weight;
+    }
+    SortWeights(m_SceneWeights);
 }
 
 void ComponentWeightTablePanel::DrawWeightTable(const std::vector<std::pair<std::string, float>>& weights) {
+    float totalWeight = 0.0f;
+    for (const auto& [_, weight] : weights) {
+        totalWeight += weight;
+    }
+
     ImGui::Columns(3, "##weight_table", true);
     ImGui::TextColored(ImVec4(0.55f, 0.36f, 0.96f, 1.0f), "Component");
     ImGui::NextColumn();
@@ -313,30 +332,41 @@ void ComponentWeightTablePanel::DrawWeightTable(const std::vector<std::pair<std:
         ImGui::NextColumn();
         ImGui::Text("%.2f", weight);
         ImGui::NextColumn();
-        ImGui::Text("%.1f%%", (weight / m_TotalLibraryWeight) * 100.0f);
+        float percentage = (totalWeight > 1e-6f) ? (weight / totalWeight) * 100.0f : 0.0f;
+        ImGui::Text("%.1f%%", percentage);
         ImGui::NextColumn();
     }
     
     ImGui::Columns(1);
 }
 
-void ComponentWeightTablePanel::ExportWeightsToCSV(const std::string& filepath) {
+void ComponentWeightTablePanel::WriteWeightsCSV(
+    const std::string& filepath,
+    const std::vector<std::pair<std::string, float>>& weights,
+    float totalWeight) {
     std::ofstream file(filepath);
     if (!file.is_open()) return;
     
     // Write header
     file << "Component Name,Weight (kg),Percentage\n";
     
-    // Write library weights
-    for (const auto& [name, weight] : m_LibraryWeights) {
-        float percentage = (m_TotalLibraryWeight > 0) ? (weight / m_TotalLibraryWeight) * 100.0f : 0.0f;
+    for (const auto& [name, weight] : weights) {
+        float percentage = (totalWeight > 1e-6f) ? (weight / totalWeight) * 100.0f : 0.0f;
         file << name << "," << weight << "," << percentage << "\n";
     }
     
     // Write total
-    file << "TOTAL," << m_TotalLibraryWeight << ",100.0\n";
+    file << "TOTAL," << totalWeight << "," << (totalWeight > 1e-6f ? 100.0f : 0.0f) << "\n";
     
     file.close();
+}
+
+void ComponentWeightTablePanel::ExportWeightsToCSV(const std::string& filepath) {
+    WriteWeightsCSV(filepath, m_LibraryWeights, m_TotalLibraryWeight);
+}
+
+void ComponentWeightTablePanel::ExportSceneWeightsToCSV(const std::string& filepath) {
+    WriteWeightsCSV(filepath, m_SceneWeights, m_TotalSceneWeight);
 }
 
 } // namespace SZM::Workshop3D

@@ -1,6 +1,17 @@
 #include "UIStyleHelper.hpp"
 #include "UITooltipHelper.hpp"
 #include <imgui_internal.h>
+#include <filesystem>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#else
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 namespace SZM {
 
@@ -238,9 +249,10 @@ void UIStyleHelper::BeginCard(const char* title, const char*) {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_Border, GetBorderColor());
     
-    ImGui::BeginChild(ImGui::GetID(title), ImVec2(0, 0), true);
+    const char* childLabel = (title && title[0] != '\0') ? title : "##Card";
+    ImGui::BeginChild(ImGui::GetID(childLabel), ImVec2(0, 0), true);
     
-    if (title) {
+    if (title && title[0] != '\0') {
         ImGui::PushStyleColor(ImGuiCol_Text, GetTextColor());
         ImGui::TextUnformatted(title);
         ImGui::PopStyleColor();
@@ -345,6 +357,80 @@ void UIStyleHelper::HorizontalSeparator() {
 
 void UIStyleHelper::ApplyModernTheme() {
     ApplyTheme(ThemeMode::Light);
+}
+
+bool UIStyleHelper::RevealInFileManager(const std::string& path) {
+    if (path.empty()) {
+        return false;
+    }
+    for (unsigned char ch : path) {
+        if (ch < 0x20 || ch == 0x7f) {
+            return false;
+        }
+    }
+
+    std::error_code ec;
+    const std::filesystem::path inputPath(path);
+    if (!std::filesystem::exists(inputPath, ec)) {
+        return false;
+    }
+    const std::filesystem::path resolved = std::filesystem::canonical(inputPath, ec);
+    if (ec) {
+        return false;
+    }
+    std::filesystem::path targetDir = std::filesystem::is_directory(resolved, ec)
+        ? resolved
+        : resolved.parent_path();
+    if (targetDir.empty()) {
+        targetDir = resolved;
+    }
+
+#ifdef _WIN32
+    HINSTANCE res = ShellExecuteW(
+        nullptr,
+        L"open",
+        targetDir.wstring().c_str(),
+        nullptr,
+        nullptr,
+        SW_SHOWNORMAL);
+    return reinterpret_cast<intptr_t>(res) > 32;
+#else
+    const std::string targetStr = targetDir.string();
+    const pid_t pid = fork();
+    if (pid < 0) {
+        return false;
+    }
+    if (pid == 0) {
+        const pid_t grandchild = fork();
+        if (grandchild < 0) {
+            _exit(127);
+        }
+        if (grandchild > 0) {
+            _exit(0);
+        }
+        const int devNull = open("/dev/null", O_RDWR);
+        if (devNull >= 0) {
+            dup2(devNull, STDIN_FILENO);
+            dup2(devNull, STDOUT_FILENO);
+            dup2(devNull, STDERR_FILENO);
+            if (devNull > STDERR_FILENO) {
+                close(devNull);
+            }
+        }
+#ifdef __APPLE__
+        std::string prog = "open";
+#else
+        std::string prog = "xdg-open";
+#endif
+        std::string arg = targetStr;
+        char* const argv[] = {prog.data(), arg.data(), nullptr};
+        execvp(prog.c_str(), argv);
+        _exit(127);
+    }
+    int status = 0;
+    waitpid(pid, &status, 0);
+    return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+#endif
 }
 
 } // namespace SZM

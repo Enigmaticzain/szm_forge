@@ -49,16 +49,18 @@ float FluidStaticsEngine::getHydrostaticForceOnSubmergedSurface(
 
 glm::vec3 FluidStaticsEngine::getHydrostaticForceVector(
     float area, float centroidDepth, const glm::vec3& normalDirection) const {
+    float len = glm::length(normalDirection);
+    if (len <= 1e-6f) {
+        return glm::vec3(0.0f);
+    }
     float forceMagnitude = getHydrostaticForceOnSubmergedSurface(area, centroidDepth);
-    glm::vec3 normalized = glm::normalize(normalDirection);
-    return normalized * forceMagnitude;
+    return (normalDirection / len) * forceMagnitude;
 }
 
 float FluidStaticsEngine::getCenterOfPressure(float centroidDepth, float surfaceArea) const {
-    // Center of pressure is always deeper than centroid for submerged surfaces
-    // Approximation: CoP depth ≈ Centroid depth + (Centroid depth / 2)
-    // More accurate calculation depends on surface shape
-    if (surfaceArea <= 0.0f) return centroidDepth;
+    // Center of pressure is deeper than centroid for submerged surfaces
+    // Guard against zero area or non-positive depth
+    if (surfaceArea <= 0.0f || centroidDepth <= 1e-6f) return centroidDepth;
     
     float secondMoment = (surfaceArea * centroidDepth * centroidDepth) / 12.0f;
     return centroidDepth + (secondMoment / (centroidDepth * surfaceArea));
@@ -70,6 +72,9 @@ FloatingObjectResult FluidStaticsEngine::analyzeFloatingObject(
     const glm::vec3& centerOfGravity) const {
     
     FloatingObjectResult result;
+    if (objectVolume <= 0.0f || fluid.getDensity() <= 0.0f) {
+        return result;
+    }
     
     float objectWeight = objectMass * fluid.getGravity();
     float maxBuoyancy = getBuoyantForce(objectVolume);
@@ -98,8 +103,8 @@ float FluidStaticsEngine::calculateStability(
     const glm::vec3& centerOfGravity,
     const glm::vec3& centerOfBuoyancy) const {
     
-    // Stability is higher when center of buoyancy is below center of gravity
-    // For floating objects: CB should be below CG for stability
+    // For submerged/floating bodies, positive stability occurs when
+    // center of buoyancy is above the center of gravity (CB.y > CG.y)
     float verticalDistance = centerOfBuoyancy.y - centerOfGravity.y;
     
     // Normalize to -1 (unstable) to +1 (very stable)
@@ -110,19 +115,20 @@ float FluidStaticsEngine::calculateStability(
 float FluidStaticsEngine::getMetacentricHeight(
     const glm::vec3& centerOfGravity,
     const glm::vec3& centerOfBuoyancy,
-    float secondMomentOfArea) const {
+    float secondMomentOfArea,
+    float displacedVolume) const {
     
     // BM = I / V (metacentric radius)
-    // GM = BM - (CG - CB) (metacentric height)
-    if (secondMomentOfArea <= 0.0f) return 0.0f;
-    
-    float displaceVolume = 1.0f;  // Assume unit volume for this calculation
-    float BM = secondMomentOfArea / displaceVolume;
-    
-    float verticalDistance = glm::distance(centerOfGravity, centerOfBuoyancy);
+    // GM = BM - (z_G - z_B) (metacentric height; vertical separation only)
+    if (secondMomentOfArea <= 0.0f || displacedVolume <= 1e-6f) return 0.0f;
+
+    float BM = secondMomentOfArea / displacedVolume;
+
+    // Vertical coordinate separation (z_G - z_B), not full 3D Euclidean distance
+    float verticalDistance = centerOfGravity.y - centerOfBuoyancy.y;
     float GM = BM - verticalDistance;
-    
-    return glm::max(GM, 0.0f);
+
+    return GM;
 }
 
 float FluidStaticsEngine::getPressureAtBottom(float containerHeight) const {
@@ -144,6 +150,12 @@ float FluidStaticsEngine::getTotalForceOnContainerWall(
 
 std::vector<float> FluidStaticsEngine::getPressureDistribution(
     float maxDepth, int numPoints) const {
+    if (numPoints <= 0) {
+        return {};
+    }
+    if (numPoints == 1) {
+        return {getPressureAtDepth(0.0f)};
+    }
     
     std::vector<float> pressures;
     pressures.reserve(numPoints);

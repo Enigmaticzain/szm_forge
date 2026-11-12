@@ -113,7 +113,10 @@ namespace SZM::Electrical {
             } else if (m_Components[i].type == ComponentType::Inductor) {
                 Z = std::complex<float>(0.0f, omega * m_Components[i].value);
             } else if (m_Components[i].type == ComponentType::Capacitor) {
-                Z = std::complex<float>(0.0f, -1.0f / (omega * m_Components[i].value));
+                float denom = omega * m_Components[i].value;
+                Z = (std::abs(denom) > 1e-12f)
+                        ? std::complex<float>(0.0f, -1.0f / denom)
+                        : std::complex<float>(0.0f, -1e12f);
             }
 
             m_ACResults.componentImpedances[i] = std::abs(Z);
@@ -125,16 +128,26 @@ namespace SZM::Electrical {
         // Transient analysis for RC, RL, RLC circuits
         // dI/dt = (V - I*R) / L
         // dV/dt = I / C
+        if (m_DCResults.nodeVoltages.size() < m_Nodes.size()) {
+            m_DCResults.nodeVoltages.resize(m_Nodes.size(), 0.0f);
+        }
+        if (m_DCResults.componentCurrents.size() < m_Components.size()) {
+            m_DCResults.componentCurrents.resize(m_Components.size(), 0.0f);
+        }
+        if (m_DCResults.nodeVoltages.empty()) {
+            return;
+        }
 
         for (const auto& conn : m_Connections) {
             int idxComp = -1;
             for (size_t i = 0; i < m_Components.size(); ++i) {
                 if (m_Components[i].id == conn.componentId) {
-                    idxComp = i;
+                    idxComp = static_cast<int>(i);
                     break;
                 }
             }
             if (idxComp < 0) continue;
+            if (std::abs(m_Components[idxComp].value) <= 1e-12f) continue;
 
             float I = m_DCResults.componentCurrents[idxComp];
 
@@ -172,9 +185,16 @@ namespace SZM::Electrical {
 
     void CircuitSolver::CheckThermalStress() {
         // Check for thermal stress on components
+        if (m_DCResults.faultyComponents.size() < m_Components.size()) {
+            m_DCResults.faultyComponents.resize(m_Components.size(), false);
+        }
         for (size_t i = 0; i < m_Components.size(); ++i) {
+            if (i >= m_DCResults.componentPowers.size() || i >= m_DCResults.componentCurrents.size()) {
+                continue;
+            }
             float P = m_DCResults.componentPowers[i];
             float I = m_DCResults.componentCurrents[i];
+            (void)I;
 
             // Check power rating
             if (P > m_Components[i].powerRating * OVERCURRENT_THRESHOLD) {
@@ -228,7 +248,7 @@ namespace SZM::Electrical {
 
     float CircuitSolver::GetNodeVoltage(uint32_t nodeId) const {
         for (size_t i = 0; i < m_Nodes.size(); ++i) {
-            if (m_Nodes[i].id == nodeId) {
+            if (m_Nodes[i].id == nodeId && i < m_DCResults.nodeVoltages.size()) {
                 return m_DCResults.nodeVoltages[i];
             }
         }
@@ -237,7 +257,7 @@ namespace SZM::Electrical {
 
     float CircuitSolver::GetComponentCurrent(uint32_t componentId) const {
         for (size_t i = 0; i < m_Components.size(); ++i) {
-            if (m_Components[i].id == componentId) {
+            if (m_Components[i].id == componentId && i < m_DCResults.componentCurrents.size()) {
                 return m_DCResults.componentCurrents[i];
             }
         }
@@ -246,7 +266,7 @@ namespace SZM::Electrical {
 
     float CircuitSolver::GetComponentPower(uint32_t componentId) const {
         for (size_t i = 0; i < m_Components.size(); ++i) {
-            if (m_Components[i].id == componentId) {
+            if (m_Components[i].id == componentId && i < m_DCResults.componentPowers.size()) {
                 return m_DCResults.componentPowers[i];
             }
         }

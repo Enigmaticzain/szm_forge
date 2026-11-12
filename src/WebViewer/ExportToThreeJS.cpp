@@ -1,6 +1,8 @@
 #include "ExportToThreeJS.hpp"
+#include "../Simulation/SimulationEngine.hpp"
 #include "../WebAPI/UuidUtils.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 
 namespace SZM::WebViewer {
@@ -57,12 +59,26 @@ nlohmann::json ThreeJSExporter::ExportScene(const std::vector<SZM::WebAPI::Simul
         {"children", nlohmann::json::array()}
     };
 
-    for (const auto& comp : components) {
-        // Derive some simple box bounds from area/thickness (mocking actual boundary box)
-        float size = 0.5f; // Hardcoded default for mockup since we don't have area in ComponentSnap
-        float depth = 0.5f;
+    const auto& engineComps = SZM::SimulationEngine::GetInstance().GetComponents();
+
+    for (size_t idx = 0; idx < components.size(); ++idx) {
+        const auto& comp = components[idx];
+        const SZM::SimulationComponent* simComp = nullptr;
+        for (const auto& candidate : engineComps) {
+            if (candidate && candidate->name == comp.name) {
+                simComp = candidate.get();
+                break;
+            }
+        }
+
+        const float width = simComp ? std::max(0.05f, std::sqrt(simComp->area)) : 0.5f;
+        const float height = simComp ? std::max(0.01f, simComp->thickness) : 0.5f;
+        const float depth = width * (simComp ? 0.8f : 1.0f);
+        const float posX = simComp ? static_cast<float>(simComp->position.x) : static_cast<float>(idx) * 1.25f;
+        const float posY = simComp ? static_cast<float>(simComp->position.y) : 0.0f;
+        const float posZ = simComp ? static_cast<float>(simComp->position.z) : 0.0f;
         
-        nlohmann::json geom = CreateBoxGeometry(size, size, depth);
+        nlohmann::json geom = CreateBoxGeometry(width, height, depth);
         geometries.push_back(geom);
 
         // Stress colormap (codes/ FEA style): blue → cyan → yellow → red
@@ -89,12 +105,11 @@ nlohmann::json ThreeJSExporter::ExportScene(const std::vector<SZM::WebAPI::Simul
         mesh["geometry"] = geom["uuid"];
         mesh["material"] = activeMatUuid;
         
-        // Use component position (mocking since we only have telemetry)
         mesh["matrix"] = {
             1, 0, 0, 0,
             0, 1, 0, 0,
             0, 0, 1, 0,
-            0, 0, 0, 1
+            posX, posY, posZ, 1
         };
         
         // Add custom user data (telemetry)

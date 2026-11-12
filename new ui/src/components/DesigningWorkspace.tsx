@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   PenTool, Zap, Hexagon,
   Settings,
-  Cpu, Activity
+  Activity
 } from 'lucide-react';
 
 import { BodyDesignLayout } from './BodyDesign/BodyDesignLayout';

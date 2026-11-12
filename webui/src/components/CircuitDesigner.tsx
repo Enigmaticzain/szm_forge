@@ -468,6 +468,8 @@ export default function CircuitDesigner() {
 
     const path = getChainPath(startComp, endComp, time);
     
+    if (path.points.length < 2) return;
+
     ctx.save();
     ctx.strokeStyle = '#888888';
     ctx.lineWidth = 3;
@@ -481,22 +483,39 @@ export default function CircuitDesigner() {
     }
     ctx.stroke();
 
-    // Animated chain links
-    const totalDist = Math.sqrt(
-      (path.points[path.points.length - 1].x - path.points[0].x) ** 2 +
-      (path.points[path.points.length - 1].y - path.points[0].y) ** 2
-    );
+    // Animated chain links distributed by arc length across all polyline segments
+    const segLengths: number[] = [];
+    let totalDist = 0;
+    for (let i = 0; i < path.points.length - 1; i++) {
+      const len = Math.hypot(
+        path.points[i + 1].x - path.points[i].x,
+        path.points[i + 1].y - path.points[i].y
+      );
+      segLengths.push(len);
+      totalDist += len;
+    }
     const numLinks = Math.floor(totalDist / 10);
-    
-    for (let i = 0; i < numLinks; i++) {
-      const t = ((i / numLinks) + (path.animatedOffset % 1)) % 1;
-      const linkX = path.points[0].x + (path.points[2].x - path.points[0].x) * t;
-      const linkY = path.points[0].y + (path.points[2].y - path.points[0].y) * t;
-      
-      ctx.beginPath();
-      ctx.arc(linkX, linkY, 3, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 === 0 ? '#666' : '#888';
-      ctx.fill();
+    if (numLinks > 0 && totalDist > 0) {
+      for (let i = 0; i < numLinks; i++) {
+        const t = (((i / numLinks) + path.animatedOffset) % 1 + 1) % 1;
+        let targetDist = t * totalDist;
+        let segIdx = 0;
+        while (segIdx < segLengths.length - 1 && targetDist > segLengths[segIdx]) {
+          targetDist -= segLengths[segIdx];
+          segIdx++;
+        }
+        const segLen = segLengths[segIdx];
+        const segT = segLen > 0 ? targetDist / segLen : 0;
+        const p0 = path.points[segIdx];
+        const p1 = path.points[segIdx + 1];
+        const linkX = p0.x + (p1.x - p0.x) * segT;
+        const linkY = p0.y + (p1.y - p0.y) * segT;
+
+        ctx.beginPath();
+        ctx.arc(linkX, linkY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = i % 2 === 0 ? '#666' : '#888';
+        ctx.fill();
+      }
     }
 
     ctx.restore();

@@ -55,6 +55,9 @@ private:
     float sync_interval_;
     int merge_strategy_;  // 0=Last Write, 1=Keep Local, etc.
     bool auto_sync_;
+    float request_timeout_;
+    bool enable_compression_;
+    bool enable_caching_;
     
     // State
     int active_tab_;

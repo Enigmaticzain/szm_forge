@@ -45,10 +45,23 @@ void MolecularDynamics::ComputeForces() {
 }
 
 void MolecularDynamics::StepVerlet(double dt) {
+    // If all forces are zero on first step, initialize forces first
+    bool allZeroForces = true;
+    for (const auto& p : m_Particles) {
+        if (p.fx != 0.0 || p.fy != 0.0 || p.fz != 0.0) {
+            allZeroForces = false;
+            break;
+        }
+    }
+    if (allZeroForces && m_Particles.size() > 1) {
+        ComputeForces();
+    }
+
     for (auto& p : m_Particles) {
-        double ax = p.fx / p.mass;
-        double ay = p.fy / p.mass;
-        double az = p.fz / p.mass;
+        double mInv = (p.mass > 1e-9) ? (1.0 / p.mass) : 0.0;
+        double ax = p.fx * mInv;
+        double ay = p.fy * mInv;
+        double az = p.fz * mInv;
 
         p.x += p.vx * dt + 0.5 * ax * dt * dt;
         p.y += p.vy * dt + 0.5 * ay * dt * dt;
@@ -62,9 +75,10 @@ void MolecularDynamics::StepVerlet(double dt) {
     ComputeForces();
 
     for (auto& p : m_Particles) {
-        double ax = p.fx / p.mass;
-        double ay = p.fy / p.mass;
-        double az = p.fz / p.mass;
+        double mInv = (p.mass > 1e-9) ? (1.0 / p.mass) : 0.0;
+        double ax = p.fx * mInv;
+        double ay = p.fy * mInv;
+        double az = p.fz * mInv;
 
         p.vx += 0.5 * ax * dt;
         p.vy += 0.5 * ay * dt;

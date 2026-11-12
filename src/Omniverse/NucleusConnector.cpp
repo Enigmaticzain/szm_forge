@@ -29,6 +29,9 @@ NucleusConnector::~NucleusConnector() {
     if (is_connected_) {
         Disconnect();
     }
+    std::lock_guard<std::mutex> lock(handles_mutex_);
+    scene_handles_.clear();
+    layer_handles_.clear();
     std::cout << "[NucleusConnector] Destroyed" << std::endl;
 }
 
@@ -53,7 +56,11 @@ bool NucleusConnector::Disconnect() {
     
     std::cout << "[NucleusConnector] Disconnecting from " << nucleus_url_ << std::endl;
     
-    // Clean up Python client if needed
+    {
+        std::lock_guard<std::mutex> lock(handles_mutex_);
+        scene_handles_.clear();
+        layer_handles_.clear();
+    }
     is_connected_ = false;
     return true;
 }
@@ -91,11 +98,13 @@ void* NucleusConnector::OpenScene(const std::string& project_path, const std::st
     
     std::cout << "[NucleusConnector] Opening scene: " << project_path << "/" << scene_file << std::endl;
     
-    // In production, would open via Nucleus API
-    // Return opaque handle (simulated)
-    void* scene_handle = new char[1];  // Simplified handle
-    
-    return scene_handle;
+    auto handle = std::make_unique<char[]>(1);
+    void* raw = handle.get();
+    {
+        std::lock_guard<std::mutex> lock(handles_mutex_);
+        scene_handles_.push_back(std::move(handle));
+    }
+    return raw;
 }
 
 bool NucleusConnector::SaveScene(void* scene_handle) {
@@ -107,6 +116,20 @@ bool NucleusConnector::SaveScene(void* scene_handle) {
     
     // In production, would save via Nucleus API
     return true;
+}
+
+bool NucleusConnector::CloseScene(void* scene_handle) {
+    if (!scene_handle) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(handles_mutex_);
+    for (auto it = scene_handles_.begin(); it != scene_handles_.end(); ++it) {
+        if (it->get() == scene_handle) {
+            scene_handles_.erase(it);
+            return true;
+        }
+    }
+    return false;
 }
 
 bool NucleusConnector::DeleteScene(const std::string& project_path) {
@@ -144,9 +167,27 @@ void* NucleusConnector::GetLayer(const std::string& layer_path) {
     
     std::cout << "[NucleusConnector] Getting layer: " << layer_path << std::endl;
     
-    // Return opaque handle
-    void* layer_handle = new char[1];
-    return layer_handle;
+    auto handle = std::make_unique<char[]>(1);
+    void* raw = handle.get();
+    {
+        std::lock_guard<std::mutex> lock(handles_mutex_);
+        layer_handles_.push_back(std::move(handle));
+    }
+    return raw;
+}
+
+bool NucleusConnector::ReleaseLayer(void* layer_handle) {
+    if (!layer_handle) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lock(handles_mutex_);
+    for (auto it = layer_handles_.begin(); it != layer_handles_.end(); ++it) {
+        if (it->get() == layer_handle) {
+            layer_handles_.erase(it);
+            return true;
+        }
+    }
+    return false;
 }
 
 bool NucleusConnector::MuteLayer(const std::string& layer_path) {

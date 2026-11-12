@@ -146,7 +146,7 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (p) {
         setProject({
           projectName: p.projectName,
-          hasFurniture: p.hasFurniture ?? p.hasTable ?? false,
+          hasFurniture: p.hasFurniture ?? (p as { hasTable?: boolean }).hasTable ?? false,
           furnitureType: (p.furnitureType as FurnitureType) ?? 'table',
           materialId: p.materialId,
           material: p.material,

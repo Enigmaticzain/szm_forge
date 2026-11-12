@@ -380,8 +380,19 @@ void InteractiveMenu::RunCustomScenario() {
 void InteractiveMenu::AdjustSimulationSpeed() {
     std::cout << "\nCurrent simulation speed: " << m_Config.simulationSpeed << "x\n"
               << "Enter new speed (0.5 = half speed, 2.0 = double speed): ";
-    std::cin >> m_Config.simulationSpeed;
+    double newSpeed = 0.0;
+    if (!(std::cin >> newSpeed)) {
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        std::cout << "Invalid input. Keeping speed at " << m_Config.simulationSpeed << "x\n";
+        return;
+    }
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    if (newSpeed <= 0.0 || newSpeed > 100.0) {
+        std::cout << "Speed must be in (0, 100]. Keeping speed at " << m_Config.simulationSpeed << "x\n";
+        return;
+    }
+    m_Config.simulationSpeed = newSpeed;
     std::cout << "Speed set to " << m_Config.simulationSpeed << "x\n";
 }
 

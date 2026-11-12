@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Droplet, Filter, Box } from 'lucide-react';
+import { Layers, Droplet, Filter } from 'lucide-react';
 import { useProject } from '../../store/ProjectContext';
 import { ViewportThree } from '../ViewportThree';
 
@@ -80,7 +80,7 @@ export const MaterialSelectionView: React.FC = () => {
       <div className="flex-1 flex flex-col relative overflow-hidden">
         {/* Viewport */}
         <div className="absolute inset-0 z-0">
-          <ViewportThree bodyParts={bodyParts} renderMode="solid" />
+          <ViewportThree bodyParts={bodyParts} renderMode="shaded" />
         </div>
 
         {/* Material BOM Overlay */}

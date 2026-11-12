@@ -158,14 +158,28 @@ void UILayoutManager::DockPanelToNode(const char* panelName, ImGuiID nodeId) {
     ImGui::DockBuilderDockWindow(panelName, nodeId);
 }
 
+void UILayoutManager::ApplyCustomLayout(const std::string& filepath, ImGuiID dockspaceId) {
+    LoadLayout(filepath, dockspaceId);
+}
+
 void UILayoutManager::SaveCurrentLayout(const std::string& filepath) {
-    // ImGui handles layout saving internally via ini files
-    // This is a placeholder for custom layout serialization
+    if (!filepath.empty() && ImGui::GetCurrentContext() != nullptr) {
+        ImGui::SaveIniSettingsToDisk(filepath.c_str());
+    }
 }
 
 void UILayoutManager::LoadLayout(const std::string& filepath, ImGuiID dockspaceId) {
-    // ImGui handles layout loading internally via ini files
-    // This is a placeholder for custom layout deserialization
+    if (!filepath.empty() && ImGui::GetCurrentContext() != nullptr) {
+        std::ifstream test(filepath);
+        if (test.good()) {
+            test.close();
+            ImGui::LoadIniSettingsFromDisk(filepath.c_str());
+            return;
+        }
+    }
+    if (dockspaceId != 0 && ImGui::GetCurrentContext() != nullptr) {
+        ApplyLayout(LayoutPreset::Default, dockspaceId);
+    }
 }
 
 const char* UILayoutManager::GetLayoutName(LayoutPreset preset) const {

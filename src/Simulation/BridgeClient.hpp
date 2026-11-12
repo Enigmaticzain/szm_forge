@@ -49,12 +49,13 @@ public:
 
     static bool IsReachable(uint16_t port = DefaultPort);
     static std::optional<StackStatus> FetchStackStatus(uint16_t port = DefaultPort);
+    static void RequestStatusRefresh(uint16_t port = DefaultPort);
 
     // Group 2 — CAD
     static JobResult TextToCad(const std::string& prompt, const std::string& backend = "auto",
-        const std::string& outputDir = "/tmp", uint16_t port = DefaultPort);
+        const std::string& outputDir = "", uint16_t port = DefaultPort);
     static JobResult ExportCad(const std::string& shape, float length, float width, float height,
-        const std::string& backend = "auto", const std::string& outputPath = "/tmp/szm_export.step",
+        const std::string& backend = "auto", const std::string& outputPath = "",
         uint16_t port = DefaultPort);
     static JobResult FitGeometry(const std::string& fitType, const nlohmann::json& points,
         uint16_t port = DefaultPort);
@@ -110,6 +111,7 @@ public:
 
 private:
     static std::optional<nlohmann::json> GetJson(const std::string& path, uint16_t port);
+    static StackStatus ProbeStackStatus(uint16_t port);
     static JobResult PostJson(const std::string& path, const nlohmann::json& body, uint16_t port);
     static void ApplyReadyFlags(StackStatus& s, const nlohmann::json& j);
 };

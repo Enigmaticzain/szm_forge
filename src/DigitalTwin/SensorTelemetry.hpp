@@ -6,6 +6,8 @@
 #include <cmath>
 #include <algorithm>
 #include <functional>
+#include <mutex>
+#include <optional>
 
 namespace SZM {
 
@@ -85,8 +87,9 @@ namespace SZM {
         /// Check if any values are in alert state
         bool CheckAlerts(const std::string& streamId) const;
 
-        /// Get all streams
-        const std::unordered_map<std::string, TelemetryStream>& GetStreams() const {
+        /// Get all streams (thread-safe snapshot)
+        std::unordered_map<std::string, TelemetryStream> GetStreams() const {
+            std::lock_guard<std::mutex> lock(m_Mutex);
             return m_Streams;
         }
 
@@ -113,12 +116,19 @@ namespace SZM {
         SensorTelemetry() = default;
         ~SensorTelemetry() = default;
 
+        mutable std::mutex m_Mutex;
         std::unordered_map<std::string, TelemetryStream> m_Streams;
         std::vector<DataCallback> m_DataCallbacks;
         bool m_IsInitialized = false;
         std::string m_StoragePath = "./telemetry_data/";
 
         // Helper methods
+        bool CreateStreamUnlocked(const std::string& streamId, const std::string& assetUUID);
+        std::optional<SensorDataPoint> PushDataUnlocked(const std::string& streamId,
+                                                        const std::string& sensorType,
+                                                        double timestamp,
+                                                        double value);
+        double GetLatestValueUnlocked(const TelemetryStream& stream, const std::string& sensorType) const;
         void PruneHistory(TelemetryStream& stream);
         void NotifyDataArrival(const std::string& streamId, const SensorDataPoint& point);
     };

@@ -4,6 +4,8 @@ add_library(SZM_Electrical_Module
     CircuitSolver.cpp
     MNASolver.hpp
     MNASolver.cpp
+    NgspiceCircuitSolver.hpp
+    NgspiceCircuitSolver.cpp
 )
 
 target_include_directories(SZM_Electrical_Module PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

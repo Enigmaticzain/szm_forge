@@ -279,7 +279,7 @@ void SetCameraMatrices(const Camera& camera) {
 
         switch (heatmap.GetMode()) {
             case Heatmap::Mode::Stress:
-                ratio = comp.stress;
+                ratio = comp.stressRatio;
                 break;
             case Heatmap::Mode::Temperature:
                 ratio = (comp.temperature - 293.15f) / 80.0f;  // 20°C to 100°C

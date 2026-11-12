@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <complex>
 
 namespace SZM::Electrical {
 
@@ -68,7 +69,7 @@ namespace SZM::Electrical {
     struct CircuitAnalysisResult {
         bool success = false;
         std::string engineUsed;
-        AnalysisType analysisType;
+        AnalysisType analysisType = AnalysisType::DC;
         
         // DC Analysis Results
         std::map<int, double> nodeVoltages;      // Node number -> voltage (V)
@@ -78,6 +79,7 @@ namespace SZM::Electrical {
         // AC Analysis Results
         double frequency_Hz = 0.0;
         std::map<int, std::complex<double>> acImpedances;  // Node impedances
+        std::map<double, std::complex<double>> frequencyResponse;  // Frequency sweep response
         double phaseShift_degrees = 0.0;
         double resonantFrequency_Hz = 0.0;
         

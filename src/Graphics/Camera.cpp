@@ -11,7 +11,11 @@ namespace SZM::Graphics {
 
     CameraVec3 Camera::GetRightVector() const {
         CameraVec3 forward = (m_Target - m_Position).normalized();
-        return forward.cross(m_Up).normalized();
+        CameraVec3 right = forward.cross(m_Up);
+        if (right.length() < 1e-5f) {
+            return {1.0f, 0.0f, 0.0f};
+        }
+        return right.normalized();
     }
 
     void Camera::EnforceMinimumRadius() {
@@ -46,7 +50,7 @@ namespace SZM::Graphics {
     void Camera::Pan(float deltaX, float deltaY, float sensitivity) {
         CameraVec3 right = GetRightVector();
         CameraVec3 forward = (m_Target - m_Position).normalized();
-        CameraVec3 up = forward.cross(right).normalized();
+        CameraVec3 up = right.cross(forward).normalized();
         
         CameraVec3 panVec = (right * deltaX + up * deltaY) * sensitivity;
         m_Position = m_Position + panVec;
@@ -72,7 +76,7 @@ namespace SZM::Graphics {
 
     Matrix4x4 Camera::GetViewMatrix() const {
         CameraVec3 forward = (m_Target - m_Position).normalized();
-        CameraVec3 right = forward.cross(m_Up).normalized();
+        CameraVec3 right = GetRightVector();
         CameraVec3 up = right.cross(forward).normalized();
         
         Matrix4x4 view;

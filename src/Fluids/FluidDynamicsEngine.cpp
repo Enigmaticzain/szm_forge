@@ -21,7 +21,9 @@ float FluidDynamicsEngine::getDragCoefficient(DragModel model, float reynoldsNum
     switch (model) {
         case DragModel::Sphere: {
             // Cd for sphere varies with Reynolds number
-            if (reynoldsNumber < 1.0f) {
+            if (reynoldsNumber <= 1e-4f) {
+                return 0.47f;  // Safe limit as velocity/Re approaches zero
+            } else if (reynoldsNumber < 1.0f) {
                 return 24.0f / reynoldsNumber;  // Stokes flow
             } else if (reynoldsNumber < 1000.0f) {
                 // Intermediate range
@@ -93,8 +95,19 @@ LiftForceResult FluidDynamicsEngine::calculateLiftForce(
     result.liftForce = liftCoefficient * q * wingArea;
     
     // Lift is perpendicular to flow direction
-    glm::vec3 normalized = glm::normalize(flowDirection);
-    result.liftDirection = glm::vec3(-normalized.z, 0.0f, normalized.x);
+    float flowLen = glm::length(flowDirection);
+    if (flowLen < 1e-6f) {
+        result.liftDirection = glm::vec3(0.0f, 1.0f, 0.0f);
+        return result;
+    }
+
+    glm::vec3 normalized = flowDirection / flowLen;
+    // Choose vertical lift direction perpendicular to flow
+    glm::vec3 up(0.0f, 1.0f, 0.0f);
+    if (std::abs(glm::dot(normalized, up)) > 0.99f) {
+        up = glm::vec3(0.0f, 0.0f, 1.0f);
+    }
+    result.liftDirection = glm::normalize(glm::cross(glm::cross(normalized, up), normalized));
     
     return result;
 }
@@ -187,7 +200,7 @@ FlowRateResult FluidDynamicsEngine::applyContinuity(
 
 float FluidDynamicsEngine::getOrificeVelocity(float pressureDifference) const {
     // From Bernoulli: v = sqrt(2 * Δp / ρ)
-    if (fluid.getDensity() <= 0.0f) return 0.0f;
+    if (fluid.getDensity() <= 0.0f || pressureDifference <= 0.0f) return 0.0f;
     return std::sqrt(2.0f * pressureDifference / fluid.getDensity());
 }
 

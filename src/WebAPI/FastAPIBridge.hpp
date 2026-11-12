@@ -143,7 +143,7 @@ namespace SZM::WebAPI {
         /**
          * @brief Export scene to Pixar USD (via Python Bridge)
          */
-        std::string ExportSceneUSD(const std::string& outputPath = "/tmp/workspace_export.usda");
+        std::string ExportSceneUSD(const std::string& outputPath = "");
 
         /**
          * @brief Export report as PDF

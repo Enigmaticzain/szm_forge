@@ -3,6 +3,7 @@
 #include "../Data/SceneGraph.hpp"
 #include "../Data/UUID.hpp"
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <string>
 #include <memory>
@@ -122,19 +123,30 @@ namespace SZM::Assembly {
         std::unordered_map<UUID, std::shared_ptr<BasePart>>    m_PartRegistry;
         std::unordered_map<UUID, std::shared_ptr<AssemblyTemplate>> m_TemplateRegistry;
 
+        std::shared_ptr<InstanceNode> InstantiateAssetImpl(
+            std::shared_ptr<SZM::Entity> parent,
+            UUID                         assetUUID,
+            AssetType                    type,
+            const SZM::Transform&        transform,
+            const std::string&           instanceName,
+            std::unordered_set<UUID>&    activeTemplates
+        );
+
         void TraverseForBOM(
             const std::shared_ptr<SZM::Entity>&      node,
             std::unordered_map<UUID, BOMEntry>&       bomMap) const;
 
         void TraverseForMassCG(
             const std::shared_ptr<SZM::Entity>&      node,
-            float&                                    totalMass,
-            float                                     massMoments[3]) const;
+            const SZM::Transform&                    parentWorld,
+            float&                                   totalMass,
+            float                                    massMoments[3]) const;
 
         void TraverseForInstances(
             const std::shared_ptr<SZM::Entity>&      node,
-            UUID                                      targetPart,
-            std::vector<SZM::Transform>&              out) const;
+            const SZM::Transform&                    parentWorld,
+            UUID                                     targetPart,
+            std::vector<SZM::Transform>&             out) const;
     };
 
 } // namespace SZM::Assembly

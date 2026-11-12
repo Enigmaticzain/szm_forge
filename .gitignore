@@ -56,3 +56,13 @@ build_*/
 # Archives
 *.zip
 *.tar.gz
+
+# Staging, runtime artifacts & caches
+/.staging_github/
+webui/node_modules/
+src/WebViewer/react-app/node_modules/
+*.log
+forge_pid.txt
+.hypothesis/
+.pytest_cache/
+.ruff_cache/

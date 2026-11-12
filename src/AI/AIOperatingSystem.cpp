@@ -1,4 +1,5 @@
 #include "AIOperatingSystem.hpp"
+#include <filesystem>
 #include <iostream>
 
 namespace SZM::AI {
@@ -57,15 +58,41 @@ std::string AIOperatingSystem::ExecuteCommand(const std::string& command) {
 
     std::cout << "[COMMAND] " << command << "\n";
 
-    // Parse and execute command
+    // Parse and execute command against live AI subsystems
+    auto& ai = GetAI();
     if (command.find("analyze") == 0) {
-        return "[AI] Analyzing project architecture...";
+        const auto report = ai.GetComprehensiveReport();
+        return "[AI] Analysis Report:\n" + report.dump(2);
     } else if (command.find("optimize") == 0) {
-        return "[AI] Optimizing system...";
+        const auto suggestions = ai.SuggestImprovements();
+        return "[AI] Improvement Suggestions:\n" + suggestions.dump(2);
     } else if (command.find("train") == 0) {
-        return "[AI] Starting training...";
+        auto& pipeline = SZM::AI::Legendary::TrainingPipeline::GetInstance();
+        if (command.size() > 6 && command[5] == ' ') {
+            const std::string target = command.substr(6);
+            std::filesystem::path p(target);
+            std::error_code ec;
+            if (std::filesystem::is_directory(p, ec)) {
+                ai.LearnFromRepository(target);
+            } else {
+                ai.LearnFromDocument(target);
+            }
+        } else {
+            auto session = pipeline.StartTrainingSession(SZM::AI::Legendary::TrainingMode::SUPERVISED);
+            pipeline.ProcessTrainingData(session);
+            pipeline.CompleteTrainingSession(session);
+        }
+        return "[AI] Training Statistics:\n" + pipeline.GetTrainingStatistics().dump(2);
     } else if (command.find("modify") == 0) {
-        return "[AI] Proposing modification...";
+        auto& modSys = SZM::AI::Legendary::ModificationSystem::GetInstance();
+        nlohmann::json summary = {
+            {"proposals", modSys.GetProposalHistory().size()},
+            {"applied_modifications", modSys.GetModificationHistory().size()},
+            {"snapshots", modSys.GetSnapshotHistory().size()}
+        };
+        return "[AI] Modification Subsystem:\n" + summary.dump(2);
+    } else if (command.find("reflect") == 0) {
+        return "[AI] Reflection:\n" + ai.ReflectOnPerformance().dump(2);
     } else if (command.find("status") == 0) {
         return GetStatus();
     }

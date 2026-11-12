@@ -67,6 +67,7 @@ void EngineeringStackPanel::Draw() {
     ImGui::Checkbox("Auto refresh##stack", &m_AutoRefresh);
     ImGui::SameLine();
     if (ImGui::Button("Refresh now##stack")) {
+        SZM::BridgeClient::RequestStatusRefresh();
         RefreshStatus();
     }
     ImGui::SameLine();

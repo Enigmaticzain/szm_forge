@@ -5,6 +5,9 @@
 #include <cmath>
 #include <algorithm>
 #include <complex>
+#include <cstdlib>
+#include <filesystem>
+#include <vector>
 
 namespace SZM::Electrical {
 
@@ -54,13 +57,15 @@ std::string NgspiceCircuitSolver::BuildNetlist(const CircuitNetlist& circuit, co
                 break;
 
             case ComponentType::TRANSISTOR_BJT:
+                // Collector, Base, Emitter (0 default if node2 is ground)
                 netlist << comp.name << " " << comp.node1 << " " << comp.node2 
-                       << " " << comp.node2 << " " << comp.model << "\n";
+                       << " 0 " << comp.model << "\n";
                 break;
 
             case ComponentType::TRANSISTOR_FET:
+                // Drain, Gate, Source
                 netlist << comp.name << " " << comp.node1 << " " << comp.node2 
-                       << " " << comp.node2 << " " << comp.model << "\n";
+                       << " 0 " << comp.model << "\n";
                 break;
 
             default:
@@ -131,18 +136,20 @@ CircuitAnalysisResult NgspiceCircuitSolver::RunSimulation(const CircuitNetlist& 
     // Generate netlist
     std::string netlist_str = BuildNetlist(circuit, config);
 
-    // Create temporary files
-    #include <cstdlib>
-    char temp_template[] = "/tmp/szm_circuit_XXXXXX";
-    int temp_fd = mkstemp(temp_template);
-    if (temp_fd == -1) {
+    // Create temporary directory under the OS temp path (portable; not hardcoded /tmp)
+    const std::filesystem::path tmplPath =
+        std::filesystem::temp_directory_path() / "szm_circuit_XXXXXX";
+    std::string tmplStr = tmplPath.string();
+    std::vector<char> temp_template(tmplStr.begin(), tmplStr.end());
+    temp_template.push_back('\0');
+    char* created_dir = mkdtemp(temp_template.data());
+    if (!created_dir) {
         result.success = false;
         result.message = "Failed to create temporary directory";
         return result;
     }
-    close(temp_fd);
 
-    std::string temp_dir(temp_template);
+    std::string temp_dir(created_dir);
     std::string cir_path = temp_dir + "/circuit.cir";
     std::string out_path = temp_dir + "/circuit.out";
 
@@ -199,36 +206,53 @@ CircuitAnalysisResult NgspiceCircuitSolver::ParseResults(const std::string& outp
     // Parse based on analysis type
     if (config.analysisType == AnalysisType::DC) {
         while (std::getline(file, line)) {
-            // Look for "V(1) = ..." or "Node 1: ..." patterns
-            if (line.find("V(") != std::string::npos || line.find("Node") != std::string::npos) {
-                // Extract node voltage
-                size_t eq_pos = line.find('=');
-                if (eq_pos != std::string::npos) {
-                    try {
-                        double voltage = std::stod(line.substr(eq_pos + 1));
-                        // Extract node number (simplified parsing)
-                        int node_num = 1;
-                        result.nodeVoltages[node_num] = voltage;
-                    } catch (...) {
-                        // Skip invalid lines
+            // Look for "v(1) = ..." or "Node 1: ..." or "v(node_name)" patterns
+            size_t eq_pos = line.find('=');
+            if (eq_pos != std::string::npos) {
+                size_t v_pos = line.find("v(");
+                if (v_pos == std::string::npos) v_pos = line.find("V(");
+                
+                int node_num = 1;
+                if (v_pos != std::string::npos) {
+                    size_t close_paren = line.find(')', v_pos);
+                    if (close_paren != std::string::npos) {
+                        try {
+                            node_num = std::stoi(line.substr(v_pos + 2, close_paren - (v_pos + 2)));
+                        } catch (...) {}
                     }
+                }
+                try {
+                    double voltage = std::stod(line.substr(eq_pos + 1));
+                    result.nodeVoltages[node_num] = voltage;
+                } catch (...) {
+                    // Skip invalid lines
                 }
             }
         }
     } else if (config.analysisType == AnalysisType::AC) {
-        // Parse AC impedance and phase response
+        // Parse AC frequency and response data
+        double freq = 1000.0;
         while (std::getline(file, line)) {
-            if (line.find("frequency") != std::string::npos || 
-                line.find("impedance") != std::string::npos) {
-                // Parse frequency response data
+            std::istringstream iss(line);
+            double f, re, im;
+            if (iss >> f >> re) {
+                freq = f;
+                im = 0.0;
+                iss >> im;
+                std::complex<double> val(re, im);
+                result.frequency_Hz = freq;
+                result.frequencyResponse[freq] = val;
+                result.acImpedances[1] = val;
             }
         }
     } else if (config.analysisType == AnalysisType::TRANSIENT) {
         // Parse transient waveforms
         while (std::getline(file, line)) {
-            if (line.find("time") != std::string::npos || 
-                line.find("voltage") != std::string::npos) {
-                // Parse time-domain data
+            std::istringstream iss(line);
+            double t, v;
+            if (iss >> t >> v) {
+                result.timePoints.push_back(t);
+                result.voltageWaveforms[1].push_back(v);
             }
         }
     }

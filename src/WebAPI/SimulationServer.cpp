@@ -1,6 +1,8 @@
 #include "SimulationServer.hpp"
 #include "UuidUtils.hpp"
 #include "../Materials/MaterialDatabase.hpp"
+#include "../Simulation/SimulationEngine.hpp"
+#include "../Input/EventBus.hpp"
 #include <chrono>
 #include <thread>
 #include <algorithm>
@@ -173,41 +175,116 @@ json SimulationServer::GetMaterialProperties(const std::string& materialName) {
 }
 
 bool SimulationServer::UpdateMaterialProperties(const std::string& materialName, const json& properties) {
-    (void)materialName;
-    (void)properties;
+    auto& db = Materials::MaterialDatabase::GetInstance();
+    auto mat = db.GetMaterial(materialName);
+    if (!mat) {
+        return false;
+    }
+    if (properties.contains("youngsModulus_GPa") && properties["youngsModulus_GPa"].is_number()) {
+        mat->youngsModulus = properties["youngsModulus_GPa"].get<float>();
+    }
+    if (properties.contains("yieldStrength_MPa") && properties["yieldStrength_MPa"].is_number()) {
+        mat->yieldStrength = properties["yieldStrength_MPa"].get<float>();
+    }
+    if (properties.contains("density_kg_m3") && properties["density_kg_m3"].is_number()) {
+        mat->density = properties["density_kg_m3"].get<float>();
+    }
+    // Propagate to any loaded simulation components using this material
+    auto& engine = SZM::SimulationEngine::GetInstance();
+    for (const auto& comp : engine.GetComponents()) {
+        if (comp && (comp->materialId == materialName || comp->materialName == materialName)) {
+            comp->yieldStrength = mat->yieldStrength * 1e6f;
+            comp->density = mat->density;
+        }
+    }
     return true;
 }
 
 json SimulationServer::GetComponentInfo(uint32_t componentId) {
+    auto* comp = SZM::SimulationEngine::GetInstance().GetComponent(componentId);
+    if (comp) {
+        const float volume = std::max(1e-6f, comp->area * comp->thickness);
+        const float density = comp->density > 0.0f ? comp->density : 7850.0f;
+        const float mass = volume * density;
+        return {
+            {"componentId", componentId},
+            {"name", comp->name},
+            {"type", "Part"},
+            {"material", comp->materialName.empty() ? comp->materialId : comp->materialName},
+            {"massKg", mass},
+            {"volumeM3", volume},
+            {"areaM2", comp->area},
+            {"thicknessM", comp->thickness},
+            {"stressMPa", comp->stress / 1e6f},
+            {"temperatureK", comp->temperature},
+            {"isDangerous", comp->isDangerous}
+        };
+    }
     return {
         {"componentId", componentId},
         {"name", "Component_" + std::to_string(componentId)},
         {"type", "Part"},
         {"material", "MAT-STEEL-STRUCT"},
-        {"massKg", 2.5f + (componentId % 5) * 0.25f},
-        {"volumeM3", 0.001f + (componentId % 3) * 0.0001f}
+        {"massKg", 2.5f},
+        {"volumeM3", 0.001f}
     };
 }
 
 json SimulationServer::CheckInterference(uint32_t componentId1, uint32_t componentId2) {
-    const bool overlap = (componentId1 % 2) == (componentId2 % 2);
+    if (componentId1 == componentId2) {
+        return {
+            {"componentId1", componentId1},
+            {"componentId2", componentId2},
+            {"interference", true},
+            {"clearanceMm", 0.0f}
+        };
+    }
+    auto* comp1 = SZM::SimulationEngine::GetInstance().GetComponent(componentId1);
+    auto* comp2 = SZM::SimulationEngine::GetInstance().GetComponent(componentId2);
+    if (comp1 && comp2) {
+        // Compute clearance based on bounding dimensions
+        const float r1 = std::sqrt(comp1->area) * 0.5f;
+        const float r2 = std::sqrt(comp2->area) * 0.5f;
+        // Mock distance between centerlines for layout components
+        const float centerDist = std::abs(static_cast<float>(componentId1) - static_cast<float>(componentId2)) * 0.1f;
+        const float clearance = centerDist - (r1 + r2);
+        const bool overlap = clearance <= 0.0f;
+        return {
+            {"componentId1", componentId1},
+            {"componentId2", componentId2},
+            {"interference", overlap},
+            {"clearanceMm", overlap ? 0.0f : (clearance * 1000.0f)}
+        };
+    }
     return {
         {"componentId1", componentId1},
         {"componentId2", componentId2},
-        {"interference", overlap},
-        {"clearanceMm", overlap ? 0.0f : 12.5f}
+        {"interference", false},
+        {"clearanceMm", 25.0f}
     };
 }
 
 json SimulationServer::CalculateMassProperties(uint32_t componentId) {
-    const float massKg = 2.5f + (componentId % 5) * 0.25f;
-    const float density = 7850.0f;
+    auto* comp = SZM::SimulationEngine::GetInstance().GetComponent(componentId);
+    float massKg = 2.5f;
+    float density = 7850.0f;
+    float area = 0.01f;
+    float thickness = 0.05f;
+    if (comp) {
+        density = comp->density > 0.0f ? comp->density : 7850.0f;
+        area = comp->area;
+        thickness = comp->thickness;
+        massKg = std::max(1e-4f, area * thickness * density);
+    }
+    const float ix = (massKg / 12.0f) * (thickness * thickness + area);
+    const float iy = (massKg / 12.0f) * (thickness * thickness + area);
+    const float iz = (massKg / 12.0f) * (area * 2.0f);
     return {
         {"componentId", componentId},
         {"massKg", massKg},
         {"densityKgM3", density},
         {"centerOfMass", {"x", 0.0f, "y", 0.0f, "z", 0.0f}},
-        {"inertia", {"ix", massKg * 0.01f, "iy", massKg * 0.01f, "iz", massKg * 0.015f}}
+        {"inertia", {"ix", ix, "iy", iy, "iz", iz}}
     };
 }
 
@@ -222,8 +299,12 @@ json SimulationServer::GetJobResult(const std::string& jobId) {
 
 bool SimulationServer::StreamJobResult(const std::string& jobId, 
                                       std::function<void(const json&)> callback) {
-    // TODO: Stream results as available (WebSocket compatible)
-    return true;
+    json result = GetJobResult(jobId);
+    if (!result.empty() && callback) {
+        callback(result);
+        return true;
+    }
+    return false;
 }
 
 void SimulationServer::ClearResultCache() {
@@ -232,11 +313,21 @@ void SimulationServer::ClearResultCache() {
 }
 
 json SimulationServer::GetServerStats() {
+    size_t historySize = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_HistoryMutex);
+        historySize = m_JobHistory.size();
+    }
+    size_t cacheSize = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_CacheMutex);
+        cacheSize = m_ResultCache.size();
+    }
     return {
         {"isRunning", m_IsRunning},
         {"queueDepth", GetQueueDepth()},
-        {"jobHistorySize", m_JobHistory.size()},
-        {"cacheSize", m_ResultCache.size()},
+        {"jobHistorySize", historySize},
+        {"cacheSize", cacheSize},
         {"maxConcurrent", m_Config.maxConcurrentJobs}
     };
 }
@@ -297,8 +388,25 @@ void SimulationServer::WorkerThreadMain() {
 
 bool SimulationServer::ExecuteSimulationJob(SimulationJob& job) {
     const std::string type = job.simulationType.empty() ? "stress" : job.simulationType;
-    const float maxStress = 80.0f + static_cast<float>((job.componentId % 7) * 7);
-    const float maxTemp = 45.0f + static_cast<float>((job.componentId % 5) * 4);
+    auto* comp = SZM::SimulationEngine::GetInstance().GetComponent(job.componentId);
+
+    float maxStress = 80.0f;
+    float maxTemp = 45.0f;
+    float yieldMPa = 250.0f;
+    bool isDangerous = false;
+
+    if (comp) {
+        maxStress = comp->stress > 0.0f ? (comp->stress / 1e6f) : (comp->appliedForce / std::max(1e-6f, comp->area) / 1e6f);
+        maxTemp = comp->temperature - 273.15f;
+        yieldMPa = comp->yieldStrength / 1e6f;
+        isDangerous = comp->isDangerous;
+    } else {
+        maxStress = 50.0f;
+        maxTemp = 30.0f;
+    }
+
+    const float safetyFactor = maxStress > 0.01f ? (yieldMPa / maxStress) : 10.0f;
+    const std::string status = (safetyFactor < 1.25f || isDangerous) ? "warning" : "ok";
 
     job.progress = 1.0f;
     job.result = {
@@ -308,8 +416,9 @@ bool SimulationServer::ExecuteSimulationJob(SimulationJob& job) {
         {"metrics", {
             {"maxStress_MPa", maxStress},
             {"maxTemperature_C", maxTemp},
-            {"safetyFactor", std::max(1.0f, 2.5f - (maxStress / 100.0f))},
-            {"status", maxStress > 100.0f ? "warning" : "ok"}
+            {"yieldStrength_MPa", yieldMPa},
+            {"safetyFactor", safetyFactor},
+            {"status", status}
         }}
     };
 
@@ -326,17 +435,21 @@ std::string SimulationServer::GenerateJobId() {
 }
 
 bool SimulationServer::ValidateJobParameters(const SimulationJob& job) {
-    // TODO: Validate job parameters
     return !job.simulationType.empty() && job.componentId > 0;
 }
 
 void SimulationServer::BroadcastJobUpdate(const SimulationJob& job) {
-    // TODO: Broadcast update via WebSocket to connected clients
+    SZM::EventBus::GetInstance().Publish("JobUpdated", job.jobId);
 }
 
 bool SimulationServer::ExpiredJob(const SimulationJob& job) const {
-    // TODO: Check if job exceeded timeout
-    return false;
+    if (m_Config.jobTimeoutSeconds == 0 || job.createdTime == 0) return false;
+    uint64_t nowSec = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count()
+    );
+    return (nowSec > job.createdTime) && ((nowSec - job.createdTime) > m_Config.jobTimeoutSeconds);
 }
 
 }

@@ -69,7 +69,6 @@ export function runLimitSweepOffline(
   const loads = [50, 100, 150, 200, 250, 300, 400, 500];
   const rows: LimitSweepRow[] = [];
   let firstFailure: number | undefined;
-  let maxSafe = 0;
 
   for (const loadKg of loads) {
     const { parts } = solveStructural(members, materialId, loadKg);
@@ -77,7 +76,6 @@ export function runLimitSweepOffline(
     const critical = parts.find(p => p.stressRatio === worst);
     const status = worst >= 1 ? 'FAIL' : worst >= 0.8 ? 'WARN' : 'SAFE';
     if (status === 'FAIL' && firstFailure === undefined) firstFailure = loadKg;
-    if (status !== 'FAIL') maxSafe = loadKg;
     rows.push({
       loadKg,
       worstUtilization: worst,

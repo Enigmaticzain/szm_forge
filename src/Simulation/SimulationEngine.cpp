@@ -10,9 +10,15 @@
 
 namespace SZM {
 
+static std::atomic<int64_t> s_LastBridgeFailureNs{0};
+
 SimulationEngine::SimulationEngine()
     : m_Scheduler(std::make_unique<Scheduler>()),
       m_Scene(std::make_unique<SceneGraph::Scene>()) {
+}
+
+SimulationEngine::~SimulationEngine() {
+    Shutdown();
 }
 
 void SimulationEngine::Init() {
@@ -20,6 +26,7 @@ void SimulationEngine::Init() {
         return;
     }
 
+    m_ShuttingDown = false;
     Materials::MaterialDatabase::GetInstance().LoadStandardLibraries();
     
     m_Scheduler->Initialize();
@@ -29,7 +36,7 @@ void SimulationEngine::Init() {
 }
 
 void SimulationEngine::Tick(double deltaTime) {
-    if (m_IsPaused) {
+    if (m_IsPaused || m_ShuttingDown) {
         return;
     }
 
@@ -38,24 +45,35 @@ void SimulationEngine::Tick(double deltaTime) {
     if (m_Scheduler) {
         m_Scheduler->Tick(effectiveDelta);
     }
-    
-    // Simple mechanics and thermal mock for demo purposes
-    std::for_each(std::execution::par_unseq,
-                  m_Components.begin(), m_Components.end(),
-                  [this, effectiveDelta](const std::unique_ptr<SimulationComponent>& compPtr) {
+
+    // Reap completed CalculiX worker threads and apply marshaled stress updates safely
+    std::vector<std::thread> finishedThreads;
+    std::vector<CcxResultUpdate> resultUpdates;
+    {
+        std::lock_guard<std::mutex> lock(m_CcxMutex);
+        for (uint32_t cid : m_FinishedCcxIds) {
+            auto it = m_CcxThreads.find(cid);
+            if (it != m_CcxThreads.end()) {
+                finishedThreads.push_back(std::move(it->second));
+                m_CcxThreads.erase(it);
+            }
+        }
+        m_FinishedCcxIds.clear();
+        resultUpdates.swap(m_PendingCcxResults);
+    }
+    for (auto& t : finishedThreads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
+    // Simple mechanics and thermal step
+    for (const auto& compPtr : m_Components) {
         auto& comp = *compPtr;
         if (comp.area > 0.0f) {
             comp.stress = comp.appliedForce / comp.area;
         }
 
-        // Dispatch to CalculiX bridge if force is applied and no job is in-flight
-        if (comp.appliedForce > 0.0f) {
-            std::lock_guard<std::mutex> lock(m_CcxMutex);
-            if (m_CcxThreads.find(comp.id) == m_CcxThreads.end()) {
-                DispatchCalculiXJob(comp.id);
-            }
-        }
-        
         if (comp.area > 0.0f && comp.thickness > 0.0f && comp.density > 0.0f) {
             float mass = comp.area * comp.thickness * comp.density;
             float specificHeat = 900.0f;
@@ -69,22 +87,80 @@ void SimulationEngine::Tick(double deltaTime) {
             float cooling = (comp.temperature - AMBIENT_TEMP_K) * 0.1f * static_cast<float>(effectiveDelta);
             comp.temperature -= cooling;
         }
+    }
 
-        comp.stressRatio = (comp.yieldStrength > 0.0f) 
+    // Overlay marshaled CalculiX results after local baseline step
+    for (const auto& upd : resultUpdates) {
+        if (auto* c = GetComponent(upd.componentId)) {
+            c->stress      = upd.stress;
+            c->stressRatio = upd.stressRatio;
+            c->isDangerous = upd.isDangerous;
+        }
+    }
+
+    // Check if CalculiX jobs should be dispatched (with 10s cooldown if bridge failed)
+    const int64_t lastFailureNs = s_LastBridgeFailureNs.load(std::memory_order_relaxed);
+    const auto now = std::chrono::steady_clock::now();
+    const bool bridgeInCooldown = (lastFailureNs != 0) &&
+        (std::chrono::duration_cast<std::chrono::seconds>(
+             now - std::chrono::steady_clock::time_point(
+                 std::chrono::steady_clock::duration(lastFailureNs)))
+             .count() < 10);
+
+    std::vector<uint32_t> jobsToDispatch;
+    for (const auto& compPtr : m_Components) {
+        auto& comp = *compPtr;
+
+        if (comp.appliedForce > 0.0f && !bridgeInCooldown) {
+            std::lock_guard<std::mutex> lock(m_CcxMutex);
+            if (m_CcxThreads.find(comp.id) == m_CcxThreads.end()) {
+                jobsToDispatch.push_back(comp.id);
+            }
+        }
+
+        comp.stressRatio = (comp.yieldStrength > 0.0f)
             ? std::min(1.0f, comp.stress / comp.yieldStrength)
             : 0.0f;
         comp.tempRatio = (MAX_TEMP_K > AMBIENT_TEMP_K)
             ? std::min(1.0f, (comp.temperature - AMBIENT_TEMP_K) / (MAX_TEMP_K - AMBIENT_TEMP_K))
             : 0.0f;
         comp.isDangerous = (comp.stressRatio > 0.8f) || (comp.tempRatio > 0.8f);
-    });
+    }
+
+    for (uint32_t cid : jobsToDispatch) {
+        DispatchCalculiXJob(cid);
+    }
 
     // Publish event for UI/visualization
     EventBus::GetInstance().Publish("SimulationTick", std::any());
 }
 
 void SimulationEngine::Shutdown() {
+    m_ShuttingDown = true;
+
+    std::vector<std::thread> activeThreads;
+    {
+        std::lock_guard<std::mutex> lock(m_CcxMutex);
+        for (auto& [cid, t] : m_CcxThreads) {
+            (void)cid;
+            if (t.joinable()) {
+                activeThreads.push_back(std::move(t));
+            }
+        }
+        m_CcxThreads.clear();
+        m_FinishedCcxIds.clear();
+        m_PendingCcxResults.clear();
+    }
+    for (auto& t : activeThreads) {
+        if (t.joinable()) {
+            t.join();
+        }
+    }
+
     if (m_Scheduler) {
+        if (auto* coupling = m_Scheduler->GetCouplingManager()) {
+            coupling->ClearComponents();
+        }
         m_Scheduler->Shutdown();
     }
     m_Components.clear();
@@ -131,12 +207,18 @@ void SimulationEngine::RemoveComponent(uint32_t id) {
         [id](const auto& comp) { return comp->id == id; });
     
     if (it != m_Components.end()) {
+        if (m_Scheduler && m_Scheduler->GetCouplingManager()) {
+            m_Scheduler->GetCouplingManager()->UnregisterComponent(it->get());
+        }
         std::cout << "[SZM Simulation] Removed component ID: " << id << "\n";
         m_Components.erase(it);
     }
 }
 
 void SimulationEngine::ClearAllComponents() {
+    if (m_Scheduler && m_Scheduler->GetCouplingManager()) {
+        m_Scheduler->GetCouplingManager()->ClearComponents();
+    }
     m_Components.clear();
     m_NextComponentId = 1;
     std::cout << "[SZM Simulation] Cleared all components.\n";
@@ -199,7 +281,10 @@ void SimulationEngine::SetHeatInput(uint32_t id, float heat) {
 }
 
 void SimulationEngine::DispatchCalculiXJob(uint32_t componentId) {
-    // Must be called with m_CcxMutex held
+    if (m_ShuttingDown) {
+        return;
+    }
+
     auto* comp = GetComponent(componentId);
     if (!comp) return;
 
@@ -210,12 +295,20 @@ void SimulationEngine::DispatchCalculiXJob(uint32_t componentId) {
     const float yld      = comp->yieldStrength;
     const float rho      = comp->density;
     const uint32_t cid   = componentId;
+    const float fallbackStress = comp->stress;
+    const float fallbackRatio  = comp->stressRatio;
+    const bool  fallbackDanger = comp->isDangerous;
 
-    m_CcxThreads[componentId] = std::thread([this, cid, force, area, thick, E, yld, rho]() {
+    std::lock_guard<std::mutex> lock(m_CcxMutex);
+    if (m_ShuttingDown || m_CcxThreads.find(cid) != m_CcxThreads.end()) {
+        return;
+    }
+
+    m_CcxThreads[cid] = std::thread([this, cid, force, area, thick, E, yld, rho, fallbackStress, fallbackRatio, fallbackDanger]() {
         try {
             httplib::Client cli("127.0.0.1", 8003);
-            cli.set_connection_timeout(5);
-            cli.set_read_timeout(60);
+            cli.set_connection_timeout(2);
+            cli.set_read_timeout(15);
 
             nlohmann::json body = {
                 {"component_id",      cid},
@@ -227,39 +320,46 @@ void SimulationEngine::DispatchCalculiXJob(uint32_t componentId) {
                 {"density_kg_m3",     rho}
             };
 
-            auto res = cli.Post("/simulation/fea/run", body.dump(), "application/json");
-            if (res && res->status == 200) {
-                auto j = nlohmann::json::parse(res->body);
-                if (j.value("status", "") == "success") {
-                    auto* c = GetComponent(cid);
-                    if (c) {
-                        c->stress      = j.value("max_stress_pa", c->stress);
-                        c->stressRatio = j.value("stress_ratio",  c->stressRatio);
-                        c->isDangerous = j.value("is_dangerous",  c->isDangerous);
+            if (!m_ShuttingDown) {
+                auto res = cli.Post("/simulation/fea/run", body.dump(), "application/json");
+                if (res && res->status == 200) {
+                    auto j = nlohmann::json::parse(res->body);
+                    if (j.value("status", "") == "success") {
+                        CcxResultUpdate update;
+                        update.componentId = cid;
+                        update.stress      = j.value("max_stress_pa", fallbackStress);
+                        update.stressRatio = j.value("stress_ratio",  fallbackRatio);
+                        update.isDangerous = j.value("is_dangerous",  fallbackDanger);
+
                         std::cout << "[CalculiX] Component " << cid
-                                  << " stress=" << c->stress << " Pa"
+                                  << " stress=" << update.stress << " Pa"
                                   << " engine=" << j.value("engine_used", "?")
                                   << "\n";
-                        EventBus::GetInstance().Publish("SimulationTick", std::any());
+
+                        std::lock_guard<std::mutex> lock(m_CcxMutex);
+                        if (!m_ShuttingDown) {
+                            m_PendingCcxResults.push_back(update);
+                        }
                     }
+                } else {
+                    s_LastBridgeFailureNs.store(
+                        std::chrono::steady_clock::now().time_since_epoch().count(),
+                        std::memory_order_relaxed);
+                    std::cerr << "[CalculiX] Bridge unreachable for component " << cid << "\n";
                 }
-            } else {
-                std::cerr << "[CalculiX] Bridge unreachable for component " << cid << "\n";
             }
         } catch (const std::exception& e) {
+            s_LastBridgeFailureNs.store(
+                std::chrono::steady_clock::now().time_since_epoch().count(),
+                std::memory_order_relaxed);
             std::cerr << "[CalculiX] Exception: " << e.what() << "\n";
         }
 
-        // Remove from in-flight map so next force change can re-dispatch
         std::lock_guard<std::mutex> lock(m_CcxMutex);
-        auto it = m_CcxThreads.find(cid);
-        if (it != m_CcxThreads.end()) {
-            it->second.detach();
-            m_CcxThreads.erase(it);
+        if (!m_ShuttingDown) {
+            m_FinishedCcxIds.push_back(cid);
         }
     });
-    m_CcxThreads[componentId].detach();
-    m_CcxThreads.erase(componentId); // thread is detached; remove handle
 }
 
 // Removed simple UpdateStress, UpdateTemperature, and UpdateDangerState 

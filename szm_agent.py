@@ -1,8 +1,13 @@
 import os
 import subprocess
+import shutil
 import json
-from rich import print
 from datetime import datetime
+
+try:
+    from rich import print
+except ImportError:
+    pass
 
 MODEL = "llama3.1"
 
@@ -11,30 +16,46 @@ MEMORY_FILE = ".agent_memory.json"
 
 # ---------- LLM ----------
 def ask_llm(prompt):
-    result = subprocess.run(
-        ["ollama", "run", MODEL],
-        input=prompt.encode(),
-        stdout=subprocess.PIPE
-    )
-    return result.stdout.decode()
+    if not shutil.which("ollama"):
+        return "Error: ollama executable not found in PATH."
+    try:
+        result = subprocess.run(
+            ["ollama", "run", MODEL],
+            input=prompt.encode(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        return result.stdout.decode()
+    except Exception as e:
+        return f"Error executing ollama: {e}"
 
 
 # ---------- MEMORY ----------
 def load_memory():
     if os.path.exists(MEMORY_FILE):
-        return json.load(open(MEMORY_FILE))
+        try:
+            with open(MEMORY_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
     return []
 
 def save_memory(memory):
-    json.dump(memory, open(MEMORY_FILE, "w"), indent=2)
+    try:
+        with open(MEMORY_FILE, "w") as f:
+            json.dump(memory, f, indent=2)
+    except Exception as e:
+        print(f"[red]Error saving memory: {e}[/red]")
 
 
 # ---------- FILE TOOLS ----------
 def scan_project():
     files = []
     for root, _, filenames in os.walk("."):
+        if any(ignored in root for ignored in [".git", "build", "node_modules", ".gemini"]):
+            continue
         for f in filenames:
-            if f.endswith((".py", ".js", ".ts", ".json")):
+            if f.endswith((".py", ".cpp", ".hpp", ".h", ".c", ".js", ".ts", ".json")):
                 files.append(os.path.join(root, f))
     return files
 

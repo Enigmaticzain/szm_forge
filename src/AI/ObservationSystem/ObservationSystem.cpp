@@ -428,20 +428,25 @@ LearningPattern ObservationSystem::MergePatterns(const std::vector<LearningPatte
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 std::vector<LearningPattern> ObservationSystem::DetectNGramPatterns(int n) {
+    return DetectNGramPatternsInActions(m_RecordedActions, n);
+}
+
+std::vector<LearningPattern> ObservationSystem::DetectNGramPatternsInActions(
+    const std::vector<UserAction>& actions, int n) {
     std::vector<LearningPattern> patterns;
     
-    if (m_RecordedActions.size() < (size_t)n) return patterns;
+    if (n <= 0 || actions.size() < static_cast<size_t>(n)) return patterns;
     
     // Create n-grams
     std::map<std::vector<std::string>, std::vector<std::vector<UserAction>>> ngram_map;
     
-    for (size_t i = 0; i <= m_RecordedActions.size() - n; i++) {
+    for (size_t i = 0; i <= actions.size() - static_cast<size_t>(n); i++) {
         std::vector<std::string> ngram_key;
         std::vector<UserAction> ngram_actions;
         
         for (int j = 0; j < n; j++) {
-            ngram_key.push_back(std::to_string((int)m_RecordedActions[i + j].type));
-            ngram_actions.push_back(m_RecordedActions[i + j]);
+            ngram_key.push_back(std::to_string((int)actions[i + j].type));
+            ngram_actions.push_back(actions[i + j]);
         }
         
         ngram_map[ngram_key].push_back(ngram_actions);
@@ -465,6 +470,12 @@ std::vector<LearningPattern> ObservationSystem::DetectNGramPatterns(int n) {
             
             pattern.action_sequence = occurrences[0];
             pattern.times_demonstrated = occurrences.size();
+            if (!occurrences[0].empty()) {
+                pattern.first_demonstrated = occurrences[0].front().timestamp;
+            }
+            if (!occurrences.back().empty()) {
+                pattern.last_used = occurrences.back().back().timestamp;
+            }
             
             // Calculate success rate
             int successful = 0;
@@ -538,7 +549,7 @@ std::vector<LearningPattern> ObservationSystem::DetectConditionalPatterns() {
     int pattern_id = 0;
     for (const auto& [context, actions] : context_groups) {
         if (actions.size() >= 4) {
-            auto ngram_patterns = DetectNGramPatterns(3);
+            auto ngram_patterns = DetectNGramPatternsInActions(actions, 3);
             for (auto& pattern : ngram_patterns) {
                 pattern.id = "conditional_" + std::to_string(pattern_id++);
                 pattern.pattern_type = "workflow";
@@ -667,11 +678,22 @@ float ObservationSystem::CalculatePatternMatch(const LearningPattern& pattern,
     float sequence_match = (float)matches / pattern.action_sequence.size();
     float recency_match = 1.0f;
     
-    // Check if pattern was recently used
-    uint64_t now = std::chrono::system_clock::now().time_since_epoch().count();
-    uint64_t time_diff = now - pattern.last_used;
-    if (time_diff < 3600000000000ULL) { // Within 1 hour
-        recency_match = 1.0f - (time_diff / 3600000000000.0f);
+    // Check if pattern was recently used (handle both seconds and nanoseconds safely)
+    if (pattern.last_used > 0) {
+        const uint64_t now_ns = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        const uint64_t last_used_ns = pattern.last_used < 100000000000ULL
+            ? pattern.last_used * 1000000000ULL
+            : pattern.last_used;
+        if (now_ns > last_used_ns) {
+            const uint64_t time_diff = now_ns - last_used_ns;
+            if (time_diff < 3600000000000ULL) { // Within 1 hour
+                recency_match = 1.0f - (static_cast<float>(time_diff) / 3600000000000.0f);
+            } else {
+                recency_match = 0.0f;
+            }
+        }
     }
     
     return (sequence_match * 0.7f + recency_match * 0.3f) * pattern.confidence;
@@ -1106,9 +1128,11 @@ float ObservationSystem::CalculateActionSimilarity(const UserAction& a1, const U
     
     // Similar position (for mouse actions)
     if (a1.type >= ActionType::MOUSE_CLICK && a1.type <= ActionType::MOUSE_SCROLL) {
-        float dx = (float)(a1.position.x - a2.position.x) / a1.position.screen_width;
-        float dy = (float)(a1.position.y - a2.position.y) / a1.position.screen_height;
-        float distance = std::sqrt(dx * dx + dy * dy);
+        const float screenW = a1.position.screen_width > 0 ? static_cast<float>(a1.position.screen_width) : 1920.0f;
+        const float screenH = a1.position.screen_height > 0 ? static_cast<float>(a1.position.screen_height) : 1080.0f;
+        const float dx = static_cast<float>(a1.position.x - a2.position.x) / screenW;
+        const float dy = static_cast<float>(a1.position.y - a2.position.y) / screenH;
+        const float distance = std::sqrt(dx * dx + dy * dy);
         if (distance < 0.1f) similarity += 0.2f;
     }
     
@@ -1129,8 +1153,10 @@ void ObservationSystem::UpdatePatternStatistics(LearningPattern& pattern) {
     // Update confidence based on usage
     pattern.confidence = std::min(1.0f, (float)pattern.times_demonstrated * 0.1f);
     
-    // Update last used time
-    pattern.last_used = std::chrono::system_clock::now().time_since_epoch().count();
+    // Update last used time (nanoseconds)
+    pattern.last_used = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count());
 }
 
 } // namespace SZM::AI::Observation

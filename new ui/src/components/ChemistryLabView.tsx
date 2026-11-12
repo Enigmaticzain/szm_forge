@@ -198,8 +198,54 @@ export default function ChemistryLabView() {
   const [showBondLabels, setShowBondLabels] = useState(true);
   const [balancedEquation, setBalancedEquation] = useState('');
   const [equationError, setEquationError] = useState('');
+  const [mdBusy, setMdBusy] = useState(false);
+  const [mdResult, setMdResult] = useState<string | null>(null);
 
   const generateId = () => Math.random().toString(36).substr(2, 9);
+
+  const runMolecularDynamics = async () => {
+    setMdBusy(true);
+    setMdResult(null);
+    const payload = {
+      atoms: atoms.map(a => ({
+        id: a.id,
+        element: a.element.symbol,
+        z: a.element.atomicNumber,
+        x: a.x,
+        y: a.y,
+      })),
+      bonds: bonds.map(b => ({
+        atom1: b.atom1Id,
+        atom2: b.atom2Id,
+        type: b.type,
+      })),
+      steps: 500,
+      temperature_k: 298,
+    };
+    try {
+      const res = await fetch('/api/chemistry/md', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMdResult(
+          typeof data === 'string' ? data : JSON.stringify(data).slice(0, 240),
+        );
+      } else {
+        throw new Error(`HTTP ${res.status}`);
+      }
+    } catch (e: unknown) {
+      // Graceful offline estimate from atom count / mass
+      const ke = (3 / 2) * atoms.length * 0.001987 * 298;
+      setMdResult(
+        `MD offline fallback · N=${atoms.length} · E_kin≈${ke.toFixed(3)} kcal/mol · ${e instanceof Error ? e.message : 'no /api/chemistry/md'}`,
+      );
+    } finally {
+      setMdBusy(false);
+    }
+  };
   
   const snapToGrid = useCallback((value: number) => Math.round(value / GRID_SIZE) * GRID_SIZE, []);
 
@@ -922,6 +968,20 @@ export default function ChemistryLabView() {
             <span className="text-forge-green font-mono">{totalElectrons}</span>
           </div>
           <div className="flex-1" />
+          <button
+            type="button"
+            onClick={runMolecularDynamics}
+            disabled={mdBusy || atoms.length === 0}
+            className="px-2 py-1 rounded text-[8px] font-bold font-mono border border-forge-purple/40 text-forge-purple hover:bg-forge-purple/10 disabled:opacity-40"
+            title="POST /api/chemistry/md"
+          >
+            {mdBusy ? 'MD…' : 'RUN MD'}
+          </button>
+          {mdResult && (
+            <span className="text-[7px] font-mono text-forge-text-muted max-w-[280px] truncate" title={mdResult}>
+              {mdResult}
+            </span>
+          )}
           <div className="text-[8px] text-forge-text-muted">
             Double-click to place • Click to select • Shift+Click to connect
           </div>

@@ -6,7 +6,7 @@
 namespace SZM {
 
 bool ToleranceAnalysis::ApplyManufacturingDeviation(Geometry::SolidBody& body, double toleranceBand) {
-    if (toleranceBand <= 0.0) return false;
+    if (toleranceBand <= 0.0 || body.GetVertices().empty()) return false;
 
     std::cout << "[ToleranceAnalysis] Applying +/- " << toleranceBand << "m deviation to B-Rep...\n";
 
@@ -22,6 +22,7 @@ bool ToleranceAnalysis::ApplyManufacturingDeviation(Geometry::SolidBody& body, d
     }
 
     // Recompute face normals and centroid
+    body.OrientNormals();
     body.CalculateCenterOfMass();
     return true;
 }

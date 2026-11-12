@@ -13,7 +13,7 @@ from typing import Optional
 # ── Verified low-cost REA CLI operation ──────────────────────────────────────
 
 # Confirmed available via `rea capabilities` on this host:
-#   cli: node <package>/scripts/rea.mjs inspect_artifact --detail=summary --path=<path>
+#   cli: node <package>/scripts/rea.mjs inspect-artifact <path> (verified; positional, no flags)
 # This is a read-only artifact inventory operation — no binary target required.
 REA_PACKAGE_DIR = "/home/szm7226/.npm/_npx/9b9809298fe40d2c/node_modules/rea-agents"
 REA_CLI_ENTRY = os.path.join(REA_PACKAGE_DIR, "scripts", "rea.mjs")
@@ -50,7 +50,7 @@ class ReaResult:
 # ── ReaAdapter ───────────────────────────────────────────────────────────────
 
 class ReaAdapter:
-    """Thin wrapper around the REA CLI `inspect_artifact --detail=summary` command."""
+    """Thin wrapper around the REA CLI `inspect-artifact <path>` command."""
 
     def __init__(self, cli_entry: str = REA_CLI_ENTRY, timeout_seconds: float = 30.0):
         self.cli_entry = cli_entry
@@ -70,7 +70,7 @@ class ReaAdapter:
         return self._cli_verified
 
     def inspect_artifact(self, path: str) -> ReaResult:
-        """Run `rea.mjs inspect_artifact --detail=summary --path=<path>`.
+        """Run `rea.mjs inspect-artifact <path>` (positional; verified against CLI).
 
         Returns a ReaResult with status distinguishing:
         - success: artifact inventory retrieved
@@ -97,6 +97,15 @@ class ReaAdapter:
                 reason="artifact path must not be blank",
             )
 
+        if not self._verify_cli():
+            return ReaResult(
+                status="unavailable",
+                stdout="",
+                stderr="",
+                returncode=None,
+                reason=f"REA CLI not found at {self.cli_entry}",
+            )
+
         # Avoid leaking secrets into error messages: path itself is caller-supplied,
         # but we never log or echo environment variables.
         if not os.path.isfile(path):
@@ -108,22 +117,12 @@ class ReaAdapter:
                 reason=f"artifact path is not a readable file: {os.path.basename(path)}",
             )
 
-        if not self._verify_cli():
-            return ReaResult(
-                status="unavailable",
-                stdout="",
-                stderr="",
-                returncode=None,
-                reason=f"REA CLI not found at {self.cli_entry}",
-            )
-
         # Build argument list — never shell interpolation
         cmd = [
             "node",
             self.cli_entry,
-            "inspect_artifact",
-            "--detail=summary",
-            f"--path={path}",
+            "inspect-artifact",
+            path,
         ]
 
         try:
@@ -134,10 +133,20 @@ class ReaAdapter:
                 timeout=self.timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:
+            stdout_val = (
+                exc.stdout.decode(errors="replace")
+                if isinstance(exc.stdout, (bytes, bytearray))
+                else (exc.stdout or "")
+            )
+            stderr_val = (
+                exc.stderr.decode(errors="replace")
+                if isinstance(exc.stderr, (bytes, bytearray))
+                else (exc.stderr or "")
+            )
             return ReaResult(
                 status="timeout",
-                stdout=exc.stdout.decode(errors="replace") if exc.stdout else "",
-                stderr=exc.stderr.decode(errors="replace") if exc.stderr else "",
+                stdout=stdout_val,
+                stderr=stderr_val,
                 returncode=-1,
                 reason=f"command exceeded {self.timeout_seconds}s deadline",
             )

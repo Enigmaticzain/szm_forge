@@ -244,7 +244,7 @@ class KnowledgeGraph:
         visited = {entity_id}
         
         def traverse(current_id: str, current_depth: int):
-            if current_depth > depth:
+            if current_depth >= depth:
                 return
             
             for rel in self.relationships.values():

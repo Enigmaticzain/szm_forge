@@ -39,6 +39,13 @@ add_library(SZM_UI_Module STATIC
     panels/ViewportSettingsPanel.cpp
     panels/UIComponentShowcasePanel.cpp
     panels/TrainingTabUI.cpp
+    panels/CircuitAnalysisPanel.cpp
+    panels/ThermalAnalysisPanel.cpp
+    panels/ModalAnalysisPanel.cpp
+    panels/ThermalCfdToolsPanel.cpp
+    panels/StackExtendedPanels.cpp
+    panels/TelemetryPanel.cpp
+    panels/OmniverseLiveSyncPanel.cpp
 )
 
 target_include_directories(SZM_UI_Module PUBLIC 
@@ -52,6 +59,9 @@ target_link_libraries(SZM_UI_Module PUBLIC
     SZM_Simulation_Module
     SZM_Materials_Module
     SZM_Graphics_Module
+    SZM_Electrical_Module
+    SZM_FEA_Module
+    SZM_DigitalTwin_Module
     nlohmann_json::nlohmann_json
 )
 

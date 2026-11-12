@@ -172,13 +172,32 @@ public:
     }
 
     /**
+     * @class ConstGuard
+     * @brief RAII lock guard for read-only thread-safe access.
+     */
+    class ConstGuard {
+    public:
+        const T* operator->() const { return m_Ptr; }
+        const T& operator*() const { return *m_Ptr; }
+
+    private:
+        friend class ThreadSafeWrapper;
+
+        ConstGuard(const T* ptr, std::unique_lock<std::mutex>&& lock)
+            : m_Ptr(ptr), m_Lock(std::move(lock)) {}
+
+        const T* m_Ptr;
+        std::unique_lock<std::mutex> m_Lock;
+    };
+
+    /**
      * @brief Const version - acquire read-only access.
      *
-     * @return Const Guard with lock held
+     * @return ConstGuard with lock held
      */
-    Guard LockConst() const {
-        return Guard(
-            const_cast<T*>(&m_Object),
+    ConstGuard LockConst() const {
+        return ConstGuard(
+            &m_Object,
             std::unique_lock<std::mutex>(m_Mutex)
         );
     }

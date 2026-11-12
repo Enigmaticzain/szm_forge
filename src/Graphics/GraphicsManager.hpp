@@ -45,7 +45,12 @@ public:
      * @brief Get viewport
      * @return Reference to viewport
      */
-    Viewport& GetViewport() { return *m_Viewport; }
+    Viewport& GetViewport() {
+        if (!m_Viewport) {
+            m_Viewport = std::make_unique<Viewport>(1280, 720);
+        }
+        return *m_Viewport;
+    }
     
     /**
      * @brief Get heatmap

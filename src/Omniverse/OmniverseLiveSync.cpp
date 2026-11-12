@@ -5,6 +5,7 @@
 #include <chrono>
 #include <ctime>
 #include <sstream>
+#include <algorithm>
 
 namespace SZM::Omniverse {
 
@@ -211,10 +212,10 @@ std::vector<SceneChange> OmniverseLiveSync::PullChanges(const std::string& sessi
     }
     
     auto& session = it->second;
-    std::vector<SceneChange> changes = session.incoming_changes;
-    
-    // Clear queue
+    std::vector<SceneChange> changes;
+    changes.reserve(session.incoming_changes.size());
     while (!session.incoming_changes.empty()) {
+        changes.push_back(std::move(session.incoming_changes.front()));
         session.incoming_changes.pop();
     }
     

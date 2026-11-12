@@ -39,10 +39,17 @@ public:
     }
 
     void Publish(const std::string& eventName, const std::any& payload) {
-        std::lock_guard<std::mutex> lock(m_Mutex);
-        auto it = m_Listeners.find(eventName);
-        if (it != m_Listeners.end()) {
-            for (auto& cb : it->second) {
+        std::vector<std::function<void(const std::any&)>> listenersCopy;
+        {
+            std::lock_guard<std::mutex> lock(m_Mutex);
+            auto it = m_Listeners.find(eventName);
+            if (it == m_Listeners.end()) {
+                return;
+            }
+            listenersCopy = it->second;
+        }
+        for (auto& cb : listenersCopy) {
+            if (cb) {
                 cb(payload);
             }
         }

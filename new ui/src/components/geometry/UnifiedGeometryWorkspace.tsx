@@ -4,9 +4,12 @@ import {
   Ruler, Grid3x3, Cylinder, Combine, Sparkles,
 } from 'lucide-react';
 import { BodyDesignLayout } from '../BodyDesign/BodyDesignLayout';
+import { AssemblyView } from '../BodyDesign/AssemblyView';
 import { GeometryWorkspace } from '../GeometryWorkspace';
 import { TextToCADPanel } from '../TextToCADPanel';
 import { SketchEditor } from './SketchEditor';
+import { GeometryModeErrorBoundary } from './GeometryModeErrorBoundary';
+import { useProject } from '../../store/ProjectContext';
 
 type GeometryMode =
   | 'sketch'    // AutoCAD-like 2D parametric
@@ -80,6 +83,7 @@ const FEATURE_MATRIX = [
 export const UnifiedGeometryWorkspace: React.FC = () => {
   const [mode, setMode] = useState<GeometryMode>('mesh');
   const [showFeatures, setShowFeatures] = useState(false);
+  const { bodyParts, bodyJoints, setBodyJoints } = useProject();
 
   return (
     <div className="h-full w-full flex flex-col bg-forge-black overflow-hidden">
@@ -171,23 +175,27 @@ export const UnifiedGeometryWorkspace: React.FC = () => {
 
       {/* Mode content */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {mode === 'sketch' && <SketchEditor />}
+        <GeometryModeErrorBoundary key={mode}>
+          {mode === 'sketch' && <SketchEditor />}
 
-        {mode === 'solid' && <GeometryWorkspace />}
+          {mode === 'solid' && <GeometryWorkspace />}
 
-        {mode === 'mesh' && <BodyDesignLayout />}
+          {mode === 'mesh' && <BodyDesignLayout />}
 
-        {mode === 'ai' && <TextToCADPanel />}
+          {mode === 'ai' && <TextToCADPanel />}
 
-        {mode === 'assembly' && (
-          <div className="h-full flex flex-col">
-            <div className="h-8 border-b border-forge-border/40 bg-forge-dark/60 px-4 flex items-center gap-2 text-[8px] font-mono text-forge-text-muted">
-              <Puzzle size={10} className="text-forge-green" />
-              Assembly mode — use MESH tab → Assembly & Fastening for joint placement
+          {mode === 'assembly' && (
+            <div className="h-full flex flex-col min-h-0">
+              <div className="h-8 border-b border-forge-border/40 bg-forge-dark/60 px-4 flex items-center gap-2 text-[8px] font-mono text-forge-text-muted flex-shrink-0">
+                <Puzzle size={10} className="text-forge-green" />
+                Assembly mode — mates, constraints, and fastening joints
+              </div>
+              <div className="flex-1 min-h-0">
+                <AssemblyView parts={bodyParts} joints={bodyJoints} setJoints={setBodyJoints} />
+              </div>
             </div>
-            <BodyDesignLayout />
-          </div>
-        )}
+          )}
+        </GeometryModeErrorBoundary>
       </div>
 
       {/* Quick tool reference bar */}

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { FlaskConical, Play, CheckCircle2, ShieldAlert } from 'lucide-react';
-import { useProject, CustomMaterial } from '../../store/ProjectContext';
+import { FlaskConical, Play, CheckCircle2 } from 'lucide-react';
+import { useProject } from '../../store/ProjectContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 interface ExperimentResult {

@@ -17,8 +17,8 @@ std::string ValidationReport::ToString() const {
        << "  Faces:         " << faceCount << "\n"
        << "  Edges:         " << edgeCount << "\n"
        << "  Euler (V-E+F): " << eulerCharacteristic << "\n"
-       << "  Volume:        " << volume << " m³\n"
-       << "  Surface Area:  " << surfaceArea << " m²\n"
+       << "  Volume:        " << volume << " m^3\n"
+       << "  Surface Area:  " << surfaceArea << " m^2\n"
        << "\n"
        << "  Manifold:      " << (isManifold ? "YES" : "NO") << "\n"
        << "  Watertight:    " << (isWatertight ? "YES" : "NO") << "\n"
@@ -279,13 +279,54 @@ void TopologyValidator::FindSelfIntersections(
     // Self-overlap: query the tree against itself
     // For self-intersection, we use a simpler O(n²) approach on BVH leaf pairs
     // and filter out adjacent faces (which naturally share edges)
+    // SAT helpers — defined here (file-scope lambdas via local functions not allowed in C++,
+    // so we use a nested struct as a namespace trick)
+    struct SAT {
+        static bool SeparatedOnAxis(const Vector3& axis,
+                                    const std::vector<Vector3>& fA,
+                                    const std::vector<Vector3>& fB) {
+            if (axis.MagnitudeSq() < 1e-12) return false;
+            double minA = fA[0].Dot(axis), maxA = minA;
+            for (size_t i = 1; i < fA.size(); ++i) {
+                double d = fA[i].Dot(axis);
+                if (d < minA) minA = d;
+                if (d > maxA) maxA = d;
+            }
+            double minB = fB[0].Dot(axis), maxB = minB;
+            for (size_t i = 1; i < fB.size(); ++i) {
+                double d = fB[i].Dot(axis);
+                if (d < minB) minB = d;
+                if (d > maxB) maxB = d;
+            }
+            return (maxA < minB - 1e-7) || (maxB < minA - 1e-7);
+        }
+
+        static bool CheckFacesIntersect(const std::vector<Vector3>& fA, const std::vector<Vector3>& fB) {
+            if (fA.size() < 3 || fB.size() < 3) return false;
+            Vector3 normA = (fA[1] - fA[0]).Cross(fA[2] - fA[0]);
+            if (SeparatedOnAxis(normA, fA, fB)) return false;
+
+            Vector3 normB = (fB[1] - fB[0]).Cross(fB[2] - fB[0]);
+            if (SeparatedOnAxis(normB, fA, fB)) return false;
+
+            for (size_t i = 0; i < fA.size(); ++i) {
+                Vector3 edgeA = fA[(i + 1) % fA.size()] - fA[i];
+                for (size_t j = 0; j < fB.size(); ++j) {
+                    Vector3 edgeB = fB[(j + 1) % fB.size()] - fB[j];
+                    Vector3 axis = edgeA.Cross(edgeB);
+                    if (SeparatedOnAxis(axis, fA, fB)) return false;
+                }
+            }
+            return true;
+        }
+    };
+
     for (uint32_t fi = 0; fi < faceCount; ++fi) {
         auto candidates = bvh.QueryOverlapping(faceBoxes[fi]);
         for (uint32_t ci : candidates) {
             if (ci <= fi) continue; // Avoid duplicates
 
             // Skip adjacent faces (they share edges by construction)
-            // Simple heuristic: faces sharing vertices are adjacent
             auto vertsA = body.GetFaceVertices(fi);
             auto vertsB = body.GetFaceVertices(ci);
 
@@ -300,9 +341,7 @@ void TopologyValidator::FindSelfIntersections(
                 if (adjacent) break;
             }
 
-            if (!adjacent) {
-                // TODO: Exact triangle-triangle intersection test
-                // For now, AABB overlap of non-adjacent faces is a warning
+            if (!adjacent && SAT::CheckFacesIntersect(vertsA, vertsB)) {
                 outPairs.emplace_back(fi, ci);
             }
         }

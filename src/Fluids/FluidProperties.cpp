@@ -1,4 +1,5 @@
 #include "FluidProperties.hpp"
+#include <algorithm>
 #include <cmath>
 
 namespace SZM::Fluids {
@@ -42,9 +43,10 @@ FluidProperties FluidProperties::Water(float tempC) {
         water.setDensity(958.4f);
         water.setDynamicViscosity(0.000282f);
     } else {
-        // Linear approximation
-        water.setDensity(1000.0f - (tempC - 4.0f) * 0.2f);
-        water.setDynamicViscosity(0.001567f - (tempC - 4.0f) * 0.01f);
+        // Clamp density and compute water dynamic viscosity via Vogel's equation (Pa*s)
+        double tempK = std::max(150.0, static_cast<double>(tempC) + 273.15);
+        water.setDensity(std::max(100.0f, 1000.0f - (tempC - 4.0f) * 0.2f));
+        water.setDynamicViscosity(static_cast<float>(2.414e-5 * std::pow(10.0, 247.8 / (tempK - 140.0))));
     }
     
     water.setSpecificHeat(4186.0f);
@@ -61,7 +63,7 @@ FluidProperties FluidProperties::Air(float tempC) {
     air.setTemperature(tempC);
     
     // Air properties at standard conditions
-    float tempK = tempC + 273.15f;
+    float tempK = std::max(1.0f, tempC + 273.15f);
     
     // Density using ideal gas law approximation
     // ρ = 1.225 kg/m³ at 15°C, 101325 Pa

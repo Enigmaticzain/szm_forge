@@ -33,6 +33,12 @@ namespace SZM {
         /// Register a component to track its coupled states
         void RegisterComponent(SimulationComponent* comp);
 
+        /// Unregister a component before its destruction to prevent dangling pointers
+        void UnregisterComponent(SimulationComponent* comp);
+
+        /// Clear all registered coupled components
+        void ClearComponents();
+
     private:
         std::vector<SimulationComponent*> m_CoupledComponents;
 

@@ -36,16 +36,15 @@ namespace SZM::AI {
     }
 
     float AIEngine::CalculateReliabilityScore(const DesignMetrics& metrics) const {
-        // Reliability = base * stress_factor * thermal_factor
-        float stressMargin = CalculateStressMargin(metrics);
-        float thermalMargin = CalculateThermalMargin(metrics);
-
-        float stressFactor = 1.0f - (metrics.stress * 0.5f);  // 50% weight
-        float thermalFactor = 1.0f - ((metrics.temperature - 293.15f) / 80.0f * 0.3f);  // 30% weight
-        float powerFactor = 1.0f - (metrics.power / 1000.0f * 0.2f);  // 20% weight
+        // Reliability = stress_factor * thermal_factor * power_factor
+        float stressFactor = std::max(0.0f, 1.0f - (metrics.stress * 0.5f));  // 50% weight
+        float thermalRatio = std::max(0.0f, (metrics.temperature - 293.15f) / 80.0f);
+        float thermalFactor = std::max(0.0f, 1.0f - (thermalRatio * 0.3f));    // 30% weight
+        float powerRatio = std::max(0.0f, metrics.power / 1000.0f);
+        float powerFactor = std::max(0.0f, 1.0f - (powerRatio * 0.2f));        // 20% weight
 
         float reliability = stressFactor * thermalFactor * powerFactor;
-        return std::max(0.0f, std::min(1.0f, reliability));
+        return std::clamp(reliability, 0.0f, 1.0f);
     }
 
     std::vector<DesignRecommendation> AIEngine::GenerateRecommendations(const DesignMetrics& metrics) {
@@ -106,20 +105,23 @@ namespace SZM::AI {
         FailurePrediction pred;
         pred.componentId = componentId;
 
-        // Weibull distribution for failure prediction
-        // P(failure) = 1 - exp(-(t/λ)^k)
-        float stressRatio = metrics.stress;
-        float tempRatio = (metrics.temperature - 293.15f) / 80.0f;
+        // Weibull distribution for failure prediction:
+        // P_weibull(failure) = 1 - exp(-(t / lambda)^k)
+        const float stressRatio = std::max(0.0f, metrics.stress);
+        const float tempRatio = std::max(0.0f, (metrics.temperature - 293.15f) / 80.0f);
 
-        // Failure probability increases with stress and temperature
-        pred.probability = stressRatio * 0.6f + tempRatio * 0.4f;
-        pred.probability = std::max(0.0f, std::min(1.0f, pred.probability));
-
-        // Time to failure (hours) - decreases with stress/temperature
-        float baseLife = 10000.0f;  // hours
-        float stressAcceleration = std::exp(stressRatio * 2.0f);
-        float thermalAcceleration = std::exp(tempRatio * 1.5f);
+        // Time to failure (hours) - decreases monotonically with stress and temperature
+        const float baseLife = 10000.0f;  // hours
+        const float stressAcceleration = std::exp(std::min(stressRatio, 5.0f) * 2.0f);
+        const float thermalAcceleration = std::exp(std::min(tempRatio, 5.0f) * 1.5f);
         pred.timeToFailure = baseLife / (stressAcceleration * thermalAcceleration);
+
+        // Align failure probability with AnalyzeReliability (1 - reliabilityScore) and Weibull hazard
+        constexpr float kMissionHours = 1000.0f;
+        constexpr float kWeibullShape = 1.5f;
+        const float weibullSurvival = std::exp(-std::pow(kMissionHours / std::max(1.0f, pred.timeToFailure), kWeibullShape));
+        const float designReliability = CalculateReliabilityScore(metrics);
+        pred.probability = std::clamp(1.0f - (designReliability * weibullSurvival), 0.0f, 1.0f);
 
         // Failure modes
         if (stressRatio > 0.8f) {
@@ -157,22 +159,50 @@ namespace SZM::AI {
     OptimizationResult AIEngine::OptimizeForCost(const DesignMetrics& current) {
         OptimizationResult result;
         result.optimizedMetrics = current;
-        result.optimizedMetrics.cost *= COST_OPTIMIZATION_FACTOR;
-        result.optimizedMetrics.weight *= 0.95f;  // Slight weight reduction
-        result.improvementRatio = (1.0f - COST_OPTIMIZATION_FACTOR) * 100.0f;
-        result.changes = {"Use cheaper material", "Reduce material volume", "Simplify design"};
-        result.isValid = result.optimizedMetrics.stress < 0.9f;  // Must stay safe
+        constexpr float kSafeStressLimit = 0.849f;
+
+        if (current.stress >= kSafeStressLimit) {
+            // Do not worsen an already near-limit or overstressed design.
+            result.optimizedMetrics.stress = 0.84f;
+            result.optimizedMetrics.cost *= 0.98f;
+            result.improvementRatio = 2.0f;
+            result.changes = {
+                "Rebalance section geometry to hold stress inside safe envelope (< 0.85)",
+                "Substitute standard stock alloy",
+                "Relax non-critical surface finish tolerances"
+            };
+        } else {
+            const float margin = kSafeStressLimit - current.stress;
+            const float costFactor = std::max(0.6f, 1.0f - margin * 0.4f);
+            result.optimizedMetrics.cost *= costFactor;
+            result.optimizedMetrics.weight *= (0.9f + (1.0f - costFactor) * 0.5f);
+            result.optimizedMetrics.stress = std::min(kSafeStressLimit, current.stress + margin * 0.5f);
+            result.improvementRatio = (1.0f - costFactor) * 100.0f;
+            result.changes = {
+                "Optimize cross-sectional thickness within " + std::to_string(static_cast<int>(margin * 100)) + "% stress margin",
+                "Substitute lower-grade alloy where allowable",
+                "Reduce machining allowance"
+            };
+        }
+
+        result.optimizedMetrics.reliability = CalculateReliabilityScore(result.optimizedMetrics);
+        result.isValid = result.optimizedMetrics.stress < 0.85f;
         return result;
     }
 
     OptimizationResult AIEngine::OptimizeForReliability(const DesignMetrics& current) {
         OptimizationResult result;
         result.optimizedMetrics = current;
-        result.optimizedMetrics.stress *= 0.7f;      // 30% stress reduction
-        result.optimizedMetrics.temperature -= 10.0f; // 10K cooling
-        result.optimizedMetrics.reliability = 0.99f;
-        result.improvementRatio = 15.0f;
-        result.changes = {"Increase cross-section", "Improve cooling", "Use higher-strength material"};
+        const float stressReduction = std::min(0.5f, std::max(0.1f, current.stress * 0.35f));
+        result.optimizedMetrics.stress = std::max(0.1f, current.stress - stressReduction);
+        result.optimizedMetrics.temperature = std::max(293.15f, current.temperature - 15.0f);
+        result.optimizedMetrics.reliability = CalculateReliabilityScore(result.optimizedMetrics);
+        result.improvementRatio = (stressReduction / std::max(0.1f, current.stress)) * 100.0f;
+        result.changes = {
+            "Increase critical section by " + std::to_string(static_cast<int>(stressReduction * 100)) + "%",
+            "Add thermal relief fillets and heatsink finning",
+            "Verify yield safety factor > 2.0"
+        };
         result.isValid = true;
         return result;
     }
@@ -180,24 +210,36 @@ namespace SZM::AI {
     OptimizationResult AIEngine::OptimizeForWeight(const DesignMetrics& current) {
         OptimizationResult result;
         result.optimizedMetrics = current;
-        result.optimizedMetrics.weight *= WEIGHT_OPTIMIZATION_FACTOR;
-        result.optimizedMetrics.stress *= 1.1f;  // Slight stress increase
-        result.improvementRatio = (1.0f - WEIGHT_OPTIMIZATION_FACTOR) * 100.0f;
-        result.changes = {"Use lighter material", "Optimize geometry", "Remove unnecessary features"};
-        result.isValid = result.optimizedMetrics.stress < 0.85f;  // Must stay safe
+        const float maxWeightSaving = std::max(0.05f, std::min(0.4f, (0.85f - current.stress) * 0.6f));
+        result.optimizedMetrics.weight *= (1.0f - maxWeightSaving);
+        result.optimizedMetrics.stress = current.stress + maxWeightSaving * 0.8f;
+        result.improvementRatio = maxWeightSaving * 100.0f;
+        result.changes = {
+            "Pocketing non-structural web areas (" + std::to_string(static_cast<int>(maxWeightSaving * 100)) + "% mass reduction)",
+            "Topology optimization lattice infill",
+            "High strength-to-weight alloy replacement"
+        };
+        result.isValid = result.optimizedMetrics.stress < 0.85f;
         return result;
     }
 
     OptimizationResult AIEngine::OptimizeMultiObjective(const DesignMetrics& current) {
-        // Pareto optimization: balance cost, weight, and reliability
         OptimizationResult result;
         result.optimizedMetrics = current;
-        result.optimizedMetrics.cost *= 0.95f;
-        result.optimizedMetrics.weight *= 0.90f;
-        result.optimizedMetrics.stress *= 0.85f;
-        result.improvementRatio = 10.0f;
-        result.changes = {"Optimize material selection", "Improve design efficiency", "Balance all objectives"};
-        result.isValid = result.optimizedMetrics.stress < 0.80f;
+        float stressTarget = std::max(0.2f, current.stress * 0.88f);
+        float weightTarget = current.weight * 0.92f;
+        float costTarget = current.cost * 0.94f;
+        result.optimizedMetrics.stress = stressTarget;
+        result.optimizedMetrics.weight = weightTarget;
+        result.optimizedMetrics.cost = costTarget;
+        result.optimizedMetrics.reliability = CalculateReliabilityScore(result.optimizedMetrics);
+        result.improvementRatio = 12.5f;
+        result.changes = {
+            "Pareto front compromise: 8% weight saving, 6% cost saving",
+            "Maintain safety margin: stress at " + std::to_string(static_cast<int>(stressTarget * 100)) + "% yield",
+            "Balanced structural rib placement"
+        };
+        result.isValid = result.optimizedMetrics.stress < 0.85f;
         return result;
     }
 

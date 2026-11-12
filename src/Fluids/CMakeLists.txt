@@ -8,10 +8,14 @@ add_library(SZMFluids STATIC
     FluidStaticsEngine.hpp
     FluidDynamicsEngine.cpp
     FluidDynamicsEngine.hpp
+    BoundaryConditions.cpp
+    BoundaryConditions.hpp
 )
 
+find_path(SZM_GLM_INCLUDE_DIR glm/glm.hpp)
 target_include_directories(SZMFluids PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    $<$<BOOL:${SZM_GLM_INCLUDE_DIR}>:${SZM_GLM_INCLUDE_DIR}>
     /usr/include
 )
 

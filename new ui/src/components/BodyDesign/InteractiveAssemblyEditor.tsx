@@ -106,7 +106,7 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
         });
       }
     });
-    scene.add(transformControl);
+    scene.add(transformControl.getHelper());
     transformControlRef.current = transformControl;
 
     const onPointerDown = (event: MouseEvent) => {
@@ -253,25 +253,26 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
 
     // Add or update objects
     parts.forEach(obj => {
-      let mesh = meshMapRef.current.get(obj.id);
+      const existing = meshMapRef.current.get(obj.id);
       
-      const requiresRebuild = !mesh || 
-        mesh.userData.bendAngle !== obj.bendAngle || 
-        mesh.userData.type !== obj.type ||
-        mesh.userData.customGeometry !== obj.customGeometry ||
+      const requiresRebuild = !existing || 
+        existing.userData.bendAngle !== obj.bendAngle || 
+        existing.userData.type !== obj.type ||
+        existing.userData.customGeometry !== obj.customGeometry ||
         (obj.bendAngle && obj.bendAngle > 0 && (
-          mesh.userData.sizeX !== obj.size.x || 
-          mesh.userData.sizeY !== obj.size.y || 
-          mesh.userData.sizeZ !== obj.size.z
+          existing.userData.sizeX !== obj.size.x || 
+          existing.userData.sizeY !== obj.size.y || 
+          existing.userData.sizeZ !== obj.size.z
         ));
 
+      let mesh: THREE.Mesh;
       if (requiresRebuild) {
-        if (mesh) {
-          scene.remove(mesh);
-          mesh.geometry.dispose();
-          while(mesh.children.length > 0){ 
-            const child = mesh.children[0] as THREE.LineSegments;
-            mesh.remove(child); 
+        if (existing) {
+          scene.remove(existing);
+          existing.geometry.dispose();
+          while(existing.children.length > 0){ 
+            const child = existing.children[0] as THREE.LineSegments;
+            existing.remove(child); 
             child.geometry.dispose();
             (child.material as THREE.Material).dispose();
           }
@@ -301,6 +302,8 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
         
         scene.add(mesh);
         meshMapRef.current.set(obj.id, mesh);
+      } else {
+        mesh = existing;
       }
 
       mesh.position.set(obj.position.x, obj.position.y, obj.position.z);

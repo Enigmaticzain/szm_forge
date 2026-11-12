@@ -2,7 +2,6 @@
 #include "../UIStyleHelper.hpp"
 #include <imgui.h>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <nlohmann/json.hpp>
 
@@ -21,15 +20,7 @@ void MeshToolsPanel::DrawResultActions() {
     }
     ImGui::SameLine();
     if (ImGui::Button("Reveal in folder##mesh", ImVec2(130, 0))) {
-        std::string cmd = "xdg-open \"";
-        for (const char* p = m_LastFilePath; *p; ++p) {
-            if (*p == '"') {
-                cmd += '\\';
-            }
-            cmd += *p;
-        }
-        cmd += "\" 2>/dev/null || true";
-        std::system(cmd.c_str());
+        SZM::UIStyleHelper::RevealInFileManager(m_LastFilePath);
     }
 }
 

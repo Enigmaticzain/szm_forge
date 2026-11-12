@@ -53,9 +53,13 @@ nlohmann::json ReadJsonFile(const std::filesystem::path& path) {
     if (!in) {
         return nlohmann::json{};
     }
-    nlohmann::json j;
-    in >> j;
-    return j;
+    try {
+        nlohmann::json j;
+        in >> j;
+        return j;
+    } catch (const nlohmann::json::exception&) {
+        return nlohmann::json{};
+    }
 }
 
 } // namespace

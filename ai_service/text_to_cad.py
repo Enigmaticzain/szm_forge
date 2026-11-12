@@ -19,17 +19,33 @@ logger = logging.getLogger("TextToCAD")
 # ── Unit normalisation ─────────────────────────────────────────────────────────
 
 _UNIT_RE = re.compile(
-    r"(\d+(?:\.\d+)?)\s*(mm|cm|m|in|inch|inches|\")?", re.IGNORECASE
+    r"(\d+(?:\.\d+)?)\s*(mm|cm|m|inches|inch|in|\")?", re.IGNORECASE
 )
+_DIMENSION_TOKEN = r"\d+(?:\.\d+)?\s*(?:mm|cm|m|inches|inch|in|\")?"
 
 def _to_mm(value: float, unit: str) -> float:
-    unit = (unit or "mm").lower().rstrip("s").replace('"', "in")
+    unit = (unit or "mm").lower().replace('"', "in")
+    if unit in {"inch", "inches"}:
+        unit = "in"
     return {"mm": 1, "cm": 10, "m": 1000, "in": 25.4, "inch": 25.4}.get(unit, 1) * value
 
 def _extract_dims(text: str) -> list[float]:
     """Return up to 3 dimensions in mm from free text."""
     hits = _UNIT_RE.findall(text)
     return [_to_mm(float(v), u) for v, u in hits][:3]
+
+def _extract_named_dimension(text: str, labels: str) -> float | None:
+    """Find a dimension labeled either before or after its value."""
+    patterns = (
+        rf"(?P<measurement>{_DIMENSION_TOKEN})\s*(?:{labels})\b",
+        rf"\b(?:{labels})\s*[:=]?\s*(?P<measurement>{_DIMENSION_TOKEN})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            value, unit = _UNIT_RE.match(match.group("measurement")).groups()
+            return _to_mm(float(value), unit)
+    return None
 
 # ── Shape classifier ───────────────────────────────────────────────────────────
 
@@ -82,6 +98,10 @@ def build_cad_spec(prompt: str) -> dict[str, Any]:
     dims = _extract_dims(prompt)
     shape = _classify_shape(prompt)
 
+    def named_or_index(labels: str, index: int, fallback: float) -> float:
+        named = _extract_named_dimension(prompt, labels)
+        return named if named is not None else dims[index] if index < len(dims) else fallback
+
     # Sensible defaults per shape
     defaults: dict[str, list[float]] = {
         "box":      [100, 50, 20],
@@ -94,6 +114,38 @@ def build_cad_spec(prompt: str) -> dict[str, Any]:
     for i, v in enumerate(dims):
         if i < len(base):
             base[i] = v
+
+    if shape == "box":
+        base = [
+            named_or_index(r"length|long", 0, defaults[shape][0]),
+            named_or_index(r"width|wide", 1, defaults[shape][1]),
+            named_or_index(r"height|tall|high|thick", 2, defaults[shape][2]),
+        ]
+    elif shape == "cylinder":
+        radius = _extract_named_dimension(prompt, r"radius")
+        diameter = _extract_named_dimension(prompt, r"diameter")
+        if radius is None and diameter is not None:
+            radius = diameter / 2.0
+        cylinder_height = _extract_named_dimension(prompt, r"height|length|long|tall")
+        base = [
+            radius if radius is not None else dims[0] if dims else defaults[shape][0],
+            radius if radius is not None else dims[0] if dims else defaults[shape][1],
+            cylinder_height if cylinder_height is not None
+            else dims[2] if len(dims) >= 3
+            else dims[1] if len(dims) >= 2
+            else defaults[shape][2],
+        ]
+    elif shape == "sphere":
+        radius = _extract_named_dimension(prompt, r"radius")
+        diameter = _extract_named_dimension(prompt, r"diameter")
+        if radius is None and diameter is not None:
+            radius = diameter / 2.0
+        base = [radius if radius is not None else dims[0] if dims else defaults[shape][0]]
+    elif shape == "torus":
+        base = [
+            named_or_index(r"major\s*radius", 0, defaults[shape][0]),
+            named_or_index(r"minor\s*radius|tube", 1, defaults[shape][1]),
+        ]
 
     spec: dict[str, Any] = {
         "shape": shape,
@@ -198,6 +250,85 @@ def text_to_cad(prompt: str, output_dir: str = "/tmp", backend: str = "auto") ->
     os.makedirs(output_dir, exist_ok=True)
     out_path = os.path.join(output_dir, f"szm_t2cad_{spec['shape']}.step")
 
+    # Phase 3 sketch constraint validation gate (isolated; optional)
+    validation_findings = []
+    validation_blocked = False
+    try:
+        from ai_service.evidence.spec_models import ReconstructionSpec
+        from ai_service.evidence.sketch_constraints import validate_sketch_constraints
+        temp_params = {k: v for k, v in spec.items() if isinstance(v, (int, float, str, bool)) and k not in ("shape", "material", "features", "prompt")}
+        temp_unknowns = ["Legacy input: no linked evidence references"]
+        temp_assumptions = ["Dimensions derived from text prompt, not measured evidence"]
+        validation_spec = ReconstructionSpec(
+            spec_id=f"t2cad-{spec['shape']}-{str(id(spec))[-6:]}",
+            subject=str(spec.get("shape", "unknown")),
+            evidence_refs=[],
+            parameters=temp_params,
+            assumptions=temp_assumptions,
+            unknowns=temp_unknowns,
+            validation_findings=[],
+            review_status="pending",
+        )
+        validation_result = validate_sketch_constraints(
+            validation_spec,
+            critical_params=list(temp_params.keys()) if temp_params else ["unknown_dim"],
+        )
+        validation_findings.extend(validation_result.findings)
+        # Preserve backward-compatible behavior: only block when evidence is linked
+        # or when the user explicitly submits with sketch-constraint requirements.
+        # Pure legacy text-to-CAD (no evidence refs, no explicit constraints) continues.
+        has_evidence_refs = bool(temp_params) and bool(getattr(validation_spec, "evidence_refs", []))
+        has_explicit_constraints = any(
+            k in ("sketch_constraints", "constraints", "constraint_ids") for k in temp_params
+        )
+        if validation_result.conflicts or (has_evidence_refs and not validation_result.is_ready_for_review()):
+            validation_blocked = True
+        elif validation_result.unresolved_params and has_explicit_constraints:
+            validation_blocked = True
+    except Exception as exc:
+        # Evidence package unavailable: do NOT claim success; do NOT fabricate failure
+        validation_findings.append(f"Validation layer unavailable: {exc}")
+        # Preserve current behavior for legacy inputs without blocking
+        validation_blocked = False
+
+    if validation_blocked:
+        return {
+            "status": "rejected",
+            "prompt": prompt,
+            "spec": spec,
+            "step_file": None,
+            "step_available": False,
+            "geometry": spec_to_threejs_geometry(spec),
+            "engine": "sketch-validation-blocked",
+            "backend": None,
+            "available_backends": None,
+            "validation_findings": validation_findings,
+            "unknowns": ["Sketch validation blocked — review requires measured/documented evidence"],
+            "limitations": ["No geometry produced — validation blocked before STEP generation"],
+        }
+
+    # Use validated dimensions when available (Phase 4 wire): prefer validated params
+    # over derived defaults; never substitute zero for unknowns.
+    validated_params = {}
+    if not validation_blocked:
+        try:
+            validated_params = temp_params  # validated from ReconstructionSpec.parameters
+        except NameError:
+            validated_params = {}
+    # For supported dimensions present in validated_params, use them; for missing/unknown,
+    # preserve spec-derived fallback only when no evidence-linked conflicts exist.
+    params = {
+        "length": float(validated_params.get("length", spec.get("length", 100))),
+        "width": float(validated_params.get("width", spec.get("width", 50))),
+        "height": float(validated_params.get("height", spec.get("height", 20))),
+        "radius": float(validated_params.get("radius", spec.get("radius", spec.get("radius1", 25)))),
+    } if validated_params else {
+        "length": float(spec.get("length", 100)),
+        "width": float(spec.get("width", 50)),
+        "height": float(spec.get("height", 20)),
+        "radius": float(spec.get("radius", spec.get("radius1", 25))),
+    }
+
     step_ok = generate_step(spec, out_path)
     engine = "FreeCAD headless" if step_ok else "parametric fallback"
     cad_backend = None
@@ -208,10 +339,10 @@ def text_to_cad(prompt: str, output_dir: str = "/tmp", backend: str = "auto") ->
             backends = available_backends()
             if any(backends.values()):
                 params = {
-                    "length": float(spec.get("length", 100)),
-                    "width": float(spec.get("width", 50)),
-                    "height": float(spec.get("height", 20)),
-                    "radius": float(spec.get("radius", spec.get("radius1", 25))),
+                    "length": float(validated_params.get("length", spec.get("length", 100))) if validated_params else float(spec.get("length", 100)),
+                    "width": float(validated_params.get("width", spec.get("width", 50))) if validated_params else float(spec.get("width", 50)),
+                    "height": float(validated_params.get("height", spec.get("height", 20))) if validated_params else float(spec.get("height", 20)),
+                    "radius": float(validated_params.get("radius", spec.get("radius", spec.get("radius1", 25)))) if validated_params else float(spec.get("radius", spec.get("radius1", 25))),
                 }
                 result = export_shape(spec["shape"], params, out_path, "STEP", backend=backend)  # type: ignore[arg-type]
                 step_ok = True
@@ -231,4 +362,3 @@ def text_to_cad(prompt: str, output_dir: str = "/tmp", backend: str = "auto") ->
         "backend": cad_backend or ("freecad" if engine.startswith("FreeCAD") else "fallback"),
         "available_backends": None,
     }
-

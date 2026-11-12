@@ -460,14 +460,6 @@ export function buildLocalLanguageModel(trainingHistory: TrainingData[]): LocalL
       .filter((chunk): chunk is LocalModelChunk => chunk !== null);
   });
 
-  const chunkDocumentFrequencies = chunks.reduce<Record<string, number>>((acc, chunk) => {
-    const uniqueTerms = new Set(chunk.tokens);
-    for (const token of uniqueTerms) {
-      acc[token] = (acc[token] ?? 0) + 1;
-    }
-    return acc;
-  }, {});
-
   const documentFrequencies = rawDocuments.reduce<Record<string, number>>((acc, item) => {
     const uniqueTerms = new Set(item.tokens);
     for (const token of uniqueTerms) {

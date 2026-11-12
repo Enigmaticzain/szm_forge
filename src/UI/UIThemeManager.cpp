@@ -118,6 +118,42 @@ void UIThemeManager::SaveThemePreference(const std::string& filepath) {
     }
 }
 
+void UIThemeManager::ApplyCustomTheme(const std::string& filepath) {
+    if (filepath.empty()) {
+        SetupColors();
+        return;
+    }
+
+    std::ifstream file(filepath);
+    if (!file.is_open()) {
+        SetupColors();
+        return;
+    }
+
+    try {
+        nlohmann::json data;
+        file >> data;
+        if (data.contains("theme") && data["theme"].is_number_integer()) {
+            const int themeIdx = data["theme"].get<int>();
+            if (themeIdx >= 0 && themeIdx <= static_cast<int>(UITheme::Engineering)) {
+                ApplyTheme(static_cast<UITheme>(themeIdx));
+            }
+        }
+        SetupColors();
+    } catch (const std::exception&) {
+        SetupColors();
+    }
+}
+
+void UIThemeManager::SetupColors() {
+    if (ImGui::GetCurrentContext() == nullptr) {
+        return;
+    }
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.AntiAliasedLines = true;
+    style.AntiAliasedFill = true;
+}
+
 void UIThemeManager::LoadThemePreference(const std::string& filepath) {
     using json = nlohmann::json;
     std::ifstream file(filepath);

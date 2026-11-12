@@ -1,21 +1,78 @@
 #include "WebViewerServer.hpp"
-#include <fstream>
-#include <sstream>
-#include <cmath>
-#include <iostream>
+#include "../Simulation/SimulationEngine.hpp"
+#include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <ctime>
+#include <fstream>
+#include <iostream>
+#include <nlohmann/json.hpp>
+#include <sstream>
 
 namespace SZM::WebViewer {
 
+namespace {
+
+std::string FormatIsoTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
+    std::tm tmBuf{};
+#if defined(_WIN32)
+    gmtime_s(&tmBuf, &nowTime);
+#else
+    gmtime_r(&nowTime, &tmBuf);
+#endif
+    char buf[32]{};
+    if (std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tmBuf) == 0) {
+        return "1970-01-01T00:00:00Z";
+    }
+    return std::string(buf);
+}
+
+nlohmann::json BuildBoxBufferGeometry(const std::string& uuid, float width, float height, float depth) {
+    const float hx = width * 0.5f;
+    const float hy = height * 0.5f;
+    const float hz = depth * 0.5f;
+    return {
+        {"uuid", uuid},
+        {"type", "BufferGeometry"},
+        {"data", {
+            {"attributes", {
+                {"position", {
+                    {"itemSize", 3},
+                    {"type", "Float32Array"},
+                    {"array", {
+                        -hx, -hy, -hz,   hx, -hy, -hz,   hx,  hy, -hz,  -hx,  hy, -hz,
+                        -hx, -hy,  hz,   hx, -hy,  hz,   hx,  hy,  hz,  -hx,  hy,  hz
+                    }}
+                }}
+            }},
+            {"index", {
+                {"type", "Uint16Array"},
+                {"array", {
+                    0, 1, 2,  0, 2, 3,
+                    4, 6, 5,  4, 7, 6,
+                    0, 4, 5,  0, 5, 1,
+                    1, 5, 6,  1, 6, 2,
+                    2, 6, 7,  2, 7, 3,
+                    3, 7, 4,  3, 4, 0
+                }}
+            }}
+        }}
+    };
+}
+
+} // namespace
+
 // ============================================================================
-// ThreeJSExporter Implementation
+// WebViewerSceneExporter Implementation
 // ============================================================================
 
-bool ThreeJSExporter::ExportScene(const std::string& outputPath) {
+bool WebViewerSceneExporter::ExportScene(const std::string& outputPath) {
     return ExportScene(outputPath, ExportConfig{});
 }
 
-bool ThreeJSExporter::ExportScene(const std::string& outputPath, const ExportConfig& config) {
+bool WebViewerSceneExporter::ExportScene(const std::string& outputPath, const ExportConfig& config) {
     m_CurrentConfig = config;
     m_LastStats = {};
 
@@ -31,9 +88,10 @@ bool ThreeJSExporter::ExportScene(const std::string& outputPath, const ExportCon
         file << sceneJSON;
         file.close();
 
-        // Calculate file size
-        std::ifstream checkFile(outputPath, std::ios::ate);
-        m_LastStats.fileSizeKB = static_cast<float>(checkFile.tellg()) / 1024.0f;
+        // Calculate file size safely
+        std::ifstream checkFile(outputPath, std::ios::binary | std::ios::ate);
+        const std::streampos sizePos = checkFile.is_open() ? checkFile.tellg() : std::streampos(-1);
+        m_LastStats.fileSizeKB = (sizePos > 0) ? static_cast<float>(sizePos) / 1024.0f : 0.0f;
         checkFile.close();
 
         std::cout << "[WebViewer] Scene exported successfully to " << outputPath << "\n";
@@ -49,7 +107,7 @@ bool ThreeJSExporter::ExportScene(const std::string& outputPath, const ExportCon
     }
 }
 
-bool ThreeJSExporter::ExportComponent(uint32_t componentId, const std::string& outputPath) {
+bool WebViewerSceneExporter::ExportComponent(uint32_t componentId, const std::string& outputPath) {
     m_LastStats = {};
 
     try {
@@ -72,76 +130,99 @@ bool ThreeJSExporter::ExportComponent(uint32_t componentId, const std::string& o
     }
 }
 
-std::string ThreeJSExporter::SerializeGeometry(uint32_t componentId) {
-    std::stringstream ss;
-    
-    ss << "{\n";
-    ss << "  \"metadata\": {\n";
-    ss << "    \"version\": 4.5,\n";
-    ss << "    \"type\": \"BufferGeometry\",\n";
-    ss << "    \"generator\": \"SZM_Forge_WebViewer\"\n";
-    ss << "  },\n";
-    ss << "  \"uuid\": \"" << componentId << "\",\n";
-    ss << "  \"type\": \"BufferGeometry\",\n";
-    ss << "  \"data\": {\n";
-    ss << "    \"attributes\": {\n";
-    ss << "      \"position\": {\n";
-    ss << "        \"itemSize\": 3,\n";
-    ss << "        \"type\": \"Float32Array\",\n";
-    ss << "        \"array\": [0, 0, 0]\n";
-    ss << "      }\n";
-    ss << "    }\n";
-    ss << "  }\n";
-    ss << "}\n";
+std::string WebViewerSceneExporter::SerializeGeometry(uint32_t componentId) {
+    const auto* comp = SimulationEngine::GetInstance().GetComponent(componentId);
+    const float width = comp ? std::max(0.05f, std::sqrt(comp->area)) : 0.5f;
+    const float height = comp ? std::max(0.01f, comp->thickness) : 0.2f;
+    const float depth = width * 0.8f;
 
-    m_LastStats.vertexCount = 1;
-    m_LastStats.triangleCount = 0;
+    nlohmann::json geom = BuildBoxBufferGeometry("comp-" + std::to_string(componentId), width, height, depth);
+    geom["metadata"] = {
+        {"version", 4.5},
+        {"type", "BufferGeometry"},
+        {"generator", "SZM_Forge_WebViewer"}
+    };
 
-    return ss.str();
+    m_LastStats.vertexCount = 8;
+    m_LastStats.triangleCount = 12;
+
+    return geom.dump(2) + "\n";
 }
 
-std::string ThreeJSExporter::SerializeMaterials() {
-    std::stringstream ss;
-    
-    ss << "{\n";
-    ss << "  \"materials\": [\n";
-    ss << "    {\n";
-    ss << "      \"uuid\": \"default_material\",\n";
-    ss << "      \"type\": \"MeshStandardMaterial\",\n";
-    ss << "      \"color\": 16777215,\n";
-    ss << "      \"metalness\": 0.5,\n";
-    ss << "      \"roughness\": 0.5\n";
-    ss << "    }\n";
-    ss << "  ]\n";
-    ss << "}\n";
+std::string WebViewerSceneExporter::SerializeMaterials() {
+    nlohmann::json payload = {
+        {"materials", {
+            {
+                {"uuid", "default_material"},
+                {"type", "MeshStandardMaterial"},
+                {"color", 16777215},
+                {"metalness", 0.5},
+                {"roughness", 0.5}
+            }
+        }}
+    };
 
     m_LastStats.materialCount = 1;
-    return ss.str();
+    return payload.dump(2) + "\n";
 }
 
-std::string ThreeJSExporter::SerializeScene() {
-    std::stringstream ss;
-    
-    auto now = std::chrono::system_clock::now();
-    auto time = std::chrono::system_clock::to_time_t(now);
+std::string WebViewerSceneExporter::SerializeScene() {
+    nlohmann::json geometries = nlohmann::json::array();
+    nlohmann::json materials = nlohmann::json::array();
+    nlohmann::json children = nlohmann::json::array();
 
-    ss << "{\n";
-    ss << "  \"metadata\": {\n";
-    ss << "    \"version\": 4.5,\n";
-    ss << "    \"type\": \"Object3D\",\n";
-    ss << "    \"generator\": \"SZM_Forge_WebViewer\",\n";
-    ss << "    \"exportTime\": \"" << std::ctime(&time) << "\"\n";
-    ss << "  },\n";
-    ss << "  \"object\": {\n";
-    ss << "    \"uuid\": \"scene_root\",\n";
-    ss << "    \"type\": \"Scene\",\n";
-    ss << "    \"name\": \"SZM_Forge_Scene\",\n";
-    ss << "    \"matrix\": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],\n";
-    ss << "    \"children\": []\n";
-    ss << "  }\n";
-    ss << "}\n";
+    const auto& components = SimulationEngine::GetInstance().GetComponents();
+    for (const auto& comp : components) {
+        if (!comp) continue;
+        const std::string geomUuid = "geom-" + std::to_string(comp->id);
+        const std::string matUuid = "mat-" + std::to_string(comp->id);
+        const float width = std::max(0.05f, std::sqrt(comp->area));
+        const float height = std::max(0.01f, comp->thickness);
+        const float depth = width * 0.8f;
 
-    return ss.str();
+        geometries.push_back(BuildBoxBufferGeometry(geomUuid, width, height, depth));
+        materials.push_back({
+            {"uuid", matUuid},
+            {"type", "MeshStandardMaterial"},
+            {"name", comp->materialName.empty() ? comp->materialId : comp->materialName},
+            {"color", comp->isDangerous ? 0xff4422 : 0x3388cc},
+            {"metalness", 0.5},
+            {"roughness", 0.5}
+        });
+        children.push_back({
+            {"uuid", "mesh-" + std::to_string(comp->id)},
+            {"type", "Mesh"},
+            {"name", comp->name},
+            {"geometry", geomUuid},
+            {"material", matUuid},
+            {"matrix", {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0,
+                        comp->position.x, comp->position.y, comp->position.z, 1}}
+        });
+    }
+
+    m_LastStats.vertexCount = static_cast<uint32_t>(children.size() * 8);
+    m_LastStats.triangleCount = static_cast<uint32_t>(children.size() * 12);
+    m_LastStats.materialCount = static_cast<uint32_t>(materials.size());
+
+    nlohmann::json scene = {
+        {"metadata", {
+            {"version", 4.5},
+            {"type", "Object3D"},
+            {"generator", "SZM_Forge_WebViewer"},
+            {"exportTime", FormatIsoTimestamp()}
+        }},
+        {"geometries", geometries},
+        {"materials", materials},
+        {"object", {
+            {"uuid", "scene_root"},
+            {"type", "Scene"},
+            {"name", "SZM_Forge_Scene"},
+            {"matrix", {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}},
+            {"children", children}
+        }}
+    };
+
+    return scene.dump(2) + "\n";
 }
 
 // ============================================================================

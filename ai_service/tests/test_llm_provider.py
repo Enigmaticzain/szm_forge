@@ -27,7 +27,7 @@ AI_SERVICE_DIR = str(Path(__file__).resolve().parents[1])
 if AI_SERVICE_DIR not in sys.path:
     sys.path.insert(0, AI_SERVICE_DIR)
 
-import llm_provider
+import ai.llm_provider as llm_provider
 from ai.llm_provider import (
     LLMResult,
     ProviderConfig,
@@ -154,7 +154,7 @@ class TestOllamaFallback:
             ollama_url="http://localhost:11434",
             ollama_model="test-model",
         )
-        with mock.patch("llm_provider.requests") as mock_requests:
+        with mock.patch("ai.llm_provider.requests") as mock_requests:
             mock_resp = mock.Mock()
             mock_resp.status_code = 500
             mock_resp.raise_for_status.side_effect = Exception("500 Server Error")
@@ -170,7 +170,7 @@ class TestOllamaFallback:
             ollama_url="http://localhost:11434",
             ollama_model="test-model",
         )
-        with mock.patch("llm_provider.requests") as mock_requests:
+        with mock.patch("ai.llm_provider.requests") as mock_requests:
             mock_resp = mock.Mock()
             mock_resp.status_code = 200
             mock_resp.raise_for_status.return_value = None
@@ -187,7 +187,7 @@ class TestOllamaFallback:
             ollama_url="http://localhost:11434",
             ollama_model="test-model",
         )
-        with mock.patch("llm_provider.requests") as mock_requests:
+        with mock.patch("ai.llm_provider.requests") as mock_requests:
             mock_resp = mock.Mock()
             mock_resp.status_code = 200
             mock_resp.raise_for_status.return_value = None
@@ -315,7 +315,7 @@ class TestGraphRAGIntegration:
         )
         captured_body = {}
 
-        with mock.patch("llm_provider.requests") as mock_requests:
+        with mock.patch("ai.llm_provider.requests") as mock_requests:
             def capture_post(url, json=None, timeout=None):
                 captured_body.update(json or {})
                 resp = mock.Mock()

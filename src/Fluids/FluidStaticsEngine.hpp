@@ -63,7 +63,8 @@ public:
     float getMetacentricHeight(
         const glm::vec3& centerOfGravity,
         const glm::vec3& centerOfBuoyancy,
-        float secondMomentOfArea
+        float secondMomentOfArea,
+        float displacedVolume = 1.0f
     ) const;
     
     // Container-level pressure

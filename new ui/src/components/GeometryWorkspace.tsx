@@ -1,23 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useForgeStore } from '../store/ForgeStoreContext';
 import { createGeometryPart, analyzeGeometryPart, geometryBridgeUrl } from '../services/forgeApi';
-import { PenTool, Move, Layers, Settings, Maximize2, Play, Download, AlertTriangle } from 'lucide-react';
+import { Layers, Settings, Maximize2, Play, AlertTriangle } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 
 export const GeometryWorkspace: React.FC = () => {
   const store = useForgeStore();
-  const [activeTab, setActiveTab] = useState<'create' | 'analyze'>('create');
   const [partType, setPartType] = useState('bracket');
   const [isGenerating, setIsGenerating] = useState(false);
   const [stlUrl, setStlUrl] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<any>(null);
   const [isOmniverseStreaming, setIsOmniverseStreaming] = useState(false);
-  
-  // Phase 01 — isometric + selection scaffold (preserves existing logic)
-  const [isIsometric, setIsIsometric] = useState(true);
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(null);
   
   // Params
   const [params, setParams] = useState<Record<string, any>>({

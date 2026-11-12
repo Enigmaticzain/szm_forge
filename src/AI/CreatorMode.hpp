@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdint>
 #include <chrono>
+#include <mutex>
 #include <vector>
 #include <unordered_set>
 
@@ -41,14 +42,14 @@ enum class Permission : uint32_t {
  * @brief Authenticated creator session
  */
 struct CreatorSession {
-    uint64_t sessionId;
-    PermissionLevel level;
-    uint32_t permissions;
-    std::chrono::system_clock::time_point createdAt;
-    std::chrono::system_clock::time_point expiresAt;
+    uint64_t sessionId = 0;
+    PermissionLevel level = PermissionLevel::VIEWER;
+    uint32_t permissions = 0;
+    std::chrono::system_clock::time_point createdAt{};
+    std::chrono::system_clock::time_point expiresAt{};
     std::string deviceId;
-    bool isActive;
-    bool requiresApproval;
+    bool isActive = false;
+    bool requiresApproval = true;
 };
 
 /**
@@ -60,7 +61,23 @@ public:
     static CreatorModeManager& GetInstance();
 
     /**
-     * @brief Authenticate creator with password
+     * @brief Configure salted PBKDF2/SHA-256 credentials and authorized device IDs programmatically
+     */
+    void ConfigureCredentials(
+        const std::string& passwordHashSpec,
+        const std::vector<std::string>& authorizedDevices,
+        const std::string& confirmationHashSpec = "");
+
+    /**
+     * @brief Derive a salted PBKDF2-HMAC-SHA256 credential specification string
+     */
+    static std::string CreateCredentialSpec(
+        const std::string& secret,
+        const std::string& saltHex,
+        uint32_t iterations = 100000);
+
+    /**
+     * @brief Authenticate creator with password and bound device ID
      */
     bool AuthenticateCreator(const std::string& password, const std::string& deviceId);
 
@@ -116,13 +133,20 @@ private:
     CreatorModeManager(const CreatorModeManager&) = delete;
     CreatorModeManager& operator=(const CreatorModeManager&) = delete;
 
-    CreatorSession m_CurrentSession;
+    mutable std::mutex m_Mutex;
+    CreatorSession m_CurrentSession{};
     bool m_IsAuthenticated = false;
     bool m_AIModificationEnabled = false;
+    std::string m_ConfiguredPasswordHash;
+    std::string m_ConfiguredConfirmationHash;
+    std::unordered_set<std::string> m_AuthorizedDevices;
     std::vector<std::string> m_ActionLog;
 
+    bool IsAuthenticatedLocked() const;
     bool ValidatePassword(const std::string& password) const;
     bool ValidateDeviceBinding(const std::string& deviceId) const;
+    bool ValidateConfirmationCode(const std::string& confirmationCode) const;
+    void ResetSessionLocked();
     void LogAction(const std::string& action);
 };
 

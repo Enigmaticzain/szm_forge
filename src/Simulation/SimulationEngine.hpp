@@ -79,9 +79,16 @@ public:
 
 private:
     SimulationEngine();
-    ~SimulationEngine() = default;
+    ~SimulationEngine();
 
 private:
+    struct CcxResultUpdate {
+        uint32_t componentId = 0;
+        float stress = 0.0f;
+        float stressRatio = 0.0f;
+        bool isDangerous = false;
+    };
+
     std::vector<std::unique_ptr<SimulationComponent>> m_Components;
     std::unique_ptr<Scheduler> m_Scheduler;
     std::unique_ptr<SceneGraph::Scene> m_Scene;
@@ -90,8 +97,11 @@ private:
     bool m_IsPaused = false;
     double m_TimeScale = 1.0;
 
-    // CalculiX async dispatch: tracks which component IDs have a job in-flight
+    // CalculiX async dispatch: tracks in-flight worker threads and marshals results safely
     std::unordered_map<uint32_t, std::thread> m_CcxThreads;
+    std::vector<uint32_t> m_FinishedCcxIds;
+    std::vector<CcxResultUpdate> m_PendingCcxResults;
+    std::atomic<bool> m_ShuttingDown{false};
     std::mutex m_CcxMutex;
     
     // Constants

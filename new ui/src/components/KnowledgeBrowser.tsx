@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { BookOpen, Search, Database, ChevronRight, AlertCircle } from 'lucide-react';
+import { BookOpen, Search, Database, AlertCircle } from 'lucide-react';
 import {
   fetchKbDomains,
   fetchKbDomain,

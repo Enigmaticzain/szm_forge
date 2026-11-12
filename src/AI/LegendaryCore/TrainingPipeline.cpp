@@ -1,7 +1,86 @@
 #include "LegendaryCore/TrainingPipeline.hpp"
+#include "LegendaryCore/MemoryEngine.hpp"
+#include "LegendaryCore/SkillSystem.hpp"
 #include <algorithm>
+#include <chrono>
+#include <cctype>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace SZM::AI::Legendary {
+
+namespace {
+
+std::string ReadFileBounded(const std::filesystem::path& path, size_t maxBytes) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in.is_open()) {
+        return {};
+    }
+    std::string buffer(maxBytes, '\0');
+    in.read(buffer.data(), static_cast<std::streamsize>(maxBytes));
+    buffer.resize(static_cast<size_t>(in.gcount()));
+    return buffer;
+}
+
+bool IsTextTrainingExtension(const std::filesystem::path& ext) {
+    std::string e = ext.string();
+    std::transform(e.begin(), e.end(), e.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return e == ".hpp" || e == ".h" || e == ".cpp" || e == ".cc" ||
+           e == ".py" || e == ".md" || e == ".txt" || e == ".json";
+}
+
+TrainingData LoadTrainingSource(const std::string& prefix,
+                                DataSourceType type,
+                                const std::string& sourcePath,
+                                size_t index) {
+    TrainingData data;
+    data.id = prefix + "_" + std::to_string(index);
+    data.source_type = type;
+    data.source_path = sourcePath;
+
+    std::error_code ec;
+    const std::filesystem::path fsPath(sourcePath);
+    if (std::filesystem::is_regular_file(fsPath, ec)) {
+        data.content = ReadFileBounded(fsPath, 131072);
+    } else if (std::filesystem::is_directory(fsPath, ec)) {
+        std::ostringstream combined;
+        size_t totalBytes = 0;
+        size_t fileCount = 0;
+        constexpr size_t kMaxTotalBytes = 262144;
+        constexpr size_t kMaxFiles = 24;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(
+                 fsPath, std::filesystem::directory_options::skip_permission_denied, ec)) {
+            if (ec || fileCount >= kMaxFiles || totalBytes >= kMaxTotalBytes) {
+                break;
+            }
+            if (!entry.is_regular_file(ec) || !IsTextTrainingExtension(entry.path().extension())) {
+                continue;
+            }
+            std::string chunk = ReadFileBounded(entry.path(), 16384);
+            if (!chunk.empty()) {
+                combined << "// FILE: " << entry.path().filename().string() << "\n" << chunk << "\n";
+                totalBytes += chunk.size();
+                fileCount++;
+            }
+        }
+        data.content = combined.str();
+    }
+
+    if (data.content.empty()) {
+        data.content = sourcePath;
+    }
+    return data;
+}
+
+std::string ToLowerCopy(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return value;
+}
+
+} // namespace
 
 TrainingPipeline& TrainingPipeline::GetInstance() {
     static TrainingPipeline instance;
@@ -9,49 +88,47 @@ TrainingPipeline& TrainingPipeline::GetInstance() {
 }
 
 void TrainingPipeline::ImportRepository(const std::string& repo_path) {
-    TrainingData data;
-    data.id = "repo_" + std::to_string(imported_data.size());
-    data.source_type = DataSourceType::GITHUB_REPO;
-    data.source_path = repo_path;
-    imported_data.push_back(data);
+    imported_data.push_back(LoadTrainingSource("repo", DataSourceType::GITHUB_REPO, repo_path, imported_data.size()));
 }
 
 void TrainingPipeline::ImportDocument(const std::string& doc_path, DataSourceType type) {
-    TrainingData data;
-    data.id = "doc_" + std::to_string(imported_data.size());
-    data.source_type = type;
-    data.source_path = doc_path;
-    imported_data.push_back(data);
+    imported_data.push_back(LoadTrainingSource("doc", type, doc_path, imported_data.size()));
 }
 
 void TrainingPipeline::ImportZipProject(const std::string& zip_path) {
-    TrainingData data;
-    data.id = "zip_" + std::to_string(imported_data.size());
-    data.source_type = DataSourceType::ZIP_PROJECT;
-    data.source_path = zip_path;
-    imported_data.push_back(data);
+    imported_data.push_back(LoadTrainingSource("zip", DataSourceType::ZIP_PROJECT, zip_path, imported_data.size()));
 }
 
 TrainingSession TrainingPipeline::StartTrainingSession(TrainingMode mode) {
     TrainingSession session;
     session.id = "session_" + std::to_string(training_history.size());
     session.mode = mode;
+    session.training_data = imported_data;
     session.progress = 0.0f;
     session.completed = false;
     return session;
 }
 
 void TrainingPipeline::ProcessTrainingData(TrainingSession& session) {
-    for (auto& data : session.training_data) {
+    if (session.training_data.empty()) {
+        session.progress = 1.0f;
+        return;
+    }
+
+    const size_t total = session.training_data.size();
+    for (size_t i = 0; i < total; ++i) {
+        auto& data = session.training_data[i];
         auto concepts = ExtractConcepts(data.content);
+        data.extracted_concepts.clear();
         for (const auto& c : concepts) {
             data.extracted_concepts.push_back(c.concept_name);
         }
 
-        auto patterns = ExtractPatterns(data.content);
-        data.extracted_patterns = patterns;
+        data.extracted_patterns = ExtractPatterns(data.content);
+        IntegrateKnowledge(data);
+        UpdateSkillsFromTraining(data.extracted_concepts);
 
-        session.progress += 0.1f;
+        session.progress = static_cast<float>(i + 1) / static_cast<float>(total);
     }
 }
 
@@ -119,13 +196,66 @@ std::vector<std::string> TrainingPipeline::ExtractArchitectureInsights(const std
 }
 
 void TrainingPipeline::IntegrateKnowledge(const TrainingData& data) {
-    // Store in memory engine
-    // Update skill graph
-    // Create semantic relations
+    auto& memory = MemoryEngine::GetInstance();
+    MemoryEntry entry;
+    entry.id = "training_" + data.id;
+    entry.type = "training_data";
+    entry.content = data.content.size() > 4096 ? data.content.substr(0, 4096) : data.content;
+    entry.tags = data.extracted_concepts;
+    entry.relevance_score = 5 + static_cast<int>(data.extracted_concepts.size());
+    entry.created_at = std::chrono::system_clock::now();
+    entry.last_accessed = entry.created_at;
+    memory.StoreLongTermMemory(entry);
+
+    for (size_t i = 0; i < data.extracted_concepts.size(); ++i) {
+        SemanticRelation rel;
+        rel.source_id = entry.id;
+        rel.target_id = data.extracted_concepts[i];
+        rel.relation_type = "teaches";
+        rel.strength = 0.8f;
+        memory.CreateSemanticRelation(rel);
+
+        if (i > 0) {
+            SemanticRelation chain;
+            chain.source_id = data.extracted_concepts[i - 1];
+            chain.target_id = data.extracted_concepts[i];
+            chain.relation_type = "related_to";
+            chain.strength = 0.6f;
+            memory.CreateSemanticRelation(chain);
+        }
+    }
 }
 
 void TrainingPipeline::UpdateSkillsFromTraining(const std::vector<std::string>& concepts) {
-    // Award XP to relevant skills based on concepts
+    if (concepts.empty()) {
+        return;
+    }
+
+    auto& skillSystem = SkillSystem::GetInstance();
+    const auto capabilities = skillSystem.GetAllCapabilities();
+    for (const auto& conceptName : concepts) {
+        const std::string lowerConcept = ToLowerCopy(conceptName);
+        bool matchedAny = false;
+        for (const auto& cap : capabilities) {
+            const std::string lowerSkill = ToLowerCopy(cap.skill_id);
+            if (lowerSkill.find(lowerConcept) != std::string::npos ||
+                lowerConcept.find(lowerSkill) != std::string::npos) {
+                skillSystem.AwardXP(cap.skill_id, 15.0f);
+                skillSystem.TryLevelUp(cap.skill_id);
+                matchedAny = true;
+            }
+        }
+        if (!matchedAny) {
+            for (const auto& cap : capabilities) {
+                if (cap.skill_id.find("code") != std::string::npos ||
+                    cap.skill_id.find("foundation") != std::string::npos ||
+                    cap.skill_id.find("engineering") != std::string::npos) {
+                    skillSystem.AwardXP(cap.skill_id, 5.0f);
+                    skillSystem.TryLevelUp(cap.skill_id);
+                }
+            }
+        }
+    }
 }
 
 std::vector<TrainingSession> TrainingPipeline::GetTrainingHistory() {

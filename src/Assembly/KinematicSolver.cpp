@@ -6,6 +6,7 @@ namespace SZM::Assembly {
 
 // ---------------------------------------------------------------- AddBody
 void KinematicSolver::AddBody(std::shared_ptr<RigidBodyState> body) {
+    if (!body) return;
     m_Bodies.push_back(body);
     if (!body->IsGrounded) {
         m_ColumnMap[body->ID] = m_ActiveDOFCount;
@@ -15,6 +16,7 @@ void KinematicSolver::AddBody(std::shared_ptr<RigidBodyState> body) {
 
 // ---------------------------------------------------------------- AddMate
 void KinematicSolver::AddMate(std::shared_ptr<IMate3D> mate) {
+    if (!mate) return;
     m_Mates.push_back(std::move(mate));
     m_TotalConstraints += m_Mates.back()->GetConstraintCount();
 }
@@ -22,15 +24,18 @@ void KinematicSolver::AddMate(std::shared_ptr<IMate3D> mate) {
 // -------------------------------------------------------------- FindBody
 std::shared_ptr<RigidBodyState> KinematicSolver::FindBody(uint32_t id) {
     for (auto& b : m_Bodies)
-        if (b->ID == id) return b;
+        if (b && b->ID == id) return b;
     return nullptr;
 }
 
 // ------------------------------------------------------------- ApplyDeltas
 void KinematicSolver::ApplyDeltas(const Eigen::VectorXd& delta) {
     for (auto& body : m_Bodies) {
-        if (body->IsGrounded) continue;
-        int col = m_ColumnMap[body->ID];
+        if (!body || body->IsGrounded) continue;
+        auto it = m_ColumnMap.find(body->ID);
+        if (it == m_ColumnMap.end()) continue;
+        int col = it->second;
+        if (col < 0 || col + 5 >= delta.size()) continue;
 
         // Translational update
         Eigen::Vector3d dT(delta(col), delta(col+1), delta(col+2));
@@ -57,13 +62,24 @@ bool KinematicSolver::Solve(int maxIterations, double tolerance) {
 
         int row = 0;
         for (const auto& mate : m_Mates) {
+            // Resolve body states by ID each iteration — never trust stored raw pointers alone
+            auto bA = FindBody(mate->GetBodyA_ID());
+            auto bB = FindBody(mate->GetBodyB_ID());
+            mate->BindStates(bA.get(), bB.get());
+
+            // Skip Jacobian fill if either body is unregistered (avoids negative-index UB)
+            if (!bA || !bB) {
+                row += mate->GetConstraintCount();
+                continue;
+            }
+
             mate->EvaluateResidual(F, row);
 
             int colA = -1, colB = -1;
-            auto bA = FindBody(mate->GetBodyA_ID());
-            auto bB = FindBody(mate->GetBodyB_ID());
-            if (bA && !bA->IsGrounded) colA = m_ColumnMap[mate->GetBodyA_ID()];
-            if (bB && !bB->IsGrounded) colB = m_ColumnMap[mate->GetBodyB_ID()];
+            auto itA = m_ColumnMap.find(mate->GetBodyA_ID());
+            auto itB = m_ColumnMap.find(mate->GetBodyB_ID());
+            if (!bA->IsGrounded && itA != m_ColumnMap.end()) colA = itA->second;
+            if (!bB->IsGrounded && itB != m_ColumnMap.end()) colB = itB->second;
 
             mate->FillJacobian(J, row, colA, colB);
             row += mate->GetConstraintCount();

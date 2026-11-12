@@ -638,16 +638,21 @@ void LearningIntegration::UpdatePatternConfidence() {
     auto patterns = m_ObservationSystem.GetAllPatterns();
     
     for (auto& pattern : patterns) {
-        // Decrease confidence for unused patterns over time
-        uint64_t now = std::chrono::system_clock::now().time_since_epoch().count() / 1000000000;
-        uint64_t time_since_use = now - pattern.last_used;
-        
-        if (time_since_use > 86400) { // 24 hours
-            pattern.confidence *= 0.99f; // Slowly decay
+        // Decrease confidence for unused patterns over time (convert ns or s safely to seconds)
+        if (pattern.last_used == 0) {
+            continue;
         }
-        
-        // Update in observation system
-        m_ObservationSystem.UpdatePattern(pattern);
+        const uint64_t now_sec = static_cast<uint64_t>(
+            std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        const uint64_t last_used_sec = pattern.last_used > 100000000000ULL
+            ? pattern.last_used / 1000000000ULL
+            : pattern.last_used;
+
+        if (now_sec > last_used_sec && (now_sec - last_used_sec) > 86400ULL) { // 24 hours
+            pattern.confidence *= 0.99f; // Slowly decay
+            m_ObservationSystem.UpdatePattern(pattern);
+        }
     }
 }
 

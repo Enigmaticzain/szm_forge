@@ -64,10 +64,15 @@ class IoTBridge:
             client.subscribe(topic)
 
         def on_msg(client, userdata, msg):
+            if isinstance(msg.payload, (bytes, bytearray)):
+                text = msg.payload.decode("utf-8", errors="replace")
+            else:
+                text = str(msg.payload)
             try:
-                data = json.loads(msg.payload.decode())
+                parsed = json.loads(text)
+                data = parsed if isinstance(parsed, dict) else {"value": parsed}
             except json.JSONDecodeError:
-                data = {"raw": msg.payload.decode(), "topic": msg.topic}
+                data = {"raw": text}
             data["topic"] = msg.topic
             data["timestamp"] = time.time()
             self._dispatch(data)

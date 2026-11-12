@@ -4,7 +4,8 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
-#include <subprocess.h> // Requires external subprocess library
+#include <filesystem>
+#include <numeric>
 
 namespace SZM::FEA {
 
@@ -41,30 +42,37 @@ std::string CalculiXThermalSolver::GenerateThermalInputFile(const CalculiXTherma
     inp << "*SOLID SECTION, ELSET=EALL, MATERIAL=THERMAL_MAT\n";
 
     // Initial conditions
-    inp << "*INITIAL CONDITIONS\n";
+    inp << "*INITIAL CONDITIONS, TYPE=TEMPERATURE\n";
     for (int i = 1; i <= 8; ++i) {
         inp << " " << i << ", " << config.ambientTemperature << "\n";
     }
 
-    // Boundary conditions (fixed temperature at node 1)
+    // Boundary conditions (fixed temperature on bottom face or configured nodes)
     inp << "*BOUNDARY\n";
-    inp << " 1, 11, " << config.ambientTemperature << "\n";
+    if (!config.fixedTemperatures.empty()) {
+        for (const auto& [nodeId, tempVal] : config.fixedTemperatures) {
+            inp << " " << nodeId << ", 11, 11, " << tempVal << "\n";
+        }
+    } else {
+        inp << " 1, 11, 11, " << config.ambientTemperature << "\n";
+    }
 
     // Step and loading
     double heatPerNode = config.heatInput / 4.0;  // Distribute over 4 top nodes
     
     if (config.mode == CalculiXThermalConfig::TRANSIENT) {
-        inp << "*STEP, INC=" << config.timeSteps << "\n";
-        inp << "*HEAT TRANSFER, TRANSIENT\n";
-        inp << " " << (config.duration / config.timeSteps) << ", " << config.duration << "\n";
+        const int steps = std::max(1, config.timeSteps);
+        inp << "*STEP, INC=" << steps << "\n";
+        inp << "*HEAT TRANSFER\n";
+        inp << " " << (config.duration / steps) << ", " << config.duration << "\n";
     } else {
         inp << "*STEP\n";
-        inp << "*HEAT TRANSFER\n";
+        inp << "*HEAT TRANSFER, STEADY STATE\n";
     }
 
-    // Convection boundary condition
-    inp << "*BOUNDARY CONVECTION\n";
-    inp << " P1, 10, " << config.convectionCoefficient << ", " << config.ambientTemperature << "\n";
+    // Convection boundary condition (CalculiX uses *FILM)
+    inp << "*FILM\n";
+    inp << " 1, F1, " << config.ambientTemperature << ", " << config.convectionCoefficient << "\n";
 
     // Heat source (applied to top nodes)
     inp << "*CFLUX\n";
@@ -92,7 +100,6 @@ ThermalAnalysisResult CalculiXThermalSolver::RunThermalAnalysis(const CalculiXTh
     std::string ccxBinary;
 
     for (const auto& bin : ccxBinaries) {
-        // Check if binary exists in PATH
         int ret = system(("which " + bin + " > /dev/null 2>&1").c_str());
         if (ret == 0) {
             ccxBinary = bin;
@@ -102,7 +109,6 @@ ThermalAnalysisResult CalculiXThermalSolver::RunThermalAnalysis(const CalculiXTh
     }
 
     if (!ccxFound) {
-        // Fall back to analytical solution
         result = SolveAnalytical(config);
         result.engineUsed = "Analytical (CalculiX not found)";
         return result;
@@ -114,11 +120,13 @@ ThermalAnalysisResult CalculiXThermalSolver::RunThermalAnalysis(const CalculiXTh
     std::string inputContent = GenerateThermalInputFile(config);
 
     // Create temporary directory and write input file
-    // (In production, use boost::filesystem or std::filesystem)
-    std::string tempDir = "/tmp/szm_thermal_analysis";
-    system("mkdir -p " + tempDir);
-    
-    std::string inputPath = tempDir + "/thermal_job.inp";
+    const std::filesystem::path tempDirPath =
+        std::filesystem::temp_directory_path() / "szm_thermal_analysis";
+    std::error_code ec;
+    std::filesystem::create_directories(tempDirPath, ec);
+    const std::string tempDir = tempDirPath.string();
+
+    std::string inputPath = (tempDirPath / "thermal_job.inp").string();
     std::ofstream inputFile(inputPath);
     if (!inputFile.is_open()) {
         result.success = false;
@@ -134,16 +142,20 @@ ThermalAnalysisResult CalculiXThermalSolver::RunThermalAnalysis(const CalculiXTh
     int ret = system(cmd.c_str());
 
     if (ret != 0) {
-        // Fall back to analytical
         result = SolveAnalytical(config);
-        result.engineUsed += " (fallback, CalculiX run failed)";
+        result.engineUsed = ccxBinary + " (fallback, CalculiX run failed)";
         return result;
     }
 
     // Parse results
-    result = ParseThermalResults(tempDir + "/thermal_job.dat");
+    result = ParseThermalResults((tempDirPath / "thermal_job.dat").string());
+    if (!result.success) {
+        ThermalAnalysisResult fallback = SolveAnalytical(config);
+        fallback.engineUsed = ccxBinary + " (fallback, result parse failed)";
+        fallback.message = result.message;
+        return fallback;
+    }
     result.engineUsed = ccxBinary;
-    result.success = true;
     
     return result;
 }
@@ -160,20 +172,37 @@ ThermalAnalysisResult CalculiXThermalSolver::ParseThermalResults(const std::stri
 
     std::vector<double> temperatures;
     std::string line;
+    bool inTempSection = false;
 
-    // Simple parsing: look for lines with temperature values
-    // (Real parsing would be more sophisticated)
     while (std::getline(file, line)) {
-        // Look for temperature values in output
-        if (line.find("NT") != std::string::npos || line.find("TEMP") != std::string::npos) {
-            try {
-                size_t pos = line.find_last_of(" \t");
-                if (pos != std::string::npos) {
-                    double temp = std::stod(line.substr(pos + 1));
-                    temperatures.push_back(temp);
-                }
-            } catch (...) {
-                // Skip invalid lines
+        if (line.find("temperatures") != std::string::npos ||
+            line.find("NT") != std::string::npos ||
+            line.find("TEMP") != std::string::npos) {
+            inTempSection = true;
+            // Also accept inline synthetic values such as "NT11 45.2"
+            std::istringstream iss(line);
+            std::string label;
+            double inlineVal = 0.0;
+            while (iss >> label) {
+                try {
+                    size_t pos = 0;
+                    double v = std::stod(label, &pos);
+                    if (pos == label.size()) {
+                        inlineVal = v;
+                        temperatures.push_back(inlineVal);
+                    }
+                } catch (...) {}
+            }
+            continue;
+        }
+        if (inTempSection) {
+            std::istringstream iss(line);
+            int nodeId = 0;
+            double temp = 0.0;
+            if (iss >> nodeId >> temp) {
+                temperatures.push_back(temp);
+            } else if (!temperatures.empty() && line.find_first_not_of(" \t\r\n") != std::string::npos) {
+                inTempSection = false;
             }
         }
     }
@@ -187,8 +216,11 @@ ThermalAnalysisResult CalculiXThermalSolver::ParseThermalResults(const std::stri
             std::accumulate(temperatures.begin(), temperatures.end(), 0.0) / temperatures.size();
         result.temperatureRise = result.maxTemperature - result.minTemperature;
         result.temperatureField = temperatures;
-        result.isDangerous = result.maxTemperature > 100.0;  // Arbitrary threshold
+        result.isDangerous = result.maxTemperature > 100.0;
         result.success = true;
+    } else {
+        result.success = false;
+        result.message = "No nodal temperatures found in CalculiX output";
     }
 
     return result;
@@ -202,8 +234,9 @@ ThermalAnalysisResult CalculiXThermalSolver::SolveAnalytical(const CalculiXTherm
     
     double thickness = 0.1;  // m
     double area = 0.01;      // m² (0.1 x 0.1)
+    double k = std::max(0.1, config.thermalConductivity);
     
-    double deltaT = (config.heatInput * thickness) / (config.thermalConductivity * area);
+    double deltaT = (config.heatInput * thickness) / (k * area);
     double maxTemp = config.ambientTemperature + deltaT;
 
     result.maxTemperature = maxTemp;

@@ -4,6 +4,7 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <mutex>
 
 namespace SZM::Omniverse {
 
@@ -73,6 +74,13 @@ public:
      * @return true if successful
      */
     bool SaveScene(void* scene_handle);
+
+    /**
+     * @brief Close scene and release handle
+     * @param scene_handle Scene handle returned by OpenScene
+     * @return true if released
+     */
+    bool CloseScene(void* scene_handle);
     
     /**
      * @brief Delete scene from Nucleus
@@ -96,6 +104,13 @@ public:
      * @return Opaque layer handle
      */
     void* GetLayer(const std::string& layer_path);
+
+    /**
+     * @brief Release layer handle returned by GetLayer
+     * @param layer_handle Layer handle to release
+     * @return true if released
+     */
+    bool ReleaseLayer(void* layer_handle);
     
     /**
      * @brief Mute layer (hide from view)
@@ -172,6 +187,11 @@ private:
     
     // Opaque Python Nucleus client instance
     void* nucleus_client_;
+
+    // Tracked simulated opaque handles so no allocations leak
+    std::mutex handles_mutex_;
+    std::vector<std::unique_ptr<char[]>> scene_handles_;
+    std::vector<std::unique_ptr<char[]>> layer_handles_;
 };
 
 } // namespace SZM::Omniverse

@@ -6,16 +6,22 @@
 namespace SZM::UI {
 
 ThermalAnalysisPanel::ThermalAnalysisPanel()
-    : m_SelectedComponentId(1), m_CurrentTab(0), m_IsAnalysisRunning(false), m_HasResults(false) {
-    m_CurrentConfig.mode = SZM::FEA::AnalysisMode::STEADY_STATE;
+    : m_SelectedComponentId(1),
+      m_CurrentTab(0),
+      m_IsAnalysisRunning(false),
+      m_HasResults(false),
+      m_DensityInput(7850.0f),
+      m_ThermalCondInput(50.0f),
+      m_SpecificHeatInput(500.0f) {
+    m_CurrentConfig.mode = SZM::FEA::CalculiXThermalConfig::STEADY_STATE;
     m_CurrentConfig.ambientTemperature = 20.0;
     m_CurrentConfig.heatInput = 100.0;
     m_CurrentConfig.convectionCoefficient = 10.0;
     m_CurrentConfig.duration = 60.0;
     m_CurrentConfig.timeSteps = 100;
-    m_CurrentConfig.density = 7850.0;
-    m_CurrentConfig.thermalConductivity = 50.0;
-    m_CurrentConfig.specificHeat = 500.0;
+    m_CurrentConfig.density = m_DensityInput;
+    m_CurrentConfig.thermalConductivity = m_ThermalCondInput;
+    m_CurrentConfig.specificHeat = m_SpecificHeatInput;
 }
 
 void ThermalAnalysisPanel::Render() {
@@ -73,13 +79,12 @@ void ThermalAnalysisPanel::RenderInputSection() {
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "Analysis Parameters");
 
     // Analysis mode
-    static int modeSelect = 0;
-    if (ImGui::RadioButton("Steady State##mode", &modeSelect, 0)) {
-        m_CurrentConfig.mode = SZM::FEA::AnalysisMode::STEADY_STATE;
+    if (ImGui::RadioButton("Steady State##mode", &m_ModeSelect, 0)) {
+        m_CurrentConfig.mode = SZM::FEA::CalculiXThermalConfig::STEADY_STATE;
     }
     ImGui::SameLine();
-    if (ImGui::RadioButton("Transient##mode", &modeSelect, 1)) {
-        m_CurrentConfig.mode = SZM::FEA::AnalysisMode::TRANSIENT;
+    if (ImGui::RadioButton("Transient##mode", &m_ModeSelect, 1)) {
+        m_CurrentConfig.mode = SZM::FEA::CalculiXThermalConfig::TRANSIENT;
     }
 
     // Temperature parameters
@@ -92,7 +97,7 @@ void ThermalAnalysisPanel::RenderInputSection() {
     ImGui::DragFloat("Convection Coeff (W/m²·K)##thermal", &m_ConvectionInput, 0.5f, 0.1f, 1000.0f);
     m_CurrentConfig.convectionCoefficient = m_ConvectionInput;
 
-    if (m_CurrentConfig.mode == SZM::FEA::AnalysisMode::TRANSIENT) {
+    if (m_CurrentConfig.mode == SZM::FEA::CalculiXThermalConfig::TRANSIENT) {
         ImGui::DragFloat("Duration (s)##thermal", &m_DurationInput, 5.0f, 0.1f, 10000.0f);
         m_CurrentConfig.duration = m_DurationInput;
 
@@ -103,9 +108,12 @@ void ThermalAnalysisPanel::RenderInputSection() {
     ImGui::Separator();
     ImGui::TextColored(ImVec4(0.7f, 0.7f, 1.0f, 1.0f), "Material Properties");
 
-    ImGui::DragFloat("Density (kg/m³)##thermal", &m_CurrentConfig.density, 100.0f, 100.0f, 100000.0f);
-    ImGui::DragFloat("Thermal Cond (W/m·K)##thermal", &m_CurrentConfig.thermalConductivity, 1.0f, 0.1f, 1000.0f);
-    ImGui::DragFloat("Specific Heat (J/kg·K)##thermal", &m_CurrentConfig.specificHeat, 10.0f, 100.0f, 10000.0f);
+    ImGui::DragFloat("Density (kg/m³)##thermal", &m_DensityInput, 100.0f, 100.0f, 100000.0f);
+    m_CurrentConfig.density = m_DensityInput;
+    ImGui::DragFloat("Thermal Cond (W/m·K)##thermal", &m_ThermalCondInput, 1.0f, 0.1f, 1000.0f);
+    m_CurrentConfig.thermalConductivity = m_ThermalCondInput;
+    ImGui::DragFloat("Specific Heat (J/kg·K)##thermal", &m_SpecificHeatInput, 10.0f, 100.0f, 10000.0f);
+    m_CurrentConfig.specificHeat = m_SpecificHeatInput;
 
     ImGui::Separator();
 
@@ -211,11 +219,15 @@ void ThermalAnalysisPanel::SetSelectedComponent(int componentId) {
 
 void ThermalAnalysisPanel::SetAnalysisConfig(const SZM::FEA::CalculiXThermalConfig& config) {
     m_CurrentConfig = config;
+    m_ModeSelect = (config.mode == SZM::FEA::CalculiXThermalConfig::TRANSIENT) ? 1 : 0;
     m_AmbientTempInput = static_cast<float>(config.ambientTemperature);
     m_HeatInputInput = static_cast<float>(config.heatInput);
     m_ConvectionInput = static_cast<float>(config.convectionCoefficient);
     m_DurationInput = static_cast<float>(config.duration);
     m_TimeStepsInput = config.timeSteps;
+    m_DensityInput = static_cast<float>(config.density);
+    m_ThermalCondInput = static_cast<float>(config.thermalConductivity);
+    m_SpecificHeatInput = static_cast<float>(config.specificHeat);
 }
 
 } // namespace SZM::UI

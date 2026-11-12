@@ -2,7 +2,7 @@
 #include <cmath>
 #include <algorithm>
 #include <fstream>
-#include <json/json.h>
+#include <stdexcept>
 
 namespace SZM::Fluids {
 
@@ -41,10 +41,16 @@ void BoundaryConditionManager::removeBoundarySegment(size_t index) {
 }
 
 const BoundarySegment& BoundaryConditionManager::getBoundarySegment(size_t index) const {
+    if (index >= boundarySegments.size()) {
+        throw std::out_of_range("Boundary segment index out of range");
+    }
     return boundarySegments[index];
 }
 
 BoundarySegment& BoundaryConditionManager::getBoundarySegment(size_t index) {
+    if (index >= boundarySegments.size()) {
+        throw std::out_of_range("Boundary segment index out of range");
+    }
     return boundarySegments[index];
 }
 
@@ -353,7 +359,11 @@ float BoundaryConditionManager::calculateMassFlowRateOut(float fluidDensity) con
 bool BoundaryConditionManager::isFlowBalanced(float fluidDensity, float tolerance) const {
     float massIn = calculateMassFlowRateIn(fluidDensity);
     float massOut = calculateMassFlowRateOut(fluidDensity);
-    return std::abs(massIn - massOut) / std::max(massIn, massOut) < tolerance;
+    float denom = std::max(std::abs(massIn), std::abs(massOut));
+    if (denom <= 1e-12f) {
+        return true;
+    }
+    return std::abs(massIn - massOut) / denom < tolerance;
 }
 
 void BoundaryConditionManager::clearAllBoundaries() {

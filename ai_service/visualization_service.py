@@ -61,17 +61,19 @@ class VisualizationService:
         y = np.array(displacements.get("y", []))
         u = np.array(displacements.get("u", []))
         v = np.array(displacements.get("v", []))
-        
+        n = min(len(x), len(y), len(u), len(v))
+        x, y, u, v = x[:n], y[:n], u[:n], v[:n]
+
         fig = go.Figure(data=go.Scatter(
             x=x, y=y,
             mode='markers+text',
             marker=dict(size=10, color='blue'),
-            text=[f"({u[i]:.3f}, {v[i]:.3f})" for i in range(len(x))],
+            text=[f"({u[i]:.3f}, {v[i]:.3f})" for i in range(n)],
             textposition="top center"
         ))
-        
+
         # Add arrows for vector field
-        for i in range(len(x)):
+        for i in range(n):
             fig.add_annotation(
                 ax=x[i], ay=y[i],
                 x=x[i] + u[i]*10, y=y[i] + v[i]*10,

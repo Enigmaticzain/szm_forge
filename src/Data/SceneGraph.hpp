@@ -63,8 +63,19 @@ namespace SZM {
                 throw std::runtime_error("SZM Fatal: Circular dependency detected. Node attachment aborted.");
             }
 
+            if (auto oldParent = child->parent.lock()) {
+                if (oldParent.get() == this) {
+                    return; // Already attached to this parent
+                }
+                oldParent->RemoveChild(child->GetUUID());
+            }
+
+            if (std::find(children.begin(), children.end(), child) != children.end()) {
+                return;
+            }
+
             child->parent = shared_from_this();
-            children.push_back(child);
+            children.push_back(std::move(child));
         }
 
         const std::vector<std::shared_ptr<Entity>>& GetChildren() const { return children; }

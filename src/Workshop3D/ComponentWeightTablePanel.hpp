@@ -26,8 +26,13 @@ private:
     // Helper functions
     void RefreshComponentWeights();
     void RefreshSceneWeights();
+    void SortWeights(std::vector<std::pair<std::string, float>>& weights) const;
     void DrawWeightTable(const std::vector<std::pair<std::string, float>>& weights);
     void ExportWeightsToCSV(const std::string& filepath);
+    void ExportSceneWeightsToCSV(const std::string& filepath);
+    void WriteWeightsCSV(const std::string& filepath,
+                         const std::vector<std::pair<std::string, float>>& weights,
+                         float totalWeight);
 
     // State
     std::vector<std::pair<std::string, float>> m_LibraryWeights;

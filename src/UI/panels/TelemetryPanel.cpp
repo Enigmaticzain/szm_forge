@@ -105,6 +105,7 @@ void TelemetryPanel::RenderStreamsListSection() {
         ImGui::TableSetupColumn("Action", ImGuiTableColumnFlags_WidthFixed, 100);
         ImGui::TableHeadersRow();
 
+        std::string pendingDelete;
         for (const auto& [streamId, stream] : streams) {
             ImGui::TableNextRow();
             ImGui::TableSetColumnIndex(0);
@@ -120,15 +121,18 @@ void TelemetryPanel::RenderStreamsListSection() {
             ImGui::TableSetColumnIndex(2);
             ImGui::PushID(streamId.c_str());
             if (ImGui::SmallButton("Delete")) {
-                m_Telemetry.DeleteStream(streamId);
-                if (m_SelectedStream == streamId) {
-                    m_SelectedStream.clear();
-                }
+                pendingDelete = streamId;
             }
             ImGui::PopID();
         }
 
         ImGui::EndTable();
+        if (!pendingDelete.empty()) {
+            m_Telemetry.DeleteStream(pendingDelete);
+            if (m_SelectedStream == pendingDelete) {
+                m_SelectedStream.clear();
+            }
+        }
     }
 }
 

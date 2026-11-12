@@ -204,7 +204,15 @@ class CausalReasoner:
                     
                     # Inverse propagation
                     if edge_props and "multiplier" in edge_props:
-                        required_value = results[current] / edge_props["multiplier"]
+                        multiplier = edge_props["multiplier"]
+                        if multiplier == 0:
+                            logger.warning(
+                                "Skipping backward inference along zero-multiplier edge %s -> %s",
+                                predecessor,
+                                current,
+                            )
+                            continue
+                        required_value = results[current] / multiplier
                     else:
                         required_value = results[current]
                     
@@ -431,4 +439,118 @@ class CausalReasoner:
             "total_models": len(self.causal_models),
             "total_constraints": len(self.constraints),
             "models": stats
+        }
+
+
+class ReasoningMode(Enum):
+    """Reasoning modes exposed to AI service endpoints."""
+    FORWARD_CHAIN = "forward_chain"
+    BACKWARD_CHAIN = "backward_chain"
+    COUNTERFACTUAL = "counterfactual"
+
+
+@dataclass
+class CausalRule:
+    antecedent: str
+    consequent: str
+    reasoning: str = ""
+    confidence: float = 0.9
+
+
+@dataclass
+class ReasoningChain:
+    goal: str
+    steps: List[CausalRule]
+    confidence: float = 0.0
+
+
+class CausalReasoningEngine(CausalReasoner):
+    """Rule + causal-graph reasoning engine matching SZMForgeAIService API."""
+
+    def __init__(self, knowledge_graph: Any = None):
+        super().__init__()
+        self.knowledge_graph = knowledge_graph
+        self.rules: List[CausalRule] = []
+
+    def add_rule(
+        self,
+        antecedent: str,
+        consequent: str,
+        reasoning: str = "",
+        confidence: float = 0.9,
+    ) -> CausalRule:
+        rule = CausalRule(
+            antecedent=antecedent,
+            consequent=consequent,
+            reasoning=reasoning,
+            confidence=confidence,
+        )
+        self.rules.append(rule)
+        return rule
+
+    def forward_chain(self, initial_facts: Set[str]) -> List[str]:
+        known = set(initial_facts)
+        derived: List[str] = []
+        changed = True
+        while changed:
+            changed = False
+            for rule in self.rules:
+                if rule.antecedent in known and rule.consequent not in known:
+                    known.add(rule.consequent)
+                    derived.append(rule.consequent)
+                    changed = True
+        return derived
+
+    def backward_chain(self, goal: str) -> Optional[ReasoningChain]:
+        goal_lower = goal.lower()
+        steps: List[CausalRule] = []
+        target = goal
+        visited: Set[str] = set()
+        for _ in range(len(self.rules) + 1):
+            match = next(
+                (
+                    r for r in self.rules
+                    if r.consequent == target or r.consequent.lower() in goal_lower
+                ),
+                None,
+            )
+            if not match or match.consequent in visited:
+                break
+            visited.add(match.consequent)
+            steps.append(match)
+            target = match.antecedent
+            goal_lower = target.lower()
+        if not steps:
+            return None
+        conf = 1.0
+        for step in steps:
+            conf *= step.confidence
+        return ReasoningChain(goal=goal, steps=list(reversed(steps)), confidence=conf)
+
+    def export_reasoning_chain(self, chain: Optional[ReasoningChain]) -> List[Dict[str, Any]]:
+        if chain is None:
+            return []
+        return [
+            {
+                "antecedent": step.antecedent,
+                "consequent": step.consequent,
+                "reasoning": step.reasoning,
+                "confidence": step.confidence,
+            }
+            for step in chain.steps
+        ]
+
+    def counterfactual_reasoning(
+        self,
+        model_or_problem: Any,
+        base_or_var: Any = None,
+        intervention: Any = None,
+    ):
+        if isinstance(base_or_var, dict) and isinstance(intervention, dict):
+            return super().counterfactual_reasoning(model_or_problem, base_or_var, intervention)
+        return {
+            "problem": str(model_or_problem),
+            "altered_variable": str(base_or_var),
+            "new_value": intervention,
+            "impact_summary": f"If '{base_or_var}' changes to '{intervention}', recompute stress and safety margins.",
         }

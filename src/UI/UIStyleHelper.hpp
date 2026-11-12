@@ -97,6 +97,9 @@ public:
 
     // Apply modern theme
     static void ApplyModernTheme();
+
+    // Safely open a file's containing directory without invoking a shell
+    static bool RevealInFileManager(const std::string& path);
 };
 
 } // namespace SZM

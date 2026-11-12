@@ -21,6 +21,9 @@ from dataclasses import dataclass, asdict, field
 from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime
 import random
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Optional ML imports
 try:
@@ -38,6 +41,18 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
     print("Warning: PyTorch not available. Using fallback implementations.")
+
+try:
+    from datasets import Dataset, load_dataset
+    HF_DATASETS_AVAILABLE = True
+except ImportError:
+    HF_DATASETS_AVAILABLE = False
+
+try:
+    from huggingface_hub import HfApi, create_repo
+    HF_HUB_AVAILABLE = True
+except ImportError:
+    HF_HUB_AVAILABLE = False
 
 
 # =============================================================================
@@ -821,6 +836,56 @@ class MachineLearningPipeline:
             print(f"Error generating USD: {e}")
             return None
 
+    # ------------------------------------------------------------------
+    # HUGGING FACE DATASETS INTEGRATION (resource-efficient, CPU-safe)
+    # ------------------------------------------------------------------
+    def load_hf_dataset(self, dataset_path: Optional[str] = None) -> Optional[dict]:
+        """Load and verify dataset using HF datasets library.
+        Returns verified dataset info or None if unavailable."""
+        if not HF_DATASETS_AVAILABLE:
+            logger.info("datasets library not available — using raw JSONL.")
+            return None
+        try:
+            from datasets import load_dataset
+            target = dataset_path or str(Path(self.data_dir) / "szm_unsloth_dataset.jsonl")
+            ds = load_dataset("json", data_files=target, split="train")
+            info = {
+                "dataset_path": target,
+                "size": len(ds),
+                "columns": list(ds.column_names) if hasattr(ds, 'column_names') else list(ds.features.keys()) if hasattr(ds, 'features') else [],
+                "verified": True,
+            }
+            print(f"[HF] Loaded dataset from {target}: {ds.info}")
+            return info
+        except Exception as exc:
+            print(f"[HF] Dataset load failed (will fall back to raw JSONL): {exc}")
+            return None
+
+    def push_to_hf_hub(self, repo_id: str = "szm_forge/machine-spec-training", private: bool = False):
+        """Push the dataset JSONL file to Hugging Face Hub for versioning.
+        Uses only the lightweight dataset file — no model weights."""
+        if not HF_HUB_AVAILABLE or not HF_DATASETS_AVAILABLE:
+            print("[HF] huggingface-hub / datasets not installed — cannot push to hub.")
+            return False
+        try:
+            from huggingface_hub import HfApi
+            dataset_file = Path(self.data_dir) / "szm_unsloth_dataset.jsonl"
+            if not dataset_file.exists():
+                print(f"[HF] No dataset file to push: {dataset_file}")
+                return False
+            api = HfApi()
+            api.create_repo(repo_id, repo_type="dataset", exist_ok=True, private=private)
+            api.upload_file(
+                path_or_fileobj=str(dataset_file),
+                path_in_repo="szm_unsloth_dataset.jsonl",
+                repo_id=repo_id,
+                repo_type="dataset",
+            )
+            print(f"[HF] Pushed dataset to https://huggingface.co/datasets/{repo_id}")
+            return True
+        except Exception as exc:
+            print(f"[HF] Push to hub failed (expected for free/local workflows): {exc}")
+            return False
 
 # =============================================================================
 # MAIN ENTRY POINT
@@ -836,6 +901,9 @@ def main():
     parser.add_argument('--type', default='cnc_mill', help='Machine type to generate')
     parser.add_argument('--count', type=int, default=1, help='Number of machines to generate')
     parser.add_argument('--params', help='Parameters as JSON string')
+    parser.add_argument('--load-dataset', action='store_true', help='Load dataset via HF datasets (CPU-safe, no model weights)')
+    parser.add_argument('--push-to-hub', action='store_true', help='Push dataset JSONL to HF Hub (free, no compute cost)')
+    parser.add_argument('--hub-repo-id', default='szm_forge/machine-spec-training', help='HF Hub dataset repo ID')
     
     args = parser.parse_args()
     
@@ -876,6 +944,17 @@ def main():
             # Save output
             output = pipeline.save_output(machine, args.output_dir)
             print(f"  Saved to: {output}")
+    
+    # HF Datasets integration (CPU-safe, no model weights)
+    if args.load_dataset:
+        info = pipeline.load_hf_dataset()
+        if info:
+            print(f"[HF] Dataset verified: {info['size']} rows, columns={info['columns']}")
+    
+    if args.push_to_hub:
+        ok = pipeline.push_to_hf_hub(repo_id=args.hub_repo_id, private=False)
+        if ok:
+            print(f"[HF] Dataset backed up to Hub (free, no compute used)")
     
     return 0
 

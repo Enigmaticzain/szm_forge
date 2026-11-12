@@ -3,6 +3,8 @@ find_package(Threads REQUIRED)
 
 add_library(SZM_FEA_Module STATIC
     CalculiXPipeline.cpp
+    CalculiXModalSolver.cpp
+    CalculiXThermalSolver.cpp
     LinearSolver.cpp
     VolumetricMesher.cpp
     MeshQuality.cpp

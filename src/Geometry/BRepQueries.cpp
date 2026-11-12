@@ -300,7 +300,10 @@ BRepQueries::RayHit BRepQueries::RaycastEdge(
         uint32_t twin = halfEdges[hi].twin;
         if (twin != NullHandle && hi > twin) continue; // process each edge once
         uint32_t vi0 = halfEdges[hi].vertex;
-        uint32_t vi1 = (twin != NullHandle) ? halfEdges[twin].vertex : NullHandle;
+        uint32_t nextHe = halfEdges[hi].next;
+        uint32_t vi1 = (twin != NullHandle && twin < halfEdges.size())
+            ? halfEdges[twin].vertex
+            : ((nextHe != NullHandle && nextHe < halfEdges.size()) ? halfEdges[nextHe].vertex : NullHandle);
         if (vi0 == NullHandle || vi1 == NullHandle) continue;
         if (vi0 >= vertices.size() || vi1 >= vertices.size()) continue;
 

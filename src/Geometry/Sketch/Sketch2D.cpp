@@ -77,38 +77,97 @@ SketchProfile Sketch2D::GenerateProfile() const {
     profile.PlaneNormal = m_PlaneNormal;
     profile.PlaneOrigin = m_PlaneOrigin;
 
-    // Simple profile extraction: assume lines form a single closed loop in order
-    // In a real system, this would do a topological sort of edges to extract loops.
-    std::vector<Vector3> loop;
+    struct Pt2 { double x, y; };
+    auto near2 = [](const Pt2& a, const Pt2& b) {
+        double dx = a.x - b.x;
+        double dy = a.y - b.y;
+        return (dx * dx + dy * dy) <= 1e-8;
+    };
+
+    std::vector<std::vector<Pt2>> chains;
     for (const auto& ent : m_Entities) {
         if (ent->IsConstruction) continue;
 
-        if (ent->Type == SketchEntityType::Line) {
-            if (loop.empty()) {
-                loop.push_back(LocalToWorld(ent->P1[0], ent->P1[1]));
-            }
-            // Add end point
-            loop.push_back(LocalToWorld(ent->P2[0], ent->P2[1]));
-        } else if (ent->Type == SketchEntityType::Circle) {
-            // Tessellate circle
+        if (ent->Type == SketchEntityType::Circle) {
             double cx = ent->P1[0];
             double cy = ent->P1[1];
             double dx = ent->P2[0] - cx;
             double dy = ent->P2[1] - cy;
-            double r = std::sqrt(dx*dx + dy*dy);
+            double r = std::sqrt(dx * dx + dy * dy);
+            if (r <= 1e-9) continue;
 
+            std::vector<Vector3> loop;
             const int steps = 36;
+            loop.reserve(steps);
             for (int i = 0; i < steps; ++i) {
                 double theta = 2.0 * 3.14159265359 * i / steps;
-                double x = cx + r * std::cos(theta);
-                double y = cy + r * std::sin(theta);
-                loop.push_back(LocalToWorld(x, y));
+                loop.push_back(LocalToWorld(cx + r * std::cos(theta), cy + r * std::sin(theta)));
             }
+            profile.Loops.push_back(std::move(loop));
+        } else if (ent->Type == SketchEntityType::Line) {
+            chains.push_back({{ent->P1[0], ent->P1[1]}, {ent->P2[0], ent->P2[1]}});
+        } else if (ent->Type == SketchEntityType::Arc) {
+            double cx = ent->P1[0];
+            double cy = ent->P1[1];
+            double dx = ent->P2[0] - cx;
+            double dy = ent->P2[1] - cy;
+            double r = std::sqrt(dx * dx + dy * dy);
+            if (r <= 1e-9) continue;
+            double a0 = std::atan2(dy, dx);
+            double a1 = std::atan2(ent->P3[1] - cy, ent->P3[0] - cx);
+            while (a1 <= a0) a1 += 2.0 * 3.14159265359;
+            int steps = std::max(4, static_cast<int>(std::ceil((a1 - a0) / (2.0 * 3.14159265359) * 36.0)));
+            std::vector<Pt2> arcPts;
+            arcPts.reserve(static_cast<size_t>(steps) + 1);
+            for (int i = 0; i <= steps; ++i) {
+                double t = a0 + (a1 - a0) * (static_cast<double>(i) / steps);
+                arcPts.push_back({cx + r * std::cos(t), cy + r * std::sin(t)});
+            }
+            chains.push_back(std::move(arcPts));
         }
     }
 
-    if (!loop.empty()) {
-        profile.Loops.push_back(std::move(loop));
+    // Stitch line/arc chains by matching endpoints into separate loops.
+    std::vector<bool> used(chains.size(), false);
+    for (size_t i = 0; i < chains.size(); ++i) {
+        if (used[i] || chains[i].size() < 2) continue;
+        used[i] = true;
+        std::vector<Pt2> current = chains[i];
+
+        bool progress = true;
+        while (progress && !near2(current.front(), current.back())) {
+            progress = false;
+            for (size_t j = 0; j < chains.size(); ++j) {
+                if (used[j] || chains[j].size() < 2) continue;
+                const auto& cand = chains[j];
+                if (near2(current.back(), cand.front())) {
+                    current.insert(current.end(), cand.begin() + 1, cand.end());
+                    used[j] = true;
+                    progress = true;
+                    break;
+                }
+                if (near2(current.back(), cand.back())) {
+                    for (size_t k = cand.size() - 1; k-- > 0;) {
+                        current.push_back(cand[k]);
+                    }
+                    used[j] = true;
+                    progress = true;
+                    break;
+                }
+            }
+        }
+
+        if (current.size() >= 3 && near2(current.front(), current.back())) {
+            current.pop_back();
+        }
+        if (current.size() >= 3) {
+            std::vector<Vector3> loop;
+            loop.reserve(current.size());
+            for (const auto& pt : current) {
+                loop.push_back(LocalToWorld(pt.x, pt.y));
+            }
+            profile.Loops.push_back(std::move(loop));
+        }
     }
 
     return profile;

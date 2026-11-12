@@ -1,5 +1,9 @@
 #include "LegendaryCore/ModificationSystem.hpp"
 #include <algorithm>
+#include <ctime>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace SZM::AI::Legendary {
 
@@ -24,6 +28,7 @@ ModificationProposal ModificationSystem::CreateProposal(
         // Count lines from diffs
     }
 
+    proposals.push_back(proposal);
     return proposal;
 }
 
@@ -106,7 +111,21 @@ ModificationResult ModificationSystem::ApplyModification(const ModificationPropo
         return result;
     }
 
-    // Apply changes
+    // Apply changes by writing new_content to disk if path is provided
+    for (const auto& diff : proposal.diffs) {
+        if (!diff.file_path.empty()) {
+            tracked_files.insert(diff.file_path);
+        }
+        if (!diff.file_path.empty() && !diff.new_content.empty()) {
+            std::ofstream out(diff.file_path);
+            if (out) {
+                out << diff.new_content;
+            } else {
+                result.validation_warnings.push_back("Failed to write to file: " + diff.file_path);
+            }
+        }
+    }
+
     result.success = true;
     result.confidence = 1.0f - proposal.risk_score;
 
@@ -125,6 +144,41 @@ Snapshot ModificationSystem::CreateSnapshot(const std::string& description) {
     snapshot.id = "snap_" + std::to_string(snapshots.size());
     snapshot.description = description;
     snapshot.timestamp = std::to_string(std::time(nullptr));
+
+    std::set<std::string> candidateFiles = tracked_files;
+    for (const auto& prop : proposals) {
+        for (const auto& diff : prop.diffs) {
+            if (!diff.file_path.empty()) {
+                candidateFiles.insert(diff.file_path);
+            }
+        }
+    }
+
+    std::error_code ec;
+    for (const auto& filePath : candidateFiles) {
+        if (std::filesystem::is_regular_file(filePath, ec)) {
+            std::ifstream in(filePath, std::ios::binary);
+            if (in) {
+                std::ostringstream buffer;
+                buffer << in.rdbuf();
+                snapshot.file_contents[filePath] = buffer.str();
+                continue;
+            }
+        }
+        for (auto it = proposals.rbegin(); it != proposals.rend(); ++it) {
+            bool found = false;
+            for (const auto& diff : it->diffs) {
+                if (diff.file_path == filePath && !diff.old_content.empty()) {
+                    snapshot.file_contents[filePath] = diff.old_content;
+                    found = true;
+                    break;
+                }
+            }
+            if (found) break;
+        }
+    }
+
+    snapshots.push_back(snapshot);
     return snapshot;
 }
 
@@ -132,7 +186,12 @@ void ModificationSystem::RollbackToSnapshot(const std::string& snapshot_id) {
     auto it = std::find_if(snapshots.begin(), snapshots.end(),
                           [&snapshot_id](const Snapshot& s) { return s.id == snapshot_id; });
     if (it != snapshots.end()) {
-        // Restore files from snapshot
+        for (const auto& [filePath, content] : it->file_contents) {
+            std::ofstream out(filePath, std::ios::binary);
+            if (out) {
+                out << content;
+            }
+        }
     }
 }
 
@@ -141,7 +200,7 @@ std::vector<Snapshot> ModificationSystem::GetSnapshotHistory() {
 }
 
 void ModificationSystem::CommitChanges(const std::string& proposal_id, const std::string& message) {
-    // Commit to git
+    Snapshot commitSnap = CreateSnapshot("Commit: " + message + " (Proposal: " + proposal_id + ")");
 }
 
 std::string ModificationSystem::GetGitDiff(const ModificationProposal& proposal) {

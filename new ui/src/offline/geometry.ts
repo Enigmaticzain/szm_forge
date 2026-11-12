@@ -43,16 +43,33 @@ export function parseTextToCad(prompt: string): TextToCadResult {
     : 'steel';
 
   let shape = 'box';
-  if (lower.includes('cylinder') || lower.includes('shaft') || lower.includes('pipe')) shape = 'cylinder';
+  if (lower.includes('cylinder') || lower.includes('shaft') || lower.includes('pipe') || lower.includes('rod') || lower.includes('pin')) shape = 'cylinder';
   else if (lower.includes('sphere') || lower.includes('ball')) shape = 'sphere';
   else if (lower.includes('cone')) shape = 'cone';
-  else if (lower.includes('torus') || lower.includes('ring')) shape = 'torus';
-  else if (lower.includes('bracket')) shape = 'box';
+  else if (lower.includes('torus') || lower.includes('ring') || lower.includes('washer')) shape = 'torus';
+  else if (lower.includes('hex')) shape = 'cylinder';
+  else if (
+    lower.includes('cube') || lower.includes('block') || lower.includes('bracket')
+    || lower.includes('plate')
+  ) shape = 'box';
 
-  const length = numFrom(lower, [/(\d+(?:\.\d+)?)\s*mm\s*(?:long|length)/, /length\s*(\d+)/]) ?? 100;
-  const width = numFrom(lower, [/(\d+(?:\.\d+)?)\s*mm\s*(?:wide|width)/, /width\s*(\d+)/, /×\s*(\d+)/]) ?? 60;
-  const height = numFrom(lower, [/(\d+(?:\.\d+)?)\s*mm\s*(?:tall|high|height|thick)/, /height\s*(\d+)/]) ?? 15;
-  const radius = numFrom(lower, [/radius\s*(\d+(?:\.\d+)?)/, /(\d+(?:\.\d+)?)\s*mm\s*radius/]) ?? 25;
+  // ASCII "100x50x20" or unicode "100×50×20"
+  const xyz = lower.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/);
+  const xy = !xyz ? lower.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/) : null;
+
+  const length = numFrom(lower, [/(\d+(?:\.\d+)?)\s*mm\s*(?:long|length)/, /length\s*(\d+)/])
+    ?? (xyz ? parseFloat(xyz[1]) : undefined)
+    ?? (xy ? parseFloat(xy[1]) : undefined)
+    ?? (lower.includes('cube') ? 50 : 100);
+  const width = numFrom(lower, [/(\d+(?:\.\d+)?)\s*mm\s*(?:wide|width)/, /width\s*(\d+)/, /[x×]\s*(\d+(?:\.\d+)?)/])
+    ?? (xyz ? parseFloat(xyz[2]) : undefined)
+    ?? (xy ? parseFloat(xy[2]) : undefined)
+    ?? (lower.includes('cube') ? length : 60);
+  const height = numFrom(lower, [/(\d+(?:\.\d+)?)\s*mm\s*(?:tall|high|height|thick)/, /height\s*(\d+)/])
+    ?? (xyz ? parseFloat(xyz[3]) : undefined)
+    ?? (lower.includes('cube') ? length : lower.includes('plate') ? 5 : 15);
+  const radius = numFrom(lower, [/radius\s*(\d+(?:\.\d+)?)/, /(\d+(?:\.\d+)?)\s*mm\s*radius/])
+    ?? (lower.includes('washer') ? 20 : lower.includes('pin') || lower.includes('rod') ? 5 : 25);
 
   const spec: CadSpec = {
     shape,
@@ -153,7 +170,8 @@ export function exportGeometryStlBlob(spec: Record<string, unknown>): string {
   const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial());
   const exporter = new STLExporter();
   const stl = exporter.parse(mesh, { binary: true });
-  const blob = new Blob([stl as ArrayBuffer], { type: 'application/octet-stream' });
+  const bytes = new Uint8Array(stl.buffer as ArrayBuffer, stl.byteOffset, stl.byteLength);
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
   return URL.createObjectURL(blob);
 }
 
@@ -222,6 +240,56 @@ export interface SketchEntity {
   type: 'point' | 'line' | 'circle' | 'arc';
   p1: [number, number];
   p2?: [number, number];
+  p3?: [number, number];
+}
+
+export interface SketchExtrusion {
+  geometry: THREE.ExtrudeGeometry;
+  volumeM3: number;
+}
+
+export function createSketchExtrusion(
+  sketch: { entities: SketchEntity[] },
+  distanceMm: number,
+): SketchExtrusion | null {
+  if (!Number.isFinite(distanceMm) || distanceMm <= 0) return null;
+
+  const shape = new THREE.Shape();
+  const circles = sketch.entities.filter(e => e.type === 'circle' && e.p2);
+  const lines = sketch.entities.filter(e => e.type === 'line' && e.p2);
+  let areaMm2: number;
+
+  if (circles.length === 1 && lines.length === 0 && sketch.entities.length === 1) {
+    const circle = circles[0];
+    const radius = Math.hypot(circle.p2![0] - circle.p1[0], circle.p2![1] - circle.p1[1]);
+    if (radius <= 0) return null;
+    shape.absarc(circle.p1[0], circle.p1[1], radius, 0, Math.PI * 2, false);
+    areaMm2 = Math.PI * radius * radius;
+  } else if (lines.length >= 3 && lines.length === sketch.entities.length) {
+    const first = lines[0];
+    const points: THREE.Vector2[] = [new THREE.Vector2(...first.p1)];
+    let previous = first.p1;
+    const closeEnough = (a: [number, number], b: [number, number]) =>
+      Math.hypot(a[0] - b[0], a[1] - b[1]) <= 1e-3;
+
+    for (const line of lines) {
+      if (!line.p2 || !closeEnough(line.p1, previous)) return null;
+      points.push(new THREE.Vector2(...line.p2));
+      previous = line.p2;
+    }
+
+    if (!closeEnough(previous, first.p1)) return null;
+    shape.moveTo(first.p1[0], first.p1[1]);
+    for (const line of lines) shape.lineTo(line.p2![0], line.p2![1]);
+    shape.closePath();
+    areaMm2 = Math.abs(THREE.ShapeUtils.area(points));
+    if (areaMm2 <= 0) return null;
+  } else {
+    return null;
+  }
+
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: distanceMm, bevelEnabled: false });
+  return { geometry, volumeM3: areaMm2 * distanceMm / 1e9 };
 }
 
 export function solveSketchOffline(sketch: {
@@ -233,33 +301,26 @@ export function solveSketchOffline(sketch: {
 export function extrudeSketchOffline(
   sketch: { entities: SketchEntity[] },
   distanceMm: number,
-): { ok: boolean; volume_m3: number; vertex_count: number; face_count: number } {
-  const shape = new THREE.Shape();
-  const lines = sketch.entities.filter(e => e.type === 'line' && e.p2);
-  if (lines.length >= 3) {
-    const [first] = lines;
-    shape.moveTo(first.p1[0], first.p1[1]);
-    for (const line of lines) {
-      if (line.p2) shape.lineTo(line.p2[0], line.p2[1]);
-    }
-    shape.closePath();
-  } else {
-    shape.moveTo(-20, -20);
-    shape.lineTo(20, -20);
-    shape.lineTo(20, 20);
-    shape.lineTo(-20, 20);
-    shape.closePath();
+): { ok: boolean; volume_m3: number; vertex_count: number; face_count: number; error?: string } {
+  const extrusion = createSketchExtrusion(sketch, distanceMm);
+  if (!extrusion) {
+    return {
+      ok: false,
+      volume_m3: 0,
+      vertex_count: 0,
+      face_count: 0,
+      error: 'Draw a closed line profile or a circle before extruding.',
+    };
   }
-
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: distanceMm, bevelEnabled: false });
-  geo.computeBoundingBox();
-  const box = geo.boundingBox!;
-  const vol = (box.max.x - box.min.x) * (box.max.y - box.min.y) * (box.max.z - box.min.z) / 1e9;
-
+  const vertexCount = extrusion.geometry.attributes.position.count;
+  const faceCount = extrusion.geometry.index
+    ? extrusion.geometry.index.count / 3
+    : vertexCount / 3;
+  extrusion.geometry.dispose();
   return {
     ok: true,
-    volume_m3: vol,
-    vertex_count: geo.attributes.position.count,
-    face_count: geo.index ? geo.index.count / 3 : 0,
+    volume_m3: extrusion.volumeM3,
+    vertex_count: vertexCount,
+    face_count: faceCount,
   };
 }

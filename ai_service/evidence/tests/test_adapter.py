@@ -68,9 +68,8 @@ def test_adapter_successful_cli(monkeypatch):
     def mock_run(cmd, capture_output=False, text=False, timeout=None):
         # Confirm arguments are a list (not shell interpolation)
         assert isinstance(cmd, list), f"Expected list argument; got {type(cmd)}"
-        assert "inspect_artifact" in cmd
-        assert "--detail=summary" in cmd
-        assert any("--path=" in str(arg) for arg in cmd)
+        assert "inspect-artifact" in cmd
+        assert any(str(arg).endswith(".step") for arg in cmd)
         return MockCompletedProcess(
             stdout='Artifact inventory: SUMMARY\nformat: step, kind: CAD, sha256: abc',
             stderr="",

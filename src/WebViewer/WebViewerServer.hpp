@@ -11,7 +11,7 @@ namespace SZM::WebViewer {
      * @brief Exports SZM scene to Three.js JSON format
      * Enables real-time 3D visualization in web browsers
      */
-    class ThreeJSExporter {
+    class WebViewerSceneExporter {
     public:
         struct ExportConfig {
             bool includePhysics = true;
@@ -21,8 +21,8 @@ namespace SZM::WebViewer {
             float lodThreshold = 0.1f;
         };
 
-        ThreeJSExporter() = default;
-        ~ThreeJSExporter() = default;
+        WebViewerSceneExporter() = default;
+        ~WebViewerSceneExporter() = default;
 
         /**
          * @brief Export current scene to Three.js format
@@ -108,7 +108,7 @@ namespace SZM::WebViewer {
         bool Initialize(uint16_t wsPort = 8080);
         void Shutdown();
 
-        ThreeJSExporter& GetExporter() { return m_Exporter; }
+        WebViewerSceneExporter& GetExporter() { return m_Exporter; }
         WebSocketBridge& GetBridge() { return m_Bridge; }
 
         /**
@@ -125,7 +125,7 @@ namespace SZM::WebViewer {
         WebViewerManager() : m_Bridge(8080) {}
         ~WebViewerManager() = default;
 
-        ThreeJSExporter m_Exporter;
+        WebViewerSceneExporter m_Exporter;
         WebSocketBridge m_Bridge;
         bool m_RealtimeSyncEnabled = false;
     };

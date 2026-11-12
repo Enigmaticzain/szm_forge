@@ -778,7 +778,11 @@ namespace SZM::Workshop3D {
                 continue;
             }
 
-            vertices.emplace_back(std::stod(TrimCopy(sx)), std::stod(TrimCopy(sy)), std::stod(TrimCopy(sz)));
+            try {
+                vertices.emplace_back(std::stod(TrimCopy(sx)), std::stod(TrimCopy(sy)), std::stod(TrimCopy(sz)));
+            } catch (...) {
+                continue;
+            }
         }
 
         if (vertices.size() >= 3U) {

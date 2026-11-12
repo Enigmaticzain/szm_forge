@@ -192,7 +192,7 @@ void TrainingTabUI::DrawCheckpointsSection() {
         ImGui::TableSetColumnIndex(0);
         ImGui::Text("Checkpoint 1");
         ImGui::TableSetColumnIndex(1);
-        ImGui::Text("85.2%");
+        ImGui::TextUnformatted("85.2%");
         ImGui::TableSetColumnIndex(2);
         ImGui::Text("2024-01-15");
         ImGui::TableSetColumnIndex(3);
@@ -202,7 +202,7 @@ void TrainingTabUI::DrawCheckpointsSection() {
         ImGui::TableSetColumnIndex(0);
         ImGui::Text("Checkpoint 2");
         ImGui::TableSetColumnIndex(1);
-        ImGui::Text("82.1%");
+        ImGui::TextUnformatted("82.1%");
         ImGui::TableSetColumnIndex(2);
         ImGui::Text("2024-01-14");
         ImGui::TableSetColumnIndex(3);

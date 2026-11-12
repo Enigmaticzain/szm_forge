@@ -1,12 +1,76 @@
 """Additional engineering stack API routes."""
 from __future__ import annotations
 
+import ipaddress
+import os
+import re
+import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["engineering-stack"])
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_ELEMENT_SYMBOL_RE = re.compile(r"^(?:[A-Z][a-z]?|[a-z]{1,2})$")
+
+
+def _allowed_roots() -> List[Path]:
+    roots = [
+        _PROJECT_ROOT,
+        Path(tempfile.gettempdir()).resolve(),
+    ]
+    extra = os.environ.get("SZM_ALLOWED_PATHS", "")
+    for entry in extra.split(os.pathsep):
+        if entry.strip():
+            roots.append(Path(entry.strip()).expanduser().resolve())
+    return roots
+
+
+def _resolve_safe_path(raw_path: str, *, must_exist: bool = False) -> str:
+    if not raw_path or "\x00" in raw_path:
+        raise HTTPException(status_code=400, detail="Invalid filesystem path")
+    try:
+        candidate = Path(raw_path).expanduser().resolve(strict=must_exist)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Path not found: {raw_path}") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid path: {exc}") from exc
+
+    if not any(candidate.is_relative_to(root) for root in _allowed_roots()):
+        raise HTTPException(status_code=403, detail="Path outside allowed workspace directories")
+    return str(candidate)
+
+
+def _validate_allowed_host(host: Optional[str], env_var: str) -> str:
+    if not host:
+        raise HTTPException(status_code=400, detail="Missing target host")
+    normalized = host.strip().lower()
+    allowed = {"127.0.0.1", "localhost", "::1"}
+    extra = os.environ.get(env_var, "")
+    for entry in extra.split(","):
+        if entry.strip():
+            allowed.add(entry.strip().lower())
+    try:
+        ip = ipaddress.ip_address(normalized)
+        if ip.is_link_local or ip.is_unspecified:
+            raise HTTPException(status_code=403, detail=f"Disallowed host IP: {normalized}")
+    except ValueError:
+        pass
+    if normalized not in allowed:
+        raise HTTPException(status_code=403, detail=f"Host '{normalized}' is not in the allowlist")
+    return normalized
+
+
+def _validate_opcua_endpoint(endpoint: str) -> str:
+    parsed = urlparse(endpoint.strip())
+    if parsed.scheme.lower() != "opc.tcp" or not parsed.hostname:
+        raise HTTPException(status_code=400, detail="OPC-UA endpoint must use opc.tcp://scheme")
+    _validate_allowed_host(parsed.hostname, "SZM_ALLOWED_OPCUA_HOSTS")
+    return endpoint.strip()
 
 
 class SurrogateTrainRequest(BaseModel):
@@ -87,8 +151,13 @@ async def mesh_libraries():
 async def mesh_generate(req: MeshGenerateRequest):
     from engines.mesh_engine import generate_mesh, get_active_backend, get_available_libraries
     try:
+        safe_geometry_path = (
+            _resolve_safe_path(req.geometry_path, must_exist=True)
+            if req.geometry_path
+            else None
+        )
         path = generate_mesh(
-            geometry_path=req.geometry_path,
+            geometry_path=safe_geometry_path,
             settings={"max_element_size": req.max_element_size},
             box_dims=(req.box_length, req.box_width, req.box_height),
         )
@@ -99,6 +168,8 @@ async def mesh_generate(req: MeshGenerateRequest):
             "backend": backend,
             "available_libraries": get_available_libraries(),
         }
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -153,23 +224,37 @@ async def thermal_fluid_props(fluid: str = "Water", T_k: float = 300.0):
 async def mesh_convert(req: MeshConvertRequest):
     from engines.mesh_engine import convert_mesh, get_available_libraries
     try:
-        out = convert_mesh(req.src_path, req.dst_path)
+        src_path = _resolve_safe_path(req.src_path, must_exist=True)
+        dst_path = _resolve_safe_path(req.dst_path, must_exist=False)
+        out = convert_mesh(src_path, dst_path)
         return {
             "status": "success",
             "output_path": out,
             "backend": "meshio",
             "available_libraries": get_available_libraries(),
         }
+    except HTTPException:
+        raise
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        code = 501 if "required" in str(exc).lower() else 500
+        raise HTTPException(status_code=code, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=501, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/materials/lookup/{formula}")
 async def materials_lookup(formula: str):
     from material_synthesis import MaterialSynthesisEngine
-    if len(formula) <= 3:
-        return MaterialSynthesisEngine.lookup_element(formula)
-    return MaterialSynthesisEngine.lookup_formula(formula)
+    clean = formula.strip()
+    if _ELEMENT_SYMBOL_RE.fullmatch(clean):
+        return MaterialSynthesisEngine.lookup_element(clean)
+    return MaterialSynthesisEngine.lookup_formula(clean)
 
 
 @router.post("/robotics/urdf/parse")
@@ -187,20 +272,25 @@ async def robotics_simulate(req: RoboticsSimRequest):
 @router.post("/iot/mqtt/start")
 async def iot_mqtt_start(req: IoTMqttRequest):
     from iot_bridge import get_iot_bridge
-    ok = get_iot_bridge().start_mqtt_subscriber(req.broker, req.port, req.topic)
+    broker = _validate_allowed_host(req.broker, "SZM_ALLOWED_MQTT_HOSTS")
+    if not (1 <= req.port <= 65535):
+        raise HTTPException(status_code=400, detail="MQTT port must be between 1 and 65535")
+    ok = get_iot_bridge().start_mqtt_subscriber(broker, req.port, req.topic)
     return {"status": "success" if ok else "error", "mqtt_started": ok}
 
 
 @router.post("/iot/opcua/read")
 async def iot_opcua_read(req: OpcuaReadRequest):
     from iot_bridge import get_iot_bridge
-    return get_iot_bridge().read_opcua(req.endpoint, req.node_id)
+    endpoint = _validate_opcua_endpoint(req.endpoint)
+    return get_iot_bridge().read_opcua(endpoint, req.node_id)
 
 
 @router.post("/pipeline/run")
 async def pipeline_run(req: PipelineRunRequest):
     from ai.pipeline_engine import get_pipeline_engine
-    job = get_pipeline_engine().run_pipeline(req.geometry_path)
+    safe_path = _resolve_safe_path(req.geometry_path, must_exist=True) if req.geometry_path.strip() else ""
+    job = get_pipeline_engine().run_pipeline(safe_path)
     return {
         "status": job.status.value,
         "job_id": job.job_id,
@@ -221,7 +311,8 @@ async def pipeline_job(job_id: str):
 @router.post("/viz3d/load")
 async def viz3d_load(path: str):
     from viz3d_engine import load_mesh
-    return load_mesh(path)
+    safe_path = _resolve_safe_path(path, must_exist=True)
+    return load_mesh(safe_path)
 
 
 @router.get("/metrics")

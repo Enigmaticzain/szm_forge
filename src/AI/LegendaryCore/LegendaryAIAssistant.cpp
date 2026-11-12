@@ -184,8 +184,11 @@ json LegendaryAIAssistant::ReflectOnPerformance() {
     json reflection = json::object();
     reflection["total_tasks"] = current_state.total_tasks_completed;
     reflection["total_failures"] = current_state.total_failures;
-    reflection["success_rate"] = current_state.total_tasks_completed > 0 ?
-        (float)(current_state.total_tasks_completed - current_state.total_failures) / current_state.total_tasks_completed : 0.0f;
+    const float raw_rate = current_state.total_tasks_completed > 0
+        ? static_cast<float>(current_state.total_tasks_completed - current_state.total_failures) /
+              static_cast<float>(current_state.total_tasks_completed)
+        : 0.0f;
+    reflection["success_rate"] = std::clamp(raw_rate, 0.0f, 1.0f);
     reflection["overall_confidence"] = current_state.overall_confidence;
     return reflection;
 }

@@ -6,12 +6,21 @@ try:
 except ImportError:
     raise SystemExit("gradio required: pip install gradio")
 
-from physics_ml_engine import get_physics_ml_engine
+from typing import Set
+
+try:
+    from ..physics_ml_engine import get_physics_ml_engine
+except ImportError:
+    from physics_ml_engine import get_physics_ml_engine
+
+_TRAINED_MODELS: Set[str] = set()
 
 
 def predict(x: float, model_name: str = "demo"):
     eng = get_physics_ml_engine()
-    eng.train_surrogate(model_name, "torch", epochs=5)
+    if model_name not in _TRAINED_MODELS:
+        eng.train_surrogate(model_name, "torch", epochs=5)
+        _TRAINED_MODELS.add(model_name)
     return eng.predict(model_name, {"x": x})
 
 

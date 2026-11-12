@@ -260,17 +260,30 @@ def validate_spec_ready_for_review(spec: ReconstructionSpec) -> List[str]:
 
 def assert_no_geometry_connection():
     """Safety guard: this module must never import or reference geometry_engine or text_to_cad."""
-    # Dynamic import guard — fails loudly if a production CAD module leaks in.
-    import importlib
+    import ast
+    import sys
 
-    for forbidden in ("geometry_engine", "text_to_cad", "geometry_output"):
-        try:
-            importlib.import_module(forbidden)
-        except ImportError:
-            pass  # Expected: module not available via sys.path
-        except Exception as exc:
-            # Module found unexpectedly; this indicates a leakage
+    forbidden = {"geometry_engine", "text_to_cad", "geometry_output"}
+
+    with open(__file__, "r", encoding="utf-8") as fh:
+        tree = ast.parse(fh.read(), filename=__file__)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".")[-1] in forbidden:
+                    raise RuntimeError(
+                        f"Forbidden CAD module {alias.name!r} imported in spec_builder."
+                    )
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            if any(part in forbidden for part in node.module.split(".")):
+                raise RuntimeError(
+                    f"Forbidden CAD module {node.module!r} imported in spec_builder."
+                )
+
+    for obj in globals().values():
+        mod_name = getattr(obj, "__name__", "")
+        if isinstance(obj, type(sys)) and mod_name.split(".")[-1] in forbidden:
             raise RuntimeError(
-                f"Unexpected import detected from {forbidden!r}: {exc}. "
-                "Evidence module must stay isolated from production CAD pipeline."
+                f"Forbidden CAD module {mod_name!r} bound in spec_builder globals."
             )

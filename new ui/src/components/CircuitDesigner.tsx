@@ -216,14 +216,12 @@ export default function CircuitDesigner() {
 
   // Calculate chain path between two sprockets
   const getChainPath = (start: Component, end: Component, time: number) => {
-    const teeth = (start.teeth || 20) + (end.teeth || 20);
     const rpm1 = motorRPMs[start.id] || 0;
     const rpm2 = motorRPMs[end.id] || 0;
     const ratio = rpm2 / (rpm1 || 1);
     
     const x1 = start.x, y1 = start.y;
     const x2 = end.x, y2 = end.y;
-    const dist = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     
     const dx = x2 - x1, dy = y2 - y1;
     const angle = Math.atan2(dy, dx);
@@ -493,6 +491,8 @@ export default function CircuitDesigner() {
 
     const path = getChainPath(startComp, endComp, time);
     
+    if (path.points.length < 2) return;
+
     ctx.save();
     ctx.strokeStyle = '#888888';
     ctx.lineWidth = 3;
@@ -506,22 +506,39 @@ export default function CircuitDesigner() {
     }
     ctx.stroke();
 
-    // Animated chain links
-    const totalDist = Math.sqrt(
-      (path.points[path.points.length - 1].x - path.points[0].x) ** 2 +
-      (path.points[path.points.length - 1].y - path.points[0].y) ** 2
-    );
+    // Animated chain links distributed by arc length across all polyline segments
+    const segLengths: number[] = [];
+    let totalDist = 0;
+    for (let i = 0; i < path.points.length - 1; i++) {
+      const len = Math.hypot(
+        path.points[i + 1].x - path.points[i].x,
+        path.points[i + 1].y - path.points[i].y
+      );
+      segLengths.push(len);
+      totalDist += len;
+    }
     const numLinks = Math.floor(totalDist / 10);
-    
-    for (let i = 0; i < numLinks; i++) {
-      const t = ((i / numLinks) + (path.animatedOffset % 1)) % 1;
-      const linkX = path.points[0].x + (path.points[2].x - path.points[0].x) * t;
-      const linkY = path.points[0].y + (path.points[2].y - path.points[0].y) * t;
-      
-      ctx.beginPath();
-      ctx.arc(linkX, linkY, 3, 0, Math.PI * 2);
-      ctx.fillStyle = i % 2 === 0 ? '#666' : '#888';
-      ctx.fill();
+    if (numLinks > 0 && totalDist > 0) {
+      for (let i = 0; i < numLinks; i++) {
+        const t = (((i / numLinks) + path.animatedOffset) % 1 + 1) % 1;
+        let targetDist = t * totalDist;
+        let segIdx = 0;
+        while (segIdx < segLengths.length - 1 && targetDist > segLengths[segIdx]) {
+          targetDist -= segLengths[segIdx];
+          segIdx++;
+        }
+        const segLen = segLengths[segIdx];
+        const segT = segLen > 0 ? targetDist / segLen : 0;
+        const p0 = path.points[segIdx];
+        const p1 = path.points[segIdx + 1];
+        const linkX = p0.x + (p1.x - p0.x) * segT;
+        const linkY = p0.y + (p1.y - p0.y) * segT;
+
+        ctx.beginPath();
+        ctx.arc(linkX, linkY, 3, 0, Math.PI * 2);
+        ctx.fillStyle = i % 2 === 0 ? '#666' : '#888';
+        ctx.fill();
+      }
     }
 
     ctx.restore();
@@ -665,7 +682,7 @@ export default function CircuitDesigner() {
   };
 
   // Draw electrical component (simplified)
-  const drawElectricalComponent = (ctx: CanvasRenderingContext2D, comp: Component, time: number, isSelected: boolean) => {
+  const drawElectricalComponent = (ctx: CanvasRenderingContext2D, comp: Component, _time: number, isSelected: boolean) => {
     ctx.save();
     ctx.translate(comp.x, comp.y);
     ctx.rotate((comp.rotation * Math.PI) / 180);
@@ -999,8 +1016,16 @@ export default function CircuitDesigner() {
     }
   };
 
+  // Deterministic voltage/load scale (no random) — used when ngspice bridge is offline
+  const voltageLoadFactor = (motorRpm: number, vccCount: number, loadCount: number) => {
+    if (vccCount <= 0) return 0;
+    const voltageScale = Math.min(1.2, 0.85 + vccCount * 0.05);
+    const loadScale = 1 / (1 + Math.max(0, loadCount) * 0.08);
+    return (motorRpm || 1500) * voltageScale * loadScale;
+  };
+
   // Run simulation
-  const runSimulation = () => {
+  const runSimulation = async () => {
     setCircuitErrors([]);
     
     // Check for motors connected to power
@@ -1009,14 +1034,47 @@ export default function CircuitDesigner() {
     );
     const vccCount = components.filter(c => c.type === 'vcc').length;
     const gndCount = components.filter(c => c.type === 'gnd').length;
+    const loadCount = components.filter(c =>
+      ['resistor', 'led', 'sprocket', 'gear', 'pulley'].includes(c.type)
+    ).length;
     
     if (vccCount === 0) setCircuitErrors(prev => [...prev, 'Warning: No VCC source']);
     if (gndCount === 0) setCircuitErrors(prev => [...prev, 'Warning: No Ground connected']);
+
+    // Prefer ngspice / circuit bridge when available
+    let apiScale = 1;
+    try {
+      const res = await fetch('/api/simulation/circuit/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          component_id: 1,
+          circuit_type: 'dc',
+          components: components.map(c => ({
+            name: c.id,
+            type: c.type,
+            value: c.value,
+            node1: 1,
+            node2: 0,
+          })),
+          parameters: { vcc_count: vccCount, load_count: loadCount },
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const v = Number(data?.results?.voltage ?? data?.voltage ?? data?.results?.Vout);
+        if (Number.isFinite(v) && v > 0) {
+          apiScale = Math.min(1.5, Math.max(0.4, v / 12));
+        }
+      }
+    } catch {
+      /* offline deterministic path */
+    }
     
-    // Set motor RPMs based on connected power
+    // Set motor RPMs based on connected power (deterministic)
     const newRPMs: Record<string, number> = {};
-    motors.forEach((motor, i) => {
-      newRPMs[motor.id] = vccCount > 0 ? (motor.rpm || 1500) * (0.8 + Math.random() * 0.4) : 0;
+    motors.forEach((motor) => {
+      newRPMs[motor.id] = voltageLoadFactor(motor.rpm || 1500, vccCount, loadCount) * apiScale;
       
       // Also power any sprockets that are placed directly on the motor (overlapping)
       components.forEach(comp => {
@@ -1126,7 +1184,6 @@ export default function CircuitDesigner() {
   };
 
   const selectedCompData = components.find(c => c.id === selectedComponent);
-  const allComponents = [...ELECTRICAL_COMPONENTS, ...MOTOR_COMPONENTS, ...MOTOR_PARTS, ...MECHANICAL_COMPONENTS];
   const filteredComponents = selectedCategory === 'electrical' ? ELECTRICAL_COMPONENTS 
     : selectedCategory === 'motors' ? MOTOR_COMPONENTS 
     : selectedCategory === 'motor_parts' ? MOTOR_PARTS

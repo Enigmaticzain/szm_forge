@@ -16,6 +16,9 @@ namespace SZM::Math {
     }
 
     double ConstraintSolver2D::GetVariableValue(int index) const {
+        if (index < 0 || index >= static_cast<int>(m_Variables.size())) {
+            throw std::out_of_range("ConstraintSolver2D variable index out of range");
+        }
         return m_Variables[index].Value;
     }
 
@@ -42,7 +45,7 @@ namespace SZM::Math {
             
             auto indices = m_Constraints[i]->GetVariableIndices();
             for (int idx : indices) {
-                if (m_Variables[idx].IsLocked) {
+                if (idx >= 0 && idx < numVars && m_Variables[idx].IsLocked) {
                     row(idx) = 0.0; 
                 }
             }
@@ -69,14 +72,15 @@ namespace SZM::Math {
             int activeVariables = 0;
             for(const auto& v : m_Variables) if(!v.IsLocked) activeVariables++;
             
-            m_DegreesOfFreedom = activeVariables - svd.rank();
+            const Eigen::Index rank = svd.rank();
+            m_DegreesOfFreedom = std::max(0, activeVariables - static_cast<int>(rank));
 
-            if (m_DegreesOfFreedom < 0) {
+            Eigen::VectorXd deltaX = svd.solve(-F);
+
+            if (static_cast<int>(J.rows()) > activeVariables && (J * deltaX + F).norm() > tolerance && deltaX.norm() < 1e-12) {
                 std::cerr << "[SZM-CEA Error] System is Over-Constrained.\n";
                 return false; 
             }
-
-            Eigen::VectorXd deltaX = svd.solve(-F);
 
             for (int i = 0; i < numVars; ++i) {
                 if (!m_Variables[i].IsLocked) {

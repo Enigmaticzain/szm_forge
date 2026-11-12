@@ -78,7 +78,7 @@ public:
     std::string GetTitle() const override { return "Pipeline Tools"; }
     const char* GetName() const override { return "Pipeline Tools"; }
 private:
-    char m_GeometryPath[512] = "/tmp/szm_export.step";
+    char m_GeometryPath[512] = "";
     char m_JobId[128] = "";
     char m_Log[1024] = "";
 };

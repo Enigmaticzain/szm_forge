@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import json
 import logging
 from fastapi import FastAPI, HTTPException, BackgroundTasks, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import numpy as np
@@ -18,13 +19,14 @@ import numpy as np
 # Import AI modules
 from knowledge_graph import KnowledgeGraph, Node, Edge, NodeType, RelationType
 from causal_reasoning import CausalReasoningEngine, ReasoningMode
-from training_loop import TrainingLoop, TrainingObjective, LearningPhase
+from training_loop import TrainingLoop, TrainingObjective, LearningPhase, SimulationResult
 from data_ingestion import DataIngestionPipeline, SourceType, PatentCrawler, AcademicCrawler
 from agentic_system import Agent, Tool, ToolType, Memory
 from neo4j_client import Neo4jKnowledgeGraph
 from simulation_integration import SimulationEngine, SimulationInputs, SolverType, SimulationOutputs
 from batch_simulator import AutonomousBatchSimulator
 from manufacturing_pipeline import ManufacturabilityValidator, GCodeExporter, CNCToolpathGenerator
+from design_workflow import resolve_step_artifact, run_design_workflow
 from material_synthesis import MaterialSynthesisEngine
 from benchmarking import AIBenchmarker
 from sandbox import EvolutionSandbox
@@ -140,6 +142,11 @@ class CNCToolpathRequest(BaseModel):
     plunge_rate_mm_min: float = 300.0
     spindle_speed_rpm: int = 8000
     safe_z_mm: float = 15.0
+
+class DesignWorkflowRequest(BaseModel):
+    """Request a prompt-driven CAD design with preliminary analysis."""
+    prompt: str = Field(..., min_length=1, max_length=500)
+    include_toolpath_preview: bool = False
 
 class GraphRAGRequest(BaseModel):
     """Request for GraphRAG query against Neo4j"""
@@ -677,20 +684,24 @@ async def websocket_endpoint(websocket: WebSocket):
             # Parse event
             try:
                 event = ForgeEvent.parse_raw(data)
-                # Here you can route event to AI logic
                 logger.info(f"Received event: {event.event_type} | Payload: {event.payload}")
-                # Example: respond to a specific event
                 if event.event_type == "screen_action":
-                    # Optionally, process with szm_ai and send live feedback
                     await websocket.send_text(json.dumps({"response": "Action received", "echo": event.payload}))
                 else:
                     await websocket.send_text(json.dumps({"response": "Event received", "type": event.event_type}))
             except Exception as e:
                 logger.error(f"WebSocket event error: {e}")
-                await websocket.send_text(json.dumps({"error": str(e)}))
+                try:
+                    await websocket.send_text(json.dumps({"error": str(e)}))
+                except Exception:
+                    break
     except WebSocketDisconnect:
-        active_connections.remove(websocket)
         logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.warning(f"WebSocket closed with error: {e}")
+    finally:
+        if websocket in active_connections:
+            active_connections.remove(websocket)
 
 # ======================== Health & Status ========================
 
@@ -808,6 +819,29 @@ async def batch_simulate(request: BatchSimulationRequest, background_tasks: Back
     return szm_ai.run_batch_simulation(request.num_variations, background_tasks)
 
 # ======================== Manufacturing Endpoints ========================
+
+@app.post("/api/workflow/design-to-manufacture")
+async def design_to_manufacture(request: DesignWorkflowRequest):
+    """Create a parametric design and return preliminary analysis/manufacturing stages."""
+    prompt = request.prompt.strip()
+    if not prompt:
+        raise HTTPException(status_code=422, detail="A non-empty part description is required.")
+    return run_design_workflow(
+        prompt,
+        include_toolpath_preview=request.include_toolpath_preview,
+    )
+
+@app.get("/api/workflow/design/{design_id}/step")
+async def download_design_step(design_id: str):
+    """Download a generated STEP artifact by its workflow ID."""
+    artifact = resolve_step_artifact(design_id)
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="STEP artifact not found.")
+    return FileResponse(
+        artifact,
+        filename=f"{artifact.parent.name}.step",
+        media_type="application/octet-stream",
+    )
 
 @app.post("/api/manufacturability/validate")
 async def validate_dfm(request: DFMValidationRequest):

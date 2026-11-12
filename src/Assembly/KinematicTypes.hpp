@@ -35,6 +35,9 @@ namespace SZM::Assembly {
         /// Number of scalar constraint equations this mate introduces
         virtual int GetConstraintCount() const = 0;
 
+        /// Rebind live body states resolved by ID from KinematicSolver (avoids dangling pointers)
+        virtual void BindStates(const RigidBodyState* stateA, const RigidBodyState* stateB) = 0;
+
         /// Compute the residual error vector for the current body poses
         virtual void EvaluateResidual(Eigen::VectorXd& residual, int startRow) const = 0;
 

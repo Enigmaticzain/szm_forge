@@ -139,6 +139,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(cpp_httplib)
 
+# Eigen3 — Linear Algebra (Constraint Solver, Assembly & Math)
+find_package(Eigen3 3.4 QUIET NO_MODULE)
+
 if(SZM_BUILD_FULL_DESKTOP)
 
     if(SZM_ENABLE_BULLET_BACKEND)
@@ -187,9 +190,6 @@ if(SZM_BUILD_FULL_DESKTOP)
     set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
     add_subdirectory(${CMAKE_SOURCE_DIR}/external/glfw EXCLUDE_FROM_ALL)
-
-    # Eigen3 — Linear Algebra (Constraint Solver & Math)
-    find_package(Eigen3 3.4 NO_MODULE)
 
     # OpenGL
     find_package(OpenGL REQUIRED)
@@ -276,6 +276,7 @@ if(SZM_BUILD_FULL_DESKTOP)
         SZM_WebAPI_Module
         SZM_DigitalTwin_Module
         SZM_Omniverse_Module
+        SZMFluids
         glfw
         glad
         OpenGL::GL
@@ -370,4 +371,39 @@ else()
         SZM_Chemistry_Module
         SZM_Omniverse_Module
     )
+endif()
+
+if(BUILD_TESTING)
+    add_executable(simulation_test tests/simulation_test.cpp)
+    target_include_directories(simulation_test PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(simulation_test PRIVATE SZM_Simulation_Module)
+    add_test(NAME simulation_test COMMAND simulation_test)
+
+    if(TARGET Eigen3::Eigen)
+        add_executable(test_kinematic_solver_phase02 tests/test_kinematic_solver_phase02.cpp)
+        target_include_directories(test_kinematic_solver_phase02 PRIVATE ${CMAKE_SOURCE_DIR}/src)
+        target_link_libraries(test_kinematic_solver_phase02 PRIVATE SZM_Assembly_Module Eigen3::Eigen)
+        add_test(NAME test_kinematic_solver_phase02 COMMAND test_kinematic_solver_phase02)
+    endif()
+
+    if(SZM_BUILD_FULL_DESKTOP)
+        add_executable(main_test tests/main_test.cpp)
+        target_include_directories(main_test PRIVATE ${CMAKE_SOURCE_DIR}/src)
+        target_link_libraries(main_test PRIVATE
+            SZM_Core
+            SZM_Graphics_Module
+            SZM_Workshop3D_Module
+            SZM_FEA_Module
+            SZM_Materials_Module
+            SZM_Physics_Module
+            SZM_Constraint_Solver
+            SZM_Geometry_Module
+            SZM_Assembly_Module
+            SZM_Simulation_Module
+            DataCore_SceneGraph
+            AppCore_Input_Event_Bus
+            Eigen3::Eigen
+        )
+        add_test(NAME main_test COMMAND main_test)
+    endif()
 endif()

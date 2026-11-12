@@ -61,12 +61,32 @@ class Neo4jKnowledgeGraph:
         }
         
     def close(self):
-        if self.driver:
+        if self.driver is not None:
             self.driver.close()
+        self.driver = None
+        self.connected = False
+
+    def _query_falkordb_graph(self, cypher: str) -> List[Dict[str, Any]]:
+        if self.falkor is None:
+            return []
+        try:
+            graph = self.falkor.select_graph("szm_engineering")
+            res = graph.query(cypher)
+            rows = getattr(res, "result_set", None) or []
+            headers = [
+                h[1] if isinstance(h, (list, tuple)) and len(h) > 1 else str(h)
+                for h in (getattr(res, "header", None) or [])
+            ]
+            if headers:
+                return [dict(zip(headers, row)) for row in rows]
+            return [{"row": list(row)} for row in rows]
+        except Exception as exc:
+            logger.warning("FalkorDB query failed (%s); falling back to in-memory results", exc)
+            return []
 
     def _initialize_schema(self):
         """Creates constraints and indexes for EngineeringNode."""
-        if not self.connected:
+        if not self.connected or self.driver is None:
             return
         query = """
         CREATE CONSTRAINT engineering_node_id IF NOT EXISTS
@@ -81,7 +101,7 @@ class Neo4jKnowledgeGraph:
 
     def _seed_mock_designs(self):
         """Seeds the database with proven parametric design graphs (Table, Ladder, etc)."""
-        if not self.connected:
+        if not self.connected or self.driver is None:
             return
             
         query = """
@@ -109,9 +129,31 @@ class Neo4jKnowledgeGraph:
         """
         query_text_lower = query_text.lower()
         
-        if self.connected:
-            # We construct a cypher query based on keyword matching
-            # In a real GraphRAG, this would use vector embeddings mapped to nodes.
+        if self.connected and self.backend == "falkordb" and self.falkor is not None:
+            if "stress" in query_text_lower and "joint" in query_text_lower:
+                cypher = (
+                    "MATCH (j:EngineeringNode:Joint)-[:CONNECTS]->(p:Part) "
+                    "WHERE j.stress > 800 "
+                    "RETURN j.name AS joint_name, j.stress AS stress, p.name AS connected_part LIMIT 5"
+                )
+                records = self._query_falkordb_graph(cypher)
+                if records:
+                    return {
+                        "matched_nodes": len(records),
+                        "context": records,
+                        "insight": f"Found {len(records)} high-stress joints in FalkorDB.",
+                    }
+            else:
+                cypher = "MATCH (n:EngineeringNode) RETURN labels(n) AS labels, n.name AS name LIMIT 3"
+                records = self._query_falkordb_graph(cypher)
+                if records:
+                    return {
+                        "matched_nodes": len(records),
+                        "context": records,
+                        "insight": "Found related engineering nodes in FalkorDB.",
+                    }
+
+        if self.connected and self.backend == "neo4j" and self.driver is not None:
             if "stress" in query_text_lower and "joint" in query_text_lower:
                 cypher = """
                 MATCH (j:EngineeringNode:Joint)-[:CONNECTS]->(p:Part)

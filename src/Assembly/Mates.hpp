@@ -28,8 +28,8 @@ namespace SZM::Assembly {
             Eigen::Vector3d pA, Eigen::Vector3d nA,
             Eigen::Vector3d pB, Eigen::Vector3d nB,
             MateAlignment align,
-            const RigidBodyState* sA,
-            const RigidBodyState* sB)
+            const RigidBodyState* sA = nullptr,
+            const RigidBodyState* sB = nullptr)
             : BodyA(bA), BodyB(bB)
             , LocalPointA(std::move(pA)),  LocalNormalA(std::move(nA))
             , LocalPointB(std::move(pB)),  LocalNormalB(std::move(nB))
@@ -40,26 +40,35 @@ namespace SZM::Assembly {
         uint32_t GetBodyA_ID()  const override { return BodyA; }
         uint32_t GetBodyB_ID()  const override { return BodyB; }
 
+        void BindStates(const RigidBodyState* stateA, const RigidBodyState* stateB) override {
+            StateA = stateA;
+            StateB = stateB;
+        }
+
         void EvaluateResidual(Eigen::VectorXd& residual, int row) const override {
+            if (!StateA || !StateB) return;
             Eigen::Vector3d wPA = StateA->Transform * LocalPointA;
             Eigen::Vector3d wNA = StateA->Transform.rotation() * LocalNormalA;
             Eigen::Vector3d wPB = StateB->Transform * LocalPointB;
             Eigen::Vector3d wNB = StateB->Transform.rotation() * LocalNormalB;
 
             // 1. Distance: point B on plane A
-            residual(row)     = (wPB - wPA).dot(wNA);
+            residual(row) = (wPB - wPA).dot(wNA);
 
-            // 2-3. Orientation: cross term + signed dot target.
+            // 2-3. Orientation: two orthogonal components for full axis alignment
             const double targetDot =
                 (Alignment == MateAlignment::AntiAligned) ? -1.0 : 1.0;
-            Eigen::Vector3d cross = wNA.cross(wNB);
-            residual(row + 1) = cross.x();
-            residual(row + 2) = wNA.dot(wNB) - targetDot;
+            Eigen::Vector3d targetNormal = targetDot * wNA;
+            Eigen::Vector3d basisU = wNA.unitOrthogonal();
+            Eigen::Vector3d basisV = wNA.cross(basisU).normalized();
+            residual(row + 1) = (wNB - targetNormal).dot(basisU);
+            residual(row + 2) = (wNB - targetNormal).dot(basisV);
         }
 
         void FillJacobian(Eigen::MatrixXd& J, int row,
                            int colA, int colB) const override
         {
+            if (!StateA || !StateB) return;
             auto evalResidualForTransforms =
                 [this](const Eigen::Isometry3d& tA, const Eigen::Isometry3d& tB) {
                     Eigen::Vector3d r = Eigen::Vector3d::Zero();
@@ -69,12 +78,13 @@ namespace SZM::Assembly {
                     const Eigen::Vector3d wNB = tB.rotation() * LocalNormalB;
 
                     r(0) = (wPB - wPA).dot(wNA);
-                    const Eigen::Vector3d cross = wNA.cross(wNB);
-                    r(1) = cross.x();
-
                     const double targetDot =
                         (Alignment == MateAlignment::AntiAligned) ? -1.0 : 1.0;
-                    r(2) = wNA.dot(wNB) - targetDot;
+                    Eigen::Vector3d targetNormal = targetDot * wNA;
+                    Eigen::Vector3d basisU = wNA.unitOrthogonal();
+                    Eigen::Vector3d basisV = wNA.cross(basisU).normalized();
+                    r(1) = (wNB - targetNormal).dot(basisU);
+                    r(2) = (wNB - targetNormal).dot(basisV);
                     return r;
                 };
 
@@ -152,8 +162,8 @@ namespace SZM::Assembly {
             uint32_t bA, uint32_t bB,
             Eigen::Vector3d pA, Eigen::Vector3d axisA,
             Eigen::Vector3d pB, Eigen::Vector3d axisB,
-            const RigidBodyState* sA,
-            const RigidBodyState* sB)
+            const RigidBodyState* sA = nullptr,
+            const RigidBodyState* sB = nullptr)
             : BodyA(bA), BodyB(bB)
             , LocalPointA(std::move(pA)), LocalAxisA(std::move(axisA))
             , LocalPointB(std::move(pB)), LocalAxisB(std::move(axisB))
@@ -163,7 +173,13 @@ namespace SZM::Assembly {
         uint32_t GetBodyA_ID()  const override { return BodyA; }
         uint32_t GetBodyB_ID()  const override { return BodyB; }
 
+        void BindStates(const RigidBodyState* stateA, const RigidBodyState* stateB) override {
+            StateA = stateA;
+            StateB = stateB;
+        }
+
         void EvaluateResidual(Eigen::VectorXd& residual, int row) const override {
+            if (!StateA || !StateB) return;
             const Eigen::Vector3d wPA = StateA->Transform * LocalPointA;
             const Eigen::Vector3d wPB = StateB->Transform * LocalPointB;
 
@@ -193,6 +209,7 @@ namespace SZM::Assembly {
         void FillJacobian(Eigen::MatrixXd& J, int row,
                           int colA, int colB) const override
         {
+            if (!StateA || !StateB) return;
             auto evalResidualForTransforms =
                 [this](const Eigen::Isometry3d& tA, const Eigen::Isometry3d& tB) {
                     Eigen::Matrix<double, 4, 1> r = Eigen::Matrix<double, 4, 1>::Zero();

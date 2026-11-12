@@ -180,14 +180,14 @@ void Test_LinearExtrude() {
     SZM_TEST("T05 — LinearExtrude Vertex & Manifold");
 
     // Square profile on XY plane
-    SZM::Geometry::Profile2D profile;
-    profile.Vertices = {
-        {-1.0,  1.0, 0.0},
-        { 1.0,  1.0, 0.0},
+    SZM::Geometry::SketchProfile profile;
+    profile.Loops = {{
+        {-1.0, -1.0, 0.0},
         { 1.0, -1.0, 0.0},
-        {-1.0, -1.0, 0.0}
-    };
-    profile.Normal = {0.0, 0.0, 1.0};
+        { 1.0,  1.0, 0.0},
+        {-1.0,  1.0, 0.0}
+    }};
+    profile.PlaneNormal = {0.0, 0.0, 1.0};
 
     SZM::Geometry::ExtrudeParams params;
     params.Distance  = 5.0;
@@ -490,9 +490,9 @@ void Test_AssemblyGraph() {
     mgr.RegisterBasePart(partB);
 
     SZM::Transform tx{};
-    mgr.InstantiatePart(root, partA->PartID, tx, "Bracket_01");
-    mgr.InstantiatePart(root, partA->PartID, tx, "Bracket_02"); // 2× same part
-    mgr.InstantiatePart(root, partB->PartID, tx, "Bolt_01");
+    mgr.InstantiateAsset(root, partA->PartID, SZM::Assembly::AssetType::Part, tx, "Bracket_01");
+    mgr.InstantiateAsset(root, partA->PartID, SZM::Assembly::AssetType::Part, tx, "Bracket_02"); // 2x same part
+    mgr.InstantiateAsset(root, partB->PartID, SZM::Assembly::AssetType::Part, tx, "Bolt_01");
 
     auto bom = mgr.GenerateBOM();
     SZM_ASSERT(bom.size() == 2,               "BOM must have 2 unique parts");
@@ -625,14 +625,14 @@ void Test_MeshGenerator() {
     uint32_t degenN = SZM::Graphics::MeshGenerator::CalculateSegmentCount(0.5, 2.0);
     SZM_ASSERT(degenN == 3, "Degenerate case (ε≥R) must return minimum 3 segments");
 
-    SZM::Geometry::Profile2D profile;
-    profile.Vertices = {
-        {-0.5,  0.5, 0.0},
-        { 0.5,  0.5, 0.0},
+    SZM::Geometry::SketchProfile profile;
+    profile.Loops = {{
+        {-0.5, -0.5, 0.0},
         { 0.5, -0.5, 0.0},
-        {-0.5, -0.5, 0.0}
-    };
-    profile.Normal = {0.0, 0.0, 1.0};
+        { 0.5,  0.5, 0.0},
+        {-0.5,  0.5, 0.0}
+    }};
+    profile.PlaneNormal = {0.0, 0.0, 1.0};
 
     SZM::Geometry::ExtrudeParams params;
     params.Distance = 1.0;

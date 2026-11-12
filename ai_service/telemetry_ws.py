@@ -24,12 +24,13 @@ async def broadcast_telemetry(payload: Dict[str, Any]) -> None:
         return
     msg = json.dumps(payload)
     dead = set()
-    for ws in _subscribers:
+    for ws in list(_subscribers):
         try:
             await ws.send(msg)
         except Exception:
             dead.add(ws)
-    _subscribers -= dead
+    if dead:
+        _subscribers.difference_update(dead)
 
 
 def register_subscriber(ws) -> None:

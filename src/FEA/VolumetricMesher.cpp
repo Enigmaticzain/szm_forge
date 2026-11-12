@@ -39,8 +39,8 @@ FEAMesh VolumetricMesher::GenerateTetrahedralMesh(
     std::string mat = "MAT-STEEL-STRUCT";
     result.Elements.push_back({0, {0, 1, 2, 5}, mat, Vec6d::Zero(), Vec6d::Zero()});
     result.Elements.push_back({1, {0, 2, 3, 7}, mat, Vec6d::Zero(), Vec6d::Zero()});
-    result.Elements.push_back({2, {0, 2, 5, 7}, mat, Vec6d::Zero(), Vec6d::Zero()});
-    result.Elements.push_back({3, {0, 5, 4, 7}, mat, Vec6d::Zero(), Vec6d::Zero()});
+    result.Elements.push_back({2, {0, 2, 7, 5}, mat, Vec6d::Zero(), Vec6d::Zero()});
+    result.Elements.push_back({3, {0, 4, 5, 7}, mat, Vec6d::Zero(), Vec6d::Zero()});
     result.Elements.push_back({4, {2, 5, 6, 7}, mat, Vec6d::Zero(), Vec6d::Zero()});
 
     return result;

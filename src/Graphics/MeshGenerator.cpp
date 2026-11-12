@@ -143,11 +143,88 @@ namespace SZM::Graphics {
                 ));
             }
 
-            for (uint32_t i = 1; i + 1 < static_cast<uint32_t>(faceVertices.size()); ++i) {
+            const size_t nVerts = faceVertices.size();
+            if (nVerts == 3) {
                 mesh.Indices.push_back(vertexOffset);
-                mesh.Indices.push_back(vertexOffset + i);
-                mesh.Indices.push_back(vertexOffset + i + 1U);
+                mesh.Indices.push_back(vertexOffset + 1);
+                mesh.Indices.push_back(vertexOffset + 2);
                 ++emittedTriangles;
+            } else if (nVerts > 3) {
+                // Ear clipping in projected 2D coordinates
+                struct P2D { double u, v; uint32_t idx; };
+                std::vector<P2D> poly(nVerts);
+                for (size_t i = 0; i < nVerts; ++i) {
+                    poly[i] = {
+                        AxisValue(faceVertices[i], projectionAxes[0]),
+                        AxisValue(faceVertices[i], projectionAxes[1]),
+                        static_cast<uint32_t>(vertexOffset + i)
+                    };
+                }
+
+                // Compute signed area
+                double signedArea = 0.0;
+                for (size_t i = 0; i < nVerts; ++i) {
+                    size_t j = (i + 1) % nVerts;
+                    signedArea += (poly[i].u * poly[j].v - poly[j].u * poly[i].v);
+                }
+
+                auto isConvex = [signedArea](const P2D& a, const P2D& b, const P2D& c) {
+                    double cross = (b.u - a.u) * (c.v - a.v) - (b.v - a.v) * (c.u - a.u);
+                    return signedArea >= 0.0 ? (cross > 1e-9) : (cross < -1e-9);
+                };
+
+                auto pointInTriangle = [](const P2D& p, const P2D& a, const P2D& b, const P2D& c) {
+                    double cp1 = (b.u - a.u) * (p.v - a.v) - (b.v - a.v) * (p.u - a.u);
+                    double cp2 = (c.u - b.u) * (p.v - b.v) - (c.v - b.v) * (p.u - b.u);
+                    double cp3 = (a.u - c.u) * (p.v - c.v) - (a.v - c.v) * (p.u - c.u);
+                    return (cp1 >= -1e-9 && cp2 >= -1e-9 && cp3 >= -1e-9) ||
+                           (cp1 <= 1e-9 && cp2 <= 1e-9 && cp3 <= 1e-9);
+                };
+
+                while (poly.size() > 3) {
+                    bool earFound = false;
+                    for (size_t i = 0; i < poly.size(); ++i) {
+                        size_t prev = (i == 0) ? (poly.size() - 1) : (i - 1);
+                        size_t next = (i + 1) % poly.size();
+
+                        if (!isConvex(poly[prev], poly[i], poly[next])) continue;
+
+                        bool hasInnerPoint = false;
+                        for (size_t j = 0; j < poly.size(); ++j) {
+                            if (j == prev || j == i || j == next) continue;
+                            if (pointInTriangle(poly[j], poly[prev], poly[i], poly[next])) {
+                                hasInnerPoint = true;
+                                break;
+                            }
+                        }
+
+                        if (!hasInnerPoint) {
+                            mesh.Indices.push_back(poly[prev].idx);
+                            mesh.Indices.push_back(poly[i].idx);
+                            mesh.Indices.push_back(poly[next].idx);
+                            ++emittedTriangles;
+                            poly.erase(poly.begin() + i);
+                            earFound = true;
+                            break;
+                        }
+                    }
+                    if (!earFound) {
+                        // Fallback fan for remaining degenerate vertices
+                        for (size_t k = 1; k + 1 < poly.size(); ++k) {
+                            mesh.Indices.push_back(poly[0].idx);
+                            mesh.Indices.push_back(poly[k].idx);
+                            mesh.Indices.push_back(poly[k + 1].idx);
+                            ++emittedTriangles;
+                        }
+                        break;
+                    }
+                }
+                if (poly.size() == 3) {
+                    mesh.Indices.push_back(poly[0].idx);
+                    mesh.Indices.push_back(poly[1].idx);
+                    mesh.Indices.push_back(poly[2].idx);
+                    ++emittedTriangles;
+                }
             }
         }
 

@@ -205,3 +205,36 @@ cmake --build build-full --parallel
 ---
 
 *SZM Forge — Integration Architecture | v0.2.0 | C++20 Desktop Engineering Suite*
+
+---
+## Colab Fine-Tuning Workflow (New)
+
+Location: `training/colab_finetune_workflow.py`
+
+Requirements (free T4 GPU recommended):
+- `transformers>=4.35`, `datasets>=5.1`, `peft>=0.21`, `accelerate>=1.13`
+- Python 3.10+
+
+Quick start (Colab):
+```python
+# In Colab cell
+!python /content/szm_forge/training/colab_finetune_workflow.py \
+    --max-steps 100 --push-to-hub --hub-repo-id "yourname/szm-adapter"
+```
+
+Local CPU (honest mode — config only, no weights):
+```bash
+SZM_ALLOW_MODEL_DOWNLOAD=0 python training/colab_finetune_workflow.py --max-steps 3
+```
+
+Output:
+- `training/adapter_output/adapter/` — LoRA adapter + tokenizer (resume from checkpoint)
+- `training/adapter_output/training_config.json` — reproducible settings
+- `dataset_report.json` — dataset verification + quality notes (honest: reports 2-example limitation)
+
+Dataset: `machine_data/szm_unsloth_dataset.jsonl` (2 instruction examples currently). Pipeline is structured to accept larger dataset; replace file or pass `--dataset ./training_data/my_large_dataset.jsonl`.
+
+Limitations (documented honestly):
+- Dataset (2 examples) is inadequate for meaningful fine-tuning; expect overfit.
+- Local machine has no GPU; real training should use Colab free T4.
+- Adapter is small-model (SmolLM2-1.7B-Instruct, MIT); production requires larger base or domain-specific dataset.

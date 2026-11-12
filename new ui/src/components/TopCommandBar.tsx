@@ -7,7 +7,7 @@ import {
   Cpu, Layers, Box, Factory, Brain, Radio,
   Play, Pause, RotateCcw, Settings, Maximize2,
   Eye, Thermometer, Zap, Activity, Grid3x3,
-  ChevronDown, Hexagon, Shield, Bell, PenTool, Microscope, CircuitBoard, LayoutGrid, Download, Aperture, BookMarked, GitMerge, Wand2,
+  ChevronDown, Hexagon, Bell, PenTool, Microscope, CircuitBoard, LayoutGrid, Download, Aperture, BookMarked, GitMerge, Wand2,
   Component, Combine, TestTube, Lightbulb, Import
 } from 'lucide-react';
 
@@ -88,10 +88,10 @@ const DropdownMenu = ({ title, icon, items, currentWorkspace, setWorkspace }: an
 };
 
 export const TopCommandBar: React.FC<Props> = ({
-  workspace, setWorkspace, renderMode, setRenderMode, solverProgress, simulationRunning,
+  workspace, setWorkspace, renderMode, setRenderMode, solverProgress: _solverProgress, simulationRunning: _simulationRunning,
   onOpenNotifications,
   onOpenSettings,
-  onOpenWorkspaces,
+  onOpenWorkspaces: _onOpenWorkspaces,
   onRunSimulation,
   onPauseSimulation,
   onResumeSimulation,

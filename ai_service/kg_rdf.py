@@ -37,7 +37,11 @@ def query_sparql(ttl: str, sparql: str) -> List[Dict[str, str]]:
         return []
     g = Graph()
     g.parse(data=ttl, format="turtle")
+    qres = g.query(sparql)
     results = []
-    for row in g.query(sparql):
-        results.append({str(k): str(v) for k, v in zip(row.labels, row)})
+    for row in qres:
+        if hasattr(row, "asdict"):
+            results.append({str(k): str(v) for k, v in row.asdict().items()})
+        elif getattr(qres, "vars", None):
+            results.append({str(k): str(v) for k, v in zip(qres.vars, row)})
     return results

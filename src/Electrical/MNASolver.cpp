@@ -9,6 +9,10 @@ namespace Electrical {
 MNASolver::MNASolver() : m_NumNodes(0), m_NumVoltageSources(0) {}
 
 void MNASolver::AddComponent(const std::string& name, Component::Type type, int n1, int n2, double value) {
+    if (n1 < 0 || n2 < 0) {
+        std::cerr << "[MNA] Ignoring component with negative node index: " << name << "\n";
+        return;
+    }
     m_Components.push_back({name, type, n1, n2, value});
 }
 
@@ -16,6 +20,9 @@ void MNASolver::Clear() {
     m_Components.clear();
     m_NumNodes = 0;
     m_NumVoltageSources = 0;
+    m_A.resize(0, 0);
+    m_z.resize(0);
+    m_x.resize(0);
 }
 
 void MNASolver::DetermineSystemSize() {
@@ -23,6 +30,7 @@ void MNASolver::DetermineSystemSize() {
     m_NumVoltageSources = 0;
     
     for (const auto& comp : m_Components) {
+        if (comp.node1 < 0 || comp.node2 < 0) continue;
         if (comp.node1 > m_NumNodes) m_NumNodes = comp.node1;
         if (comp.node2 > m_NumNodes) m_NumNodes = comp.node2;
         if (comp.type == Component::Type::VoltageSource) {
@@ -35,36 +43,45 @@ void MNASolver::StampMatrix() {
     int dim = m_NumNodes + m_NumVoltageSources;
     m_A = Eigen::MatrixXd::Zero(dim, dim);
     m_z = Eigen::VectorXd::Zero(dim);
+    if (dim == 0) {
+        return;
+    }
 
     int vSrcIndex = m_NumNodes; // Voltage source unknown currents start after node voltages
 
     for (const auto& comp : m_Components) {
+        if (comp.node1 < 0 || comp.node2 < 0) continue;
         int n1 = comp.node1 - 1; // 0-indexed for matrix (Node 0 is ground, ignored in matrix)
         int n2 = comp.node2 - 1;
 
         if (comp.type == Component::Type::Resistor) {
+            if (std::abs(comp.value) < 1e-12) {
+                std::cerr << "[MNA] Ignoring zero-resistance resistor: " << comp.name << "\n";
+                continue;
+            }
             double g = 1.0 / comp.value; // Conductance
             // Stamp diagonal
-            if (n1 >= 0) m_A(n1, n1) += g;
-            if (n2 >= 0) m_A(n2, n2) += g;
+            if (n1 >= 0 && n1 < dim) m_A(n1, n1) += g;
+            if (n2 >= 0 && n2 < dim) m_A(n2, n2) += g;
             // Stamp off-diagonal
-            if (n1 >= 0 && n2 >= 0) {
+            if (n1 >= 0 && n2 >= 0 && n1 < dim && n2 < dim) {
                 m_A(n1, n2) -= g;
                 m_A(n2, n1) -= g;
             }
         } 
         else if (comp.type == Component::Type::CurrentSource) {
             // Current enters node 1, leaves node 2
-            if (n1 >= 0) m_z(n1) -= comp.value;
-            if (n2 >= 0) m_z(n2) += comp.value;
+            if (n1 >= 0 && n1 < dim) m_z(n1) -= comp.value;
+            if (n2 >= 0 && n2 < dim) m_z(n2) += comp.value;
         } 
         else if (comp.type == Component::Type::VoltageSource) {
+            if (vSrcIndex >= dim) continue;
             // Stamp B and C matrices (off-diagonal +1, -1 for vsrc)
-            if (n1 >= 0) {
+            if (n1 >= 0 && n1 < dim) {
                 m_A(n1, vSrcIndex) += 1.0;
                 m_A(vSrcIndex, n1) += 1.0;
             }
-            if (n2 >= 0) {
+            if (n2 >= 0 && n2 < dim) {
                 m_A(n2, vSrcIndex) -= 1.0;
                 m_A(vSrcIndex, n2) -= 1.0;
             }
@@ -80,6 +97,9 @@ bool MNASolver::Solve() {
     
     DetermineSystemSize();
     StampMatrix();
+    if (m_A.rows() == 0) {
+        return false;
+    }
 
     // Use LU decomposition for solving A * x = z
     // Eigen's PartialPivLU is fast and robust for general invertible matrices
@@ -96,7 +116,7 @@ bool MNASolver::Solve() {
 
 double MNASolver::GetNodeVoltage(int node) const {
     if (node == 0) return 0.0; // Ground is always 0V
-    if (node > 0 && node <= m_NumNodes) {
+    if (node > 0 && node <= m_NumNodes && (node - 1) < m_x.size()) {
         return m_x(node - 1);
     }
     return 0.0;
@@ -107,7 +127,7 @@ double MNASolver::GetVoltageSourceCurrent(const std::string& vsrcName) const {
     for (const auto& comp : m_Components) {
         if (comp.type == Component::Type::VoltageSource) {
             if (comp.name == vsrcName) {
-                return m_x(vSrcIndex); // Returns current through source (from node 1 to node 2)
+                return (vSrcIndex >= 0 && vSrcIndex < m_x.size()) ? m_x(vSrcIndex) : 0.0; // Returns current through source (from node 1 to node 2)
             }
             vSrcIndex++;
         }
