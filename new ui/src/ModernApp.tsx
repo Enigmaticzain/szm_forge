@@ -85,6 +85,21 @@ const ModernApp: React.FC = () => {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // One-time honest notice when 3D can't work here; individual viewports
+  // degrade themselves via ViewportGuard and keep the app chrome alive.
+  const webglNoticeFired = useRef(false);
+  const storeShowToast = store.showToast;
+  useEffect(() => {
+    if (webglNoticeFired.current) return;
+    webglNoticeFired.current = true;
+    void import('./components/viewport/ViewportGuard').then(({ detectWebGLSupport }) => {
+      const support = detectWebGLSupport();
+      if (!support.supported) {
+        storeShowToast(`3D viewports need WebGL — ${support.reason ?? 'unavailable'}. Sketch, analysis and other 2D workspaces stay usable.`);
+      }
+    });
+  }, [storeShowToast]);
+
   const handleImportFile = useCallback((file: File | null) => {
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase() ?? '';

@@ -5,6 +5,7 @@ import { Layers, Settings, Maximize2, Play, AlertTriangle } from 'lucide-react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { ViewportGuard } from './viewport/ViewportGuard';
 
 export const GeometryWorkspace: React.FC = () => {
   const store = useForgeStore();
@@ -325,5 +326,9 @@ const StlViewer: React.FC<{ url: string }> = ({ url }) => {
     };
   }, [url]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return (
+    <ViewportGuard featureName="STL preview" hint="Parameters and analysis panels keep working.">
+      <div ref={containerRef} className="w-full h-full" />
+    </ViewportGuard>
+  );
 };

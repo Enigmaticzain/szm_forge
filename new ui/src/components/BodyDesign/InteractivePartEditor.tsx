@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { Evaluator, Brush, SUBTRACTION, ADDITION, INTERSECTION } from 'three-bvh-csg';
+import { ViewportGuard } from '../viewport/ViewportGuard';
 
 const disposeObjectTree = (obj: THREE.Object3D) => {
   if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments || obj instanceof THREE.Line) {
@@ -1019,5 +1020,9 @@ export const InteractivePartEditor: React.FC<Props> = ({
 
   const cursorClass = markPointMode ? 'cursor-crosshair' : deformSelectionMode === 'object' ? 'cursor-crosshair' : 'cursor-grab';
 
-  return <div ref={containerRef} className={`w-full h-full ${cursorClass}`} />;
+  return (
+    <ViewportGuard featureName="Part editor">
+      <div ref={containerRef} className={`w-full h-full ${cursorClass}`} />
+    </ViewportGuard>
+  );
 };

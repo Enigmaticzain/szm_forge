@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { FlaskConical, Play, CheckCircle2 } from 'lucide-react';
 import { useProject } from '../../store/ProjectContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { ViewportGuard } from '../viewport/ViewportGuard';
 
 interface ExperimentResult {
   materialId: string;
@@ -211,6 +212,7 @@ export const ChainSprocketLab: React.FC = () => {
 
 
   return (
+    <ViewportGuard featureName="Chain & sprocket lab">
     <div className="h-full w-full flex bg-forge-black relative">
       {/* Sidebar */}
       <div className="w-[300px] border-r border-forge-border bg-forge-dark/80 flex flex-col flex-shrink-0 z-10 p-4 overflow-y-auto">
@@ -343,5 +345,6 @@ export const ChainSprocketLab: React.FC = () => {
         )}
       </div>
     </div>
+    </ViewportGuard>
   );
 };

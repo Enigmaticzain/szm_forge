@@ -17,6 +17,7 @@ import {
 import { fetchSceneJson } from '../services/forgeApi';
 import { stressRatioToHex } from '../utils/stressColor';
 import { useForgeStore } from '../store/ForgeStoreContext';
+import { ViewportGuard } from './viewport/ViewportGuard';
 import type { ViewportRenderMode } from '../types';
 
 const heatmapVertexShader = `
@@ -491,10 +492,12 @@ export const ViewportThree: React.FC<Props> = ({
   }, [viewportZoom]);
 
   return (
+    <ViewportGuard featureName="Main 3D viewport" hint="The rest of the app stays usable.">
     <div ref={containerRef} className="w-full h-full min-h-[200px] relative bg-forge-black">
       <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded bg-forge-panel/80 border border-forge-border text-[8px] font-mono text-forge-accent">
         THREE.JS · codes/
       </div>
     </div>
+    </ViewportGuard>
   );
 };

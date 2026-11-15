@@ -4,6 +4,7 @@ import { TransformControls } from 'three/examples/jsm/controls/TransformControls
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SceneObject, createBendedGeometry } from './InteractivePartEditor';
 import { Joint } from './BodyDesignLayout';
+import { ViewportGuard } from '../viewport/ViewportGuard';
 
 interface Props {
   parts: SceneObject[];
@@ -430,5 +431,9 @@ export const InteractiveAssemblyEditor: React.FC<Props> = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [joints, selectedForJoint, activeFastener, proposedJointSize]);
 
-  return <div ref={containerRef} className="w-full h-full cursor-crosshair" />;
+  return (
+    <ViewportGuard featureName="Assembly editor" hint="Part lists and tabs keep working.">
+      <div ref={containerRef} className="w-full h-full cursor-crosshair" />
+    </ViewportGuard>
+  );
 };

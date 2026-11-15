@@ -10,6 +10,7 @@ import {
   type DesignWorkflowDto,
 } from '../services/forgeApi';
 import { exportGeometryStlBlob } from '../offline/geometry';
+import { ViewportGuard } from './viewport/ViewportGuard';
 
 type CADSpec = DesignCadSpecDto;
 
@@ -122,7 +123,11 @@ const GeometryPreview: React.FC<{ geometry: Record<string, unknown> }> = ({ geom
     };
   }, [geometry]);
 
-  return <div ref={mountRef} className="w-full h-[180px] rounded-lg overflow-hidden bg-forge-black/60" />;
+  return (
+    <ViewportGuard featureName="Geometry preview" hint="You can still refine the prompt — only 3D display is affected.">
+      <div ref={mountRef} className="w-full h-[180px] rounded-lg overflow-hidden bg-forge-black/60" />
+    </ViewportGuard>
+  );
 };
 
 // ── Main panel ────────────────────────────────────────────────────────────────

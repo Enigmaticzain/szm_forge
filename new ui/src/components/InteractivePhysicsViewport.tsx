@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useProject } from '../store/ProjectContext';
 import { createBendedGeometry } from './BodyDesign/InteractivePartEditor';
+import { ViewportGuard } from './viewport/ViewportGuard';
 
 interface Props {
   isPlaying: boolean;
@@ -236,5 +237,9 @@ export const InteractivePhysicsViewport: React.FC<Props> = ({ isPlaying, gravity
     initScene();
   }, [resetTrigger, bodyParts, customMaterials]);
 
-  return <div ref={containerRef} className="w-full h-full min-h-[300px]" />;
+  return (
+    <ViewportGuard featureName="Physics viewport">
+      <div ref={containerRef} className="w-full h-full min-h-[300px]" />
+    </ViewportGuard>
+  );
 };
