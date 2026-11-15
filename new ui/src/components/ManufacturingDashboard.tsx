@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Factory, Package, Settings, CheckCircle,
   Ruler, Cpu, Printer,
-  ArrowRight, Clock, Code, Download
+  ArrowRight, Clock, Code, Download, AlertTriangle
 } from 'lucide-react';
 import { validateDFM, exportGCode } from '../services/forgeApi';
+import { useForgeStore } from '../store/ForgeStoreContext';
 
 const bomItems = [
   { part: 'Primary Blade', material: 'Ti-6Al-4V', qty: 12, weight: '2.34 kg', process: 'Forging + 5-Axis CNC', status: 'ready', tolerance: '±0.02mm' },
@@ -34,38 +35,57 @@ const statusBadge = {
 };
 
 export const ManufacturingDashboard: React.FC = () => {
+  const store = useForgeStore();
   const [dfmResults, setDfmResults] = useState<any[]>([]);
+  const [dfmError, setDfmError] = useState<string | null>(null);
   const [gcode, setGcode] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const [slicerGcode, setSlicerGcode] = useState<string | null>(null);
   const [isSlicing, setIsSlicing] = useState(false);
   const [slicerStats, setSlicerStats] = useState<{layers: number, time_s: number} | null>(null);
+  const [slicerError, setSlicerError] = useState<string | null>(null);
+
+  // Header numbers must describe the sample BOM below, not unrelated magic values.
+  const headerStats = {
+    total: bomItems.length,
+    ready: bomItems.filter(b => b.status === 'ready').length,
+    review: bomItems.filter(b => b.status === 'review').length,
+  };
 
   useEffect(() => {
-    // Fetch DFM validation
+    // DFM validation against the optional Python backend; failure is surfaced.
     validateDFM('AI Hub Assembly', { thickness: 0.015 }, 'CNC')
       .then(data => {
         if (data && data.checks) {
           setDfmResults(data.checks);
+          setDfmError(null);
+        } else {
+          setDfmError('DFM service returned no checks for the sample assembly.');
         }
       })
-      .catch(console.error);
+      .catch((e) => setDfmError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   const handleGenerateGCode = async () => {
     setIsGenerating(true);
     try {
       const data = await exportGCode('AI Hub Assembly', { length: 0.8, width: 0.4, depth: 0.15 });
-      setGcode(data.gcode);
+      if (data?.gcode) {
+        setGcode(data.gcode);
+        store.showToast('CNC G-code generated for the sample assembly');
+      } else {
+        store.showToast('G-code export returned no program');
+      }
     } catch (e) {
-      console.error(e);
+      store.showToast(`G-code export unavailable: ${e instanceof Error ? e.message : String(e)}`);
     }
     setIsGenerating(false);
   };
 
   const handleRunSlicer = async () => {
     setIsSlicing(true);
+    setSlicerError(null);
     try {
       // Forward via the C++ WebAPI bridge
       const res = await fetch('/api/simulation/slicer/run', {
@@ -84,9 +104,11 @@ export const ManufacturingDashboard: React.FC = () => {
       if (data.status === 'success') {
         setSlicerGcode(data.gcode);
         setSlicerStats({ layers: data.layer_count, time_s: data.print_time_estimate_s });
+      } else {
+        setSlicerError('Slicer service returned no result');
       }
     } catch (e) {
-      console.error(e);
+      setSlicerError(e instanceof Error ? e.message : String(e));
     }
     setIsSlicing(false);
   };
@@ -104,21 +126,32 @@ export const ManufacturingDashboard: React.FC = () => {
         </div>
         <div className="ml-auto flex items-center gap-4">
           <div className="text-center">
-            <div className="text-[8px] font-mono text-forge-text-muted">TOTAL PARTS</div>
-            <div className="text-[14px] font-bold font-mono text-forge-text">42</div>
+            <div className="text-[8px] font-mono text-forge-text-muted">SAMPLE PARTS</div>
+            <div className="text-[14px] font-bold font-mono text-forge-text">{headerStats.total}</div>
           </div>
           <div className="text-center">
             <div className="text-[8px] font-mono text-forge-text-muted">READY</div>
-            <div className="text-[14px] font-bold font-mono text-forge-green">36</div>
+            <div className="text-[14px] font-bold font-mono text-forge-green">{headerStats.ready}</div>
           </div>
           <div className="text-center">
             <div className="text-[8px] font-mono text-forge-text-muted">REVIEW</div>
-            <div className="text-[14px] font-bold font-mono text-forge-yellow">4</div>
+            <div className="text-[14px] font-bold font-mono text-forge-yellow">{headerStats.review}</div>
           </div>
           <div className="text-center">
             <div className="text-[8px] font-mono text-forge-text-muted">EST. COST</div>
-            <div className="text-[14px] font-bold font-mono text-forge-accent">$47.2K</div>
+            <div className="text-[14px] font-bold font-mono text-forge-text-muted">—</div>
           </div>
+        </div>
+      </div>
+
+      {/* Honesty banner: everything below that is not backend-driven is a sample scenario */}
+      <div className="px-4 pt-3">
+        <div className="flex items-center gap-2 rounded-lg border border-forge-yellow/30 bg-forge-yellow/5 px-3 py-2">
+          <AlertTriangle size={12} className="text-forge-yellow flex-shrink-0" />
+          <p className="text-[9px] font-mono text-forge-yellow leading-relaxed">
+            SAMPLE SCENARIO — the pipeline, BOM, and tolerance data below describe a demo assembly, not your current project.
+            Project-connected manufacturing data is not implemented yet; DFM / G-code results come from the optional backend and are labeled accordingly.
+          </p>
         </div>
       </div>
 
@@ -168,6 +201,7 @@ export const ManufacturingDashboard: React.FC = () => {
             <Package size={12} className="text-forge-accent" />
             <span className="text-[10px] font-semibold tracking-widest text-forge-text-dim">BILL OF MATERIALS</span>
             <span className="text-[8px] font-mono text-forge-text-muted ml-2">{bomItems.length} items</span>
+            <span className="text-[7px] font-mono tracking-wider px-1.5 py-0.5 rounded bg-forge-yellow/10 text-forge-yellow ml-2">SAMPLE</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -223,8 +257,12 @@ export const ManufacturingDashboard: React.FC = () => {
                     </span>
                   </div>
                 </div>
-              )) : (
-                <div className="text-[10px] text-forge-text-muted font-mono animate-pulse">Running analysis against Python backend...</div>
+              )) : dfmError ? (
+                <div className="text-[9px] font-mono text-forge-yellow leading-relaxed">
+                  DFM unavailable — {dfmError}. Results appear here only when the backend returns them.
+                </div>
+              ) : (
+                <div className="text-[10px] text-forge-text-muted font-mono animate-pulse">Requesting DFM checks from the Python backend…</div>
               )}
             </div>
           </div>
@@ -309,7 +347,7 @@ export const ManufacturingDashboard: React.FC = () => {
             </div>
             
             {!slicerGcode ? (
-              <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-forge-border rounded bg-forge-dark/50 p-4">
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 border border-dashed border-forge-border rounded bg-forge-dark/50 p-4">
                 <button
                   onClick={handleRunSlicer}
                   disabled={isSlicing}
@@ -317,6 +355,11 @@ export const ManufacturingDashboard: React.FC = () => {
                 >
                   {isSlicing ? 'SLICING...' : 'GENERATE 3D G-CODE'}
                 </button>
+                {slicerError && (
+                  <p className="text-[8px] font-mono text-forge-yellow text-center leading-relaxed">
+                    Slicer unavailable — {slicerError}
+                  </p>
+                )}
               </div>
             ) : (
               <div className="flex-1 flex flex-col gap-2">

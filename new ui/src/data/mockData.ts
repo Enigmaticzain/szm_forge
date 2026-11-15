@@ -1,3 +1,11 @@
+/**
+ * SAMPLE / DEMO DATA — none of the values in this file come from a solver,
+ * a backend, or the user's project. Any UI that renders them must either:
+ *   1. label them clearly as sample/demo content, or
+ *   2. replace them with live data when a real source exists.
+ * Do not present these numbers as engineering results. A user-visible audit
+ * (USER_WORKFLOW_FINDINGS.md) flagged unlabeled use of this data as P1/P2.
+ */
 import { TreeNode, TelemetryData, SimulationResult, AIInsight, MachineUnit, TimelineEvent } from '../types';
 
 export const projectTree: TreeNode[] = [

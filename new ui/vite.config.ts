@@ -15,6 +15,8 @@ export default defineConfig({
     port: 3000,
     strictPort: false,
     host: true,
+    // Allow sandboxed remote preview hosts (e.g. *.e2b.app) in addition to localhost.
+    allowedHosts: [".e2b.app", "localhost", "127.0.0.1"],
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8000",

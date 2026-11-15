@@ -126,6 +126,66 @@ export async function pingBackend(): Promise<boolean> {
   return true; // offline engine always available
 }
 
+/**
+ * Honest health probe for the OPTIONAL remote backend (:8000 / Python service).
+ * Unlike pingBackend() — which answers "is any engine usable?" — this reports
+ * the remote service state only, so panels never show "connected" on failure.
+ */
+export interface RemoteBackendHealth {
+  /** VITE_ENABLE_BACKEND=true? When false the app is offline-only by design. */
+  enabled: boolean;
+  /** /api/status answered with a valid payload. */
+  reachable: boolean;
+  /** HTTP status observed on failure, if any. */
+  statusCode: number | null;
+  /** Human-readable detail, e.g. "HTTP 500" or "timed out". */
+  detail: string;
+}
+
+export async function checkRemoteBackendHealth(timeoutMs = 2500): Promise<RemoteBackendHealth> {
+  if (!CAN_USE_BACKEND) {
+    return {
+      enabled: false,
+      reachable: false,
+      statusCode: null,
+      detail: 'Remote backend disabled — using the in-browser engine',
+    };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}/api/status`, {
+      signal: controller.signal,
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) {
+      return {
+        enabled: true,
+        reachable: false,
+        statusCode: res.status,
+        detail: `Backend answered HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ''}`,
+      };
+    }
+    const data = (await res.json().catch(() => null)) as ForgeStatus | null;
+    return {
+      enabled: true,
+      reachable: true,
+      statusCode: res.status,
+      detail: data?.engine ? `Responding — ${data.engine}` : 'Responding',
+    };
+  } catch (e) {
+    const timedOut = e instanceof DOMException && e.name === 'AbortError';
+    return {
+      enabled: true,
+      reachable: false,
+      statusCode: null,
+      detail: timedOut ? 'Backend timed out' : 'Backend unreachable',
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function isOfflineMode(): boolean {
   return !NETWORK_ENABLED;
 }

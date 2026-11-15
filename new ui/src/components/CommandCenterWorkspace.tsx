@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
   ArrowRight,
   Brain,
@@ -10,8 +10,9 @@ import {
   Workflow,
 } from 'lucide-react';
 import { useForgeStore } from '../store/ForgeStoreContext';
+import { useBackend } from '../store/BackendContext';
+import { useProject } from '../store/ProjectContext';
 import { WorkspaceMode } from '../types';
-import { fetchSimulationStatus, pingBackend } from '../services/forgeApi';
 
 const focusAreas: Array<{
   title: string;
@@ -40,9 +41,9 @@ const focusAreas: Array<{
 ];
 
 const memorySignals = [
-  'Current project context is synchronized with the active assembly and CAD intent.',
-  'SZM AI is tracking design decisions, materials, and solver insights for fast recall.',
-  'Live USD assets are synced to Omniverse Nucleus for real-time physics validation.',
+  'Project context reflects the components you load or create in this session; it is not yet persisted across restarts.',
+  'AI insights appear only after a successful solver or analysis run — counts shown are real session events.',
+  'Remote services (Omniverse Nucleus sync, USD export, cloud LLMs) require the optional backend and are off by default.',
 ];
 
 const executionStream: Array<{
@@ -69,37 +70,35 @@ const executionStream: Array<{
 
 export const CommandCenterWorkspace: React.FC = () => {
   const store = useForgeStore();
-  const [healthMetrics, setHealthMetrics] = useState([
-    { label: 'Model readiness', value: '—', tone: 'text-forge-text-muted' },
-    { label: 'AI confidence', value: '—', tone: 'text-forge-text-muted' },
-    { label: 'Omniverse Nucleus', value: 'CHECKING', tone: 'text-forge-yellow' },
-  ]);
+  const backend = useBackend();
+  const { project, bodyParts, members } = useProject();
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const [alive, sim] = await Promise.all([pingBackend(), fetchSimulationStatus()]);
-      if (cancelled) return;
-      const componentCount = sim?.componentCount ?? 0;
-      const readiness = componentCount > 0
-        ? `${Math.min(99, 70 + componentCount * 3)}%`
-        : '96%';
-      setHealthMetrics([
-        { label: 'Model readiness', value: readiness, tone: 'text-forge-green' },
-        {
-          label: 'AI confidence',
-          value: alive ? '92%' : '78%',
-          tone: alive ? 'text-forge-accent' : 'text-forge-yellow',
-        },
-        {
-          label: 'Backend bridge',
-          value: alive ? 'CONNECTED' : 'OFFLINE',
-          tone: alive ? 'text-forge-green' : 'text-forge-yellow',
-        },
-      ]);
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  // Health metrics derived from real state only — no fabricated percentages.
+  const loadedParts = bodyParts.length + members.length;
+  const hasRemoteSim = (backend.simulation?.componentCount ?? 0) > 0;
+  const modelMetric = loadedParts > 0
+    ? {
+        value: `${loadedParts} PART${loadedParts === 1 ? '' : 'S'} LIVE`,
+        tone: 'text-forge-green',
+        sub: project?.projectName ?? 'Session project',
+      }
+    : hasRemoteSim
+      ? { value: `${backend.simulation!.componentCount} REMOTE`, tone: 'text-forge-accent', sub: 'C++ engine session' }
+      : { value: 'NO MODEL', tone: 'text-forge-text-muted', sub: 'load or create a part' };
+
+  const backendMetric = !backend.remoteEnabled
+    ? { value: 'OFFLINE MODE', tone: 'text-forge-text-muted', sub: 'in-browser engine' }
+    : backend.remoteReachable === true
+      ? { value: 'CONNECTED', tone: 'text-forge-green', sub: backend.remoteDetail }
+      : backend.remoteReachable === false
+        ? { value: 'UNREACHABLE', tone: 'text-forge-red', sub: backend.remoteDetail }
+        : { value: 'CHECKING', tone: 'text-forge-yellow', sub: '' };
+
+  const healthMetrics: Array<{ label: string; value: string; tone: string; sub?: string }> = [
+    { label: 'Model', tone: modelMetric.tone, value: modelMetric.value, sub: modelMetric.sub },
+    { label: 'Local engine', value: 'READY', tone: 'text-forge-green', sub: backend.engineName },
+    { label: 'Backend bridge', value: backendMetric.value, tone: backendMetric.tone, sub: backendMetric.sub },
+  ];
 
   const navigate = (mode: WorkspaceMode) => {
     store.setWorkspace(mode);
@@ -186,6 +185,9 @@ export const CommandCenterWorkspace: React.FC = () => {
                     <span className="text-[11px] uppercase tracking-[0.24em] text-forge-text-muted">{metric.label}</span>
                     <span className={`text-sm font-semibold ${metric.tone}`}>{metric.value}</span>
                   </div>
+                  {metric.sub && (
+                    <p className="mt-1 text-[11px] font-mono text-forge-text-muted truncate">{metric.sub}</p>
+                  )}
                 </div>
               ))}
             </div>

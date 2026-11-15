@@ -1,71 +1,85 @@
 import React, { useState, useEffect } from 'react';
-import { aiInsights } from '../data/mockData';
+import { aiInsights as sampleInsights } from '../data/mockData';
 import {
   Brain, Cpu, Activity, Target, Lightbulb,
   AlertTriangle, CheckCircle, Info, XCircle,
-  TrendingUp, Gauge, Shield,
-  Zap, ArrowRight, ChevronRight, Eye, EyeOff
+  TrendingUp, Shield,
+  ChevronRight, Eye, EyeOff
 } from 'lucide-react';
 import { AIChatBot } from './AIChatBot';
 import { Resizer } from './Resizer';
-import { getApiBaseUrl, runBatchSimulation, mlIngestData, mlLearnPatterns, mlGenerateMachine, GeneratedMachineCode } from '../services/forgeApi';
+import { useBackend } from '../store/BackendContext';
+import { useProject } from '../store/ProjectContext';
+import { useForgeStore } from '../store/ForgeStoreContext';
+import { getApiBaseUrl, runBatchSimulation, mlIngestData, mlLearnPatterns, mlGenerateMachine, queryReasoning, GeneratedMachineCode } from '../services/forgeApi';
 
-const severityIcons = {
+const severityIcons: Record<string, React.ReactNode> = {
   info: <Info size={12} className="text-forge-accent" />,
   success: <CheckCircle size={12} className="text-forge-green" />,
   warning: <AlertTriangle size={12} className="text-forge-yellow" />,
   critical: <XCircle size={12} className="text-forge-red" />,
 };
 
-const typeLabels = {
+const typeLabels: Record<string, { label: string; color: string; bg: string }> = {
   optimization: { label: 'OPTIMIZATION', color: 'text-forge-purple', bg: 'bg-forge-purple/10' },
   warning: { label: 'WARNING', color: 'text-forge-yellow', bg: 'bg-forge-yellow/10' },
   recommendation: { label: 'RECOMMENDATION', color: 'text-forge-accent', bg: 'bg-forge-accent/10' },
   diagnostic: { label: 'DIAGNOSTIC', color: 'text-forge-teal', bg: 'bg-forge-teal/10' },
 };
 
-const optimizationTargets = [
-  { name: 'Mass Reduction', current: '12.4%', target: '15%', progress: 83, trend: 'up' },
-  { name: 'Stress Distribution', current: '847 MPa', target: '<800 MPa', progress: 65, trend: 'improving' },
-  { name: 'Thermal Efficiency', current: '94.2%', target: '96%', progress: 78, trend: 'up' },
-  { name: 'Fatigue Life', current: '1.2M', target: '2M cycles', progress: 60, trend: 'working' },
-  { name: 'Manufacturing Cost', current: '$47.2K', target: '<$45K', progress: 72, trend: 'improving' },
-];
-
+// Honest initial agent state: nothing is "active scanning" until the backend
+// reports real work. CPU/confidence start at zero instead of fabricated values.
 const initialAgentStatus = [
-  { name: 'SZM Design Loop', status: 'idle', task: 'Awaiting design problem...', cpu: 12, confidence: 99 },
-  { name: 'Failure Predictor', status: 'active', task: 'Scanning for structural anomalies', cpu: 12, confidence: 94 },
-  { name: 'Material Selector', status: 'idle', task: 'Awaiting requirements', cpu: 2, confidence: 76 },
+  { name: 'SZM Design Loop', status: 'idle', task: 'Awaiting design problem…', cpu: 0, confidence: 0 },
+  { name: 'Failure Predictor', status: 'idle', task: 'Needs solver results from a loaded model', cpu: 0, confidence: 0 },
+  { name: 'Material Selector', status: 'idle', task: 'Awaiting requirements', cpu: 0, confidence: 0 },
 ];
 
 export const AIWorkspace: React.FC = () => {
+  const backend = useBackend();
+  const store = useForgeStore();
+  const { bodyParts, members, parts, aiInsights: sessionInsights } = useProject();
+
   const [activeAgent, setActiveAgent] = useState(0);
   const [pulseVals, setPulseVals] = useState<number[]>([]);
   const [leftWidth, setLeftWidth] = useState(320);
   const [rightWidth, setRightWidth] = useState(380);
   const [agents, setAgents] = useState(initialAgentStatus);
   const [batchStatus, setBatchStatus] = useState('Idle');
-  
+
   const [mlOutput, setMlOutput] = useState<GeneratedMachineCode[]>([]);
   const [isGeneratingML, setIsGeneratingML] = useState(false);
   const [isLearningML, setIsLearningML] = useState(false);
-  
+
   const [observationActive, setObservationActive] = useState(false);
   const [obsStats, setObsStats] = useState({ total_actions: 0, total_patterns: 0 });
 
+  const [showSampleInsights, setShowSampleInsights] = useState(false);
+  const [reasoning, setReasoning] = useState<null | { prompt: string; answer: string }>(null);
+  const [reasoningBusy, setReasoningBusy] = useState<string | null>(null);
+
+  // A "model" exists only when the user actually loaded/built something.
+  const hasModelContent = bodyParts.length > 0 || members.length > 0 || parts.length > 0;
+  const backendLinked = backend.remoteEnabled && backend.remoteReachable === true;
+
+  // Agent activity bar: flat when idle, animated only while the backend
+  // reports an active design task. No perpetual random "brain noise".
+  const agentActive = agents[0]?.status === 'active';
   useEffect(() => {
     const interval = setInterval(() => {
       setPulseVals(prev => {
-        const next = [...prev, Math.random() * 100];
+        const next = [...prev, agentActive ? 30 + Math.random() * 70 : 2];
         if (next.length > 40) next.shift();
         return next;
       });
     }, 200);
     return () => clearInterval(interval);
-  }, []);
+  }, [agentActive]);
 
-  // Poll Python backend for active training status
+  // Poll Python backend for training status — only when a remote backend is
+  // actually enabled; offline mode skips the polling entirely.
   useEffect(() => {
+    if (!backend.remoteEnabled) return undefined;
     const pollStatus = async () => {
       try {
         const res = await fetch(`${getApiBaseUrl()}/api/status`);
@@ -73,15 +87,14 @@ export const AIWorkspace: React.FC = () => {
           const data = await res.json();
           const activeTask = data.training?.active_status || 'Idle';
           setBatchStatus(data.training?.batch_status || 'Idle');
-          
+
           setAgents(prev => {
             const newAgents = [...prev];
-            // Update the SZM Design Loop agent
             newAgents[0] = {
               ...newAgents[0],
               status: activeTask === 'Idle' ? 'idle' : 'active',
               task: activeTask,
-              cpu: activeTask === 'Idle' ? 5 : 85 + Math.random() * 10,
+              cpu: activeTask === 'Idle' ? 0 : 85 + Math.random() * 10,
             };
             return newAgents;
           });
@@ -90,15 +103,16 @@ export const AIWorkspace: React.FC = () => {
         // silently ignore fetch errors to avoid console spam
       }
     };
-    
+
+    pollStatus();
     const interval = setInterval(pollStatus, 1500);
     return () => clearInterval(interval);
-  }, []);
+  }, [backend.remoteEnabled]);
 
-  // Poll observation stats
+  // Poll observation stats (backend feature — only when linked and active)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (observationActive) {
+    let interval: NodeJS.Timeout | undefined;
+    if (observationActive && backendLinked) {
       interval = setInterval(async () => {
         try {
           const res = await fetch(`${getApiBaseUrl()}/api/ai/observe/stats`);
@@ -109,37 +123,43 @@ export const AIWorkspace: React.FC = () => {
               total_patterns: data.total_patterns_learned || 0
             });
           }
-        } catch {}
+        } catch { /* backend stats optional */ }
       }, 1000);
     }
     return () => { if (interval) clearInterval(interval); };
-  }, [observationActive]);
+  }, [observationActive, backendLinked]);
 
   const toggleObservation = async () => {
+    if (!backendLinked) {
+      store.showToast('Passive observation requires the optional Python backend — currently unavailable.');
+      return;
+    }
     try {
       const endpoint = observationActive ? 'stop' : 'start';
       await fetch(`${getApiBaseUrl()}/api/ai/observe/${endpoint}`, { method: 'POST' });
       setObservationActive(!observationActive);
     } catch (e) {
-      console.error(e);
+      store.showToast(`Observation toggle failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
   const startBatchSimulation = async () => {
     try {
       await runBatchSimulation(50);
+      store.showToast('Batch simulation started (50 variations)');
     } catch (e) {
-      console.error(e);
+      store.showToast(`Batch simulation unavailable: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
   const handleLearnPatterns = async () => {
     setIsLearningML(true);
     try {
-      await mlIngestData();
-      await mlLearnPatterns();
+      const ingested = await mlIngestData();
+      const patterns = await mlLearnPatterns();
+      store.showToast(`Learned ${patterns} patterns from ${ingested} datasets`);
     } catch (e) {
-      console.error(e);
+      store.showToast(`Pattern learning unavailable: ${e instanceof Error ? e.message : String(e)}`);
     }
     setIsLearningML(false);
   };
@@ -149,10 +169,37 @@ export const AIWorkspace: React.FC = () => {
     try {
       const machines = await mlGenerateMachine('cnc_mill', 1);
       setMlOutput(machines);
+      if (machines.length === 0) store.showToast('Generator returned no machines');
     } catch (e) {
-      console.error(e);
+      store.showToast(`Machine generation unavailable: ${e instanceof Error ? e.message : String(e)}`);
     }
     setIsGeneratingML(false);
+  };
+
+  // The three assistance actions: real reasoning queries, gated on a real model.
+  const runAssistance = async (kind: 'review' | 'optimize' | 'safety') => {
+    if (!hasModelContent) {
+      store.showToast('Load or build a model first — there is nothing to review yet.');
+      return;
+    }
+    const focus =
+      kind === 'review' ? 'Review the current design' :
+      kind === 'optimize' ? 'Suggest mass/strength optimizations for the current design' :
+      'Identify safety risks in the current design';
+    const contextHint = `Model contains ${bodyParts.length + members.length} session component(s) and ${parts.length} solved part(s).`;
+    setReasoningBusy(kind);
+    try {
+      const res = await queryReasoning(`${focus}. ${contextHint}`);
+      setReasoning({
+        prompt: focus,
+        answer: typeof res?.answer === 'string'
+          ? res.answer
+          : JSON.stringify(res, null, 2).slice(0, 1200),
+      });
+    } catch (e) {
+      store.showToast(`AI reasoning unavailable: ${e instanceof Error ? e.message : String(e)}`);
+    }
+    setReasoningBusy(null);
   };
 
   return (
@@ -168,16 +215,20 @@ export const AIWorkspace: React.FC = () => {
         </div>
         <div className="ml-auto flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-forge-green animate-pulse" />
-            <span className="text-[9px] font-mono text-forge-text-dim">5 AGENTS DEPLOYED</span>
+            <div className={`w-1.5 h-1.5 rounded-full ${agentActive ? 'bg-forge-green animate-pulse' : 'bg-forge-text-muted'}`} />
+            <span className="text-[9px] font-mono text-forge-text-dim">{agents.length} AGENTS {agentActive ? 'ACTIVE' : 'IDLE'}</span>
           </div>
           <div className="text-center">
-            <div className="text-[8px] font-mono text-forge-text-muted">AI CPU</div>
-            <div className="text-[14px] font-bold font-mono text-forge-purple">76%</div>
+            <div className="text-[8px] font-mono text-forge-text-muted">AI BACKEND</div>
+            <div className={`text-[12px] font-bold font-mono ${backendLinked ? 'text-forge-green' : 'text-forge-text-muted'}`}>
+              {backendLinked ? 'LINKED' : backend.remoteEnabled ? 'DOWN' : 'OFFLINE'}
+            </div>
           </div>
           <div className="text-center">
-            <div className="text-[8px] font-mono text-forge-text-muted">INSIGHTS</div>
-            <div className="text-[14px] font-bold font-mono text-forge-accent">{aiInsights.length}</div>
+            <div className="text-[8px] font-mono text-forge-text-muted">MODEL</div>
+            <div className={`text-[12px] font-bold font-mono ${hasModelContent ? 'text-forge-accent' : 'text-forge-text-muted'}`}>
+              {hasModelContent ? 'LOADED' : 'NONE'}
+            </div>
           </div>
         </div>
       </div>
@@ -216,7 +267,9 @@ export const AIWorkspace: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-[7px] font-mono text-forge-text-muted">CPU {agent.cpu.toFixed(0)}%</span>
-                    <span className="text-[7px] font-mono text-forge-purple">CONF {agent.confidence}%</span>
+                    {agent.confidence > 0 && (
+                      <span className="text-[7px] font-mono text-forge-purple">CONF {agent.confidence}%</span>
+                    )}
                   </div>
                   <ChevronRight size={10} className="text-forge-text-muted" />
                 </div>
@@ -224,23 +277,24 @@ export const AIWorkspace: React.FC = () => {
             ))}
           </div>
 
-          {/* Neural Activity */}
+          {/* Agent Activity — reflects real state: flat when idle */}
           <div className="p-3 rounded-lg border border-forge-purple/20 bg-forge-purple/5">
             <div className="flex items-center gap-1.5 mb-2">
               <Activity size={10} className="text-forge-purple" />
-              <span className="text-[9px] font-semibold text-forge-text-dim">NEURAL ACTIVITY</span>
+              <span className="text-[9px] font-semibold text-forge-text-dim">AGENT ACTIVITY</span>
+              <span className="text-[7px] font-mono text-forge-text-muted ml-auto">{agentActive ? 'RUNNING' : 'IDLE'}</span>
             </div>
             <div className="h-12 flex items-end gap-px">
               {pulseVals.map((v, i) => (
                 <div
                   key={i}
-                  className="flex-1 bg-forge-purple/60 rounded-t transition-all duration-100"
+                  className={`flex-1 rounded-t transition-all duration-100 ${agentActive ? 'bg-forge-purple/60' : 'bg-forge-border/60'}`}
                   style={{ height: `${v}%` }}
                 />
               ))}
             </div>
           </div>
-          
+
           <div className="mt-auto pt-4 space-y-2">
              <div className="p-3 rounded border border-forge-border bg-forge-dark">
                 <div className="flex items-center justify-between mb-2">
@@ -254,7 +308,7 @@ export const AIWorkspace: React.FC = () => {
                   <span className="text-forge-text-muted">PATTERNS: <span className="text-forge-purple">{obsStats.total_patterns}</span></span>
                 </div>
              </div>
-             
+
              <div className="p-3 rounded border border-forge-border bg-forge-dark mt-2">
                 <div className="text-[9px] font-semibold text-forge-text-dim mb-1">BATCH SIMULATOR</div>
                 <div className="text-[10px] text-forge-accent font-mono truncate">{batchStatus}</div>
@@ -262,7 +316,7 @@ export const AIWorkspace: React.FC = () => {
              <button onClick={startBatchSimulation} className="w-full py-2 bg-forge-purple text-white rounded font-semibold text-[10px] hover:bg-forge-purple/80 transition-colors">
                 INITIATE SELF-TEACHING
              </button>
-             
+
              <div className="p-3 rounded border border-forge-border bg-forge-dark mt-2">
                 <div className="text-[9px] font-semibold text-forge-text-dim mb-2">MACHINE GENERATOR</div>
                 <div className="flex gap-2 mb-2">
@@ -287,19 +341,41 @@ export const AIWorkspace: React.FC = () => {
               <span className="text-[10px] font-semibold tracking-widest text-forge-text-dim">SZM AI ASSISTANCE</span>
             </div>
             <p className="text-[10px] text-forge-text-dim leading-relaxed mb-3">
-              Use this workspace as the front door for design reviews, reusable engineering prompts, and optimization guidance while you build out the next feature set.
+              Run reasoning against the model you have actually loaded. Queries use the AI backend's reasoning
+              engine; without it you will get an explicit unavailable message — never a canned answer.
             </p>
             <div className="flex flex-wrap gap-2">
-              <button className="px-2.5 py-1 rounded text-[8px] font-mono bg-forge-accent/10 text-forge-accent border border-forge-accent/20 hover:bg-forge-accent/20 transition-all">
-                REVIEW CURRENT MODEL
+              <button
+                onClick={() => runAssistance('review')}
+                disabled={reasoningBusy !== null}
+                className="px-2.5 py-1 rounded text-[8px] font-mono bg-forge-accent/10 text-forge-accent border border-forge-accent/20 hover:bg-forge-accent/20 transition-all disabled:opacity-50"
+              >
+                {reasoningBusy === 'review' ? 'REVIEWING…' : 'REVIEW CURRENT MODEL'}
               </button>
-              <button className="px-2.5 py-1 rounded text-[8px] font-mono text-forge-text-muted border border-forge-border/50 hover:text-forge-text hover:bg-forge-surface transition-all">
-                SUGGEST OPTIMIZATION
+              <button
+                onClick={() => runAssistance('optimize')}
+                disabled={reasoningBusy !== null}
+                className="px-2.5 py-1 rounded text-[8px] font-mono text-forge-text-muted border border-forge-border/50 hover:text-forge-text hover:bg-forge-surface transition-all disabled:opacity-50"
+              >
+                {reasoningBusy === 'optimize' ? 'THINKING…' : 'SUGGEST OPTIMIZATION'}
               </button>
-              <button className="px-2.5 py-1 rounded text-[8px] font-mono text-forge-text-muted border border-forge-border/50 hover:text-forge-text hover:bg-forge-surface transition-all">
-                CHECK SAFETY RISKS
+              <button
+                onClick={() => runAssistance('safety')}
+                disabled={reasoningBusy !== null}
+                className="px-2.5 py-1 rounded text-[8px] font-mono text-forge-text-muted border border-forge-border/50 hover:text-forge-text hover:bg-forge-surface transition-all disabled:opacity-50"
+              >
+                {reasoningBusy === 'safety' ? 'CHECKING…' : 'CHECK SAFETY RISKS'}
               </button>
             </div>
+            {reasoning && (
+              <div className="mt-3 p-3 rounded border border-forge-accent/30 bg-forge-accent/5">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[8px] font-mono text-forge-accent tracking-widest">{reasoning.prompt.toUpperCase()}</span>
+                  <button onClick={() => setReasoning(null)} className="ml-auto text-[8px] font-mono text-forge-text-muted hover:text-forge-text">DISMISS</button>
+                </div>
+                <pre className="text-[9px] font-mono text-forge-text-dim whitespace-pre-wrap break-words max-h-48 overflow-y-auto custom-scrollbar">{reasoning.answer}</pre>
+              </div>
+            )}
           </div>
 
           {/* Generated Machine Code Preview */}
@@ -327,111 +403,170 @@ export const AIWorkspace: React.FC = () => {
             </div>
           )}
 
-          {/* Optimization Targets */}
+          {/* Optimization Targets — real session data only */}
           <div className="p-4 rounded-lg border border-forge-border bg-forge-panel">
             <div className="flex items-center gap-2 mb-4">
               <Target size={12} className="text-forge-accent" />
               <span className="text-[10px] font-semibold tracking-widest text-forge-text-dim">OPTIMIZATION TARGETS</span>
             </div>
-            <div className="space-y-3">
-              {optimizationTargets.map((target, i) => (
-                <div key={i}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-medium text-forge-text">{target.name}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[9px] font-mono text-forge-text-dim">{target.current}</span>
-                      <ArrowRight size={8} className="text-forge-text-muted" />
-                      <span className="text-[9px] font-mono text-forge-accent">{target.target}</span>
+            {parts.length > 0 ? (
+              <div className="space-y-3">
+                {parts.slice(0, 6).map((p, i) => {
+                  const ratio = Math.max(0, Math.min(1.5, p.stressRatio ?? 0));
+                  const pct = Math.round(Math.min(1, ratio) * 100);
+                  return (
+                    <div key={i}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-medium text-forge-text">{p.name}</span>
+                        <span className="text-[9px] font-mono text-forge-text-dim">
+                          {p.stress_MPa?.toFixed(1)} MPa / yield {p.yield_MPa?.toFixed(0)} MPa
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-forge-dark rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${ratio >= 1 ? 'bg-forge-red' : ratio >= 0.7 ? 'bg-forge-yellow' : 'bg-forge-green'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="text-[8px] font-mono text-forge-text-muted w-10 text-right">{pct}% util</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-forge-dark rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-forge-purple to-forge-accent rounded-full transition-all"
-                        style={{ width: `${target.progress}%` }}
-                      />
-                    </div>
-                    <span className="text-[8px] font-mono text-forge-text-muted w-8 text-right">{target.progress}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[10px] font-mono text-forge-text-muted">
+                No solved parts yet. Load a preset or build members, then run SOLVE — utilization
+                bars here are computed from real solver results, not sample numbers.
+              </p>
+            )}
           </div>
 
-          {/* Active Insights */}
+          {/* Insights — session insights + optional, clearly-labeled samples */}
           <div className="p-4 rounded-lg border border-forge-border bg-forge-panel">
             <div className="flex items-center gap-2 mb-4">
               <Lightbulb size={12} className="text-forge-yellow" />
               <span className="text-[10px] font-semibold tracking-widest text-forge-text-dim">AI INSIGHTS & ACTIONS</span>
-              <span className="text-[8px] font-mono text-forge-text-muted ml-auto">{aiInsights.length} active</span>
+              <span className="text-[8px] font-mono text-forge-text-muted ml-auto">
+                {sessionInsights.length} from this session
+              </span>
             </div>
+
+            {sessionInsights.length === 0 && (
+              <p className="text-[10px] font-mono text-forge-text-muted mb-3">
+                No insights yet. Run a solve plus AI IMPROVE in the workshop, or use the reasoning
+                actions above — insights shown here always come from your session.
+              </p>
+            )}
+
             <div className="space-y-2">
-              {aiInsights.map(insight => {
-                const tl = typeLabels[insight.type];
+              {sessionInsights.map((insight, i) => {
+                const tl = typeLabels[insight.type] ?? typeLabels.recommendation;
                 return (
                   <div
-                    key={insight.id}
+                    key={`session-${i}`}
                     className="p-3 rounded border border-forge-border/50 bg-forge-surface/20 hover:bg-forge-surface/40 transition-all"
                   >
                     <div className="flex items-start gap-2">
-                      {severityIcons[insight.severity]}
+                      {severityIcons.info}
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-[10px] font-semibold text-forge-text">{insight.title}</span>
                           <span className={`text-[7px] font-mono tracking-wider px-1.5 py-0.5 rounded ${tl.bg} ${tl.color}`}>
                             {tl.label}
                           </span>
+                          <span className="text-[7px] font-mono tracking-wider px-1.5 py-0.5 rounded bg-forge-green/10 text-forge-green">
+                            SESSION
+                          </span>
                         </div>
                         <p className="text-[9px] text-forge-text-dim leading-relaxed mb-2">{insight.description}</p>
-                        <div className="flex items-center gap-4">
-                          <span className="text-[8px] font-mono text-forge-text-muted">{insight.timestamp}</span>
-                          <span className="text-[8px] font-mono text-forge-purple">Confidence: {insight.confidence}%</span>
-                          <div className="flex gap-1 ml-auto">
-                            <button className="px-2 py-0.5 rounded text-[8px] font-mono bg-forge-accent/10 text-forge-accent border border-forge-accent/20 hover:bg-forge-accent/20 transition-all">
-                              APPLY
-                            </button>
-                            <button className="px-2 py-0.5 rounded text-[8px] font-mono text-forge-text-muted hover:bg-forge-surface transition-all">
-                              EXPLORE
-                            </button>
-                          </div>
-                        </div>
+                        <span className="text-[8px] font-mono text-forge-purple">Confidence: {Math.round(insight.confidence)}%</span>
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
+
+            <button
+              onClick={() => setShowSampleInsights(v => !v)}
+              className="mt-3 text-[8px] font-mono text-forge-text-muted hover:text-forge-text transition-colors"
+            >
+              {showSampleInsights ? 'HIDE SAMPLE INSIGHTS (DEMO)' : 'PREVIEW SAMPLE INSIGHTS (DEMO)'}
+            </button>
+
+            {showSampleInsights && (
+              <div className="mt-3 space-y-2">
+                <div className="p-2 rounded border border-forge-yellow/30 bg-forge-yellow/5 text-[8px] font-mono text-forge-yellow tracking-wider">
+                  DEMO DATA — these sample insights describe a turbine assembly and are NOT from your model.
+                </div>
+                {sampleInsights.map(insight => {
+                  const tl = typeLabels[insight.type];
+                  return (
+                    <div
+                      key={insight.id}
+                      className="p-3 rounded border border-dashed border-forge-yellow/20 bg-forge-surface/10 opacity-75"
+                    >
+                      <div className="flex items-start gap-2">
+                        {severityIcons[insight.severity]}
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-semibold text-forge-text">{insight.title}</span>
+                            <span className={`text-[7px] font-mono tracking-wider px-1.5 py-0.5 rounded ${tl.bg} ${tl.color}`}>
+                              {tl.label}
+                            </span>
+                            <span className="text-[7px] font-mono tracking-wider px-1.5 py-0.5 rounded bg-forge-yellow/10 text-forge-yellow">
+                              SAMPLE
+                            </span>
+                          </div>
+                          <p className="text-[9px] text-forge-text-dim leading-relaxed mb-2">{insight.description}</p>
+                          <div className="flex items-center gap-4">
+                            <span className="text-[8px] font-mono text-forge-text-muted">{insight.timestamp}</span>
+                            <span className="text-[8px] font-mono text-forge-purple">Confidence: {insight.confidence}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* AI Performance Grid */}
+          {/* Session Counters — real values only, "—" when unavailable */}
           <div className="grid grid-cols-4 gap-3">
             <div className="p-3 rounded-lg border border-forge-border/50 bg-forge-surface/20">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">INFERENCES</span>
-                <Zap size={14} className="text-forge-accent" />
+                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">OBSERVED ACTIONS</span>
+                <Activity size={14} className="text-forge-accent" />
               </div>
-              <div className="text-[18px] font-bold font-mono text-forge-accent">14,847</div>
+              <div className="text-[18px] font-bold font-mono text-forge-accent">
+                {observationActive ? obsStats.total_actions : '—'}
+              </div>
             </div>
             <div className="p-3 rounded-lg border border-forge-border/50 bg-forge-surface/20">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">OPTIMIZATIONS</span>
+                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">PATTERNS LEARNED</span>
                 <TrendingUp size={14} className="text-forge-purple" />
               </div>
-              <div className="text-[18px] font-bold font-mono text-forge-purple">342</div>
+              <div className="text-[18px] font-bold font-mono text-forge-purple">
+                {observationActive ? obsStats.total_patterns : '—'}
+              </div>
             </div>
             <div className="p-3 rounded-lg border border-forge-border/50 bg-forge-surface/20">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">WARNINGS CAUGHT</span>
+                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">MACHINES GENERATED</span>
                 <Shield size={14} className="text-forge-yellow" />
               </div>
-              <div className="text-[18px] font-bold font-mono text-forge-yellow">28</div>
+              <div className="text-[18px] font-bold font-mono text-forge-yellow">{mlOutput.length}</div>
             </div>
             <div className="p-3 rounded-lg border border-forge-border/50 bg-forge-surface/20">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">ACCURACY</span>
-                <Gauge size={14} className="text-forge-green" />
+                <span className="text-[8px] font-mono tracking-wider text-forge-text-muted">BATCH STATUS</span>
+                <Cpu size={14} className="text-forge-green" />
               </div>
-              <div className="text-[18px] font-bold font-mono text-forge-green">96.7%</div>
+              <div className="text-[12px] font-bold font-mono text-forge-green truncate">{backend.remoteEnabled ? batchStatus : 'OFFLINE'}</div>
             </div>
           </div>
         </div>
