@@ -41,7 +41,7 @@ const focusAreas: Array<{
 ];
 
 const memorySignals = [
-  'Project context reflects the components you load or create in this session; it is not yet persisted across restarts.',
+  'Project context auto-saves to this browser as you work — components you load or create are restored after a reload.',
   'AI insights appear only after a successful solver or analysis run — counts shown are real session events.',
   'Remote services (Omniverse Nucleus sync, USD export, cloud LLMs) require the optional backend and are off by default.',
 ];

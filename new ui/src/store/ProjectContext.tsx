@@ -1,5 +1,11 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { pingBackend } from '../services/forgeApi';
+import {
+  clearPersistedProject,
+  loadPersistedProject,
+  persistProject,
+  type PersistResult,
+} from '../offline/projectPersistence';
 import {
   createFurniture,
   createNewProject as apiNewProject,
@@ -86,6 +92,17 @@ interface ProjectContextValue {
   customMaterials: CustomMaterial[];
   addMaterial: (mat: Omit<CustomMaterial, 'id'>) => void;
   saveMotorProject: (motorParts: any[], rpm: number) => void;
+  /** Persistence state: what was saved/restored, degraded saves, warnings. */
+  persistStatus: {
+    restored: boolean;
+    restoredParts: number;
+    savedAt: number | null;
+    degraded: boolean;
+    warnings: string[];
+    error: string | null;
+  };
+  /** Delete the locally persisted project snapshot. */
+  clearSavedProject: () => void;
 }
 
 // stressToParts removed since solveAssembly is removed.
@@ -93,24 +110,99 @@ interface ProjectContextValue {
 const ProjectContext = createContext<ProjectContextValue | null>(null);
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [project, setProject] = useState<ProjectState | null>(null);
-  const [parts, setParts] = useState<FurniturePart[]>([]);
-  const [bodyParts, setBodyParts] = useState<SceneObject[]>([]);
-  const [bodyJoints, setBodyJoints] = useState<Joint[]>([]);
+  // Hydrate synchronously on first render so nothing flashes empty and later
+  // restores. Version/corruption mismatches come back as warnings, not crashes.
+  const [hydration] = useState(() => loadPersistedProject());
+  const restored = hydration.data;
+
+  const [project, setProject] = useState<ProjectState | null>(restored?.project ?? null);
+  const [parts, setParts] = useState<FurniturePart[]>(restored?.parts ?? []);
+  const [bodyParts, setBodyParts] = useState<SceneObject[]>(restored?.bodyParts ?? []);
+  const [bodyJoints, setBodyJoints] = useState<Joint[]>(restored?.bodyJoints ?? []);
   const [limits, setLimits] = useState<LimitSweepRow[]>([]);
   const [aiInsights, setAiInsights] = useState<AIInsightDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [furnitureType, setFurnitureType] = useState<FurnitureType>('ladder');
-  const [lastAction, setLastAction] = useState<string | null>(null);
-  const [members, setMembers] = useState<StructuralMember[]>([]);
+  const [furnitureType, setFurnitureType] = useState<FurnitureType>(
+    restored?.project?.furnitureType ?? 'ladder',
+  );
+  const [lastAction, setLastAction] = useState<string | null>(() => {
+    if (!restored) return null;
+    const n = (restored.bodyParts?.length ?? 0) + (restored.members?.length ?? 0);
+    return n > 0 ? `Restored saved project — ${n} component(s) recovered.` : null;
+  });
+  const [members, setMembers] = useState<StructuralMember[]>(restored?.members ?? []);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [useBackend, setUseBackend] = useState<boolean | null>(null);
-  const [customMaterials, setCustomMaterials] = useState<CustomMaterial[]>(DEFAULT_MATERIALS);
+  const [customMaterials, setCustomMaterials] = useState<CustomMaterial[]>(
+    restored?.customMaterials?.length ? restored.customMaterials : DEFAULT_MATERIALS,
+  );
+  const [persistStatus, setPersistStatus] = useState({
+    restored: restored !== null,
+    restoredParts: (restored?.bodyParts?.length ?? 0) + (restored?.members?.length ?? 0),
+    savedAt: restored?.savedAt ?? null,
+    degraded: false,
+    warnings: hydration.warnings,
+    error: null as string | null,
+  });
+  const persistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const addMaterial = useCallback((mat: Omit<CustomMaterial, 'id'>) => {
     setCustomMaterials(prev => [...prev, { ...mat, id: `mat_${Date.now()}` }]);
     setLastAction(`Synthesized new material: ${mat.name}`);
+  }, []);
+
+  // ── Auto-persist: debounced snapshot of the working project ──────────────
+  // Only writes when there is something worth keeping, so an empty first
+  // mount never clobbers a previously saved project.
+  useEffect(() => {
+    const hasContent =
+      project !== null ||
+      members.length > 0 ||
+      bodyParts.length > 0 ||
+      bodyJoints.length > 0;
+    if (!hasContent) return undefined;
+
+    if (persistTimer.current) clearTimeout(persistTimer.current);
+    persistTimer.current = setTimeout(() => {
+      const result: PersistResult = persistProject({
+        project,
+        members,
+        bodyParts,
+        bodyJoints,
+        parts,
+        customMaterials,
+      });
+      setPersistStatus(prev => ({
+        ...prev,
+        savedAt: result.savedAt ?? prev.savedAt,
+        degraded: result.degraded ?? false,
+        error: result.ok ? null : (result.error ?? 'Save failed'),
+        warnings: [
+          ...prev.warnings.filter(w => w.startsWith('Custom geometry') === false),
+          ...(result.droppedGeometry.length
+            ? [`Custom geometry not saved for: ${result.droppedGeometry.join(', ')}`]
+            : []),
+        ],
+      }));
+    }, 400);
+    return () => {
+      if (persistTimer.current) clearTimeout(persistTimer.current);
+    };
+  }, [project, members, bodyParts, bodyJoints, parts, customMaterials]);
+
+  const clearSavedProject = useCallback(() => {
+    clearPersistedProject();
+    setPersistStatus(prev => ({
+      ...prev,
+      restored: false,
+      restoredParts: 0,
+      savedAt: null,
+      degraded: false,
+      warnings: [],
+      error: null,
+    }));
+    setLastAction('Saved project snapshot deleted.');
   }, []);
 
   const ensureBackend = useCallback(async () => {
@@ -161,7 +253,10 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
     async (name: string) => {
       setLoading(true);
       setError(null);
+      clearPersistedProject(); // explicit reset: old snapshot must not resurrect
       setParts([]);
+      setBodyParts([]);
+      setBodyJoints([]);
       setLimits([]);
       setAiInsights([]);
       setMembers([]);
@@ -459,6 +554,8 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         customMaterials,
         addMaterial,
         saveMotorProject,
+        persistStatus,
+        clearSavedProject,
       }}
     >
       {children}
