@@ -660,7 +660,7 @@ export function geometryBridgeUrl(path: string): string {
 export { validateMachineConfig } from '../offline/machineConfig';
 
 // ======================== CAD & Export ========================
-
-export async function exportUsd(component_id: string): Promise<any> {
-  return postBackendJson('USD export', '/export/usd', { component_id });
-}
+//
+// USD export is client-side and scene-real: see offline/usdExport.ts.
+// The previous backend bridge (/export/usd → :8003) exported a hard-coded
+// sample plate and failed silently, so it was removed.

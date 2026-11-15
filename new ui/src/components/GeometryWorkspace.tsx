@@ -148,17 +148,37 @@ export const GeometryWorkspace: React.FC = () => {
               {isGenerating ? <div className="w-4 h-4 border-2 border-forge-accent border-t-transparent rounded-full animate-spin" /> : <Play size={16} />}
               {isGenerating ? 'GENERATING...' : 'GENERATE 3D PART'}
             </button>
-            <button 
+            <button
               onClick={async () => {
-                const { exportUsd } = await import('../services/forgeApi');
+                if (!stlUrl) {
+                  store.showToast('Generate a part first — there is no geometry to export.');
+                  return;
+                }
                 try {
-                  await exportUsd('component_1');
-                  alert('Successfully exported to USD format for Omniverse!');
-                } catch(e: any) {
-                  alert('Failed to export USD: ' + e.message);
+                  // Export the ACTUAL generated mesh (the STL shown above),
+                  // not a backend sample part. Units stay in mm as generated.
+                  const buf = await (await fetch(stlUrl)).arrayBuffer();
+                  const geo = new STLLoader().parse(buf);
+                  geo.computeBoundingBox();
+                  const s = geo.boundingBox!.getSize(new THREE.Vector3());
+                  const { sceneToUsda, downloadUsda } = await import('../offline/usdExport');
+                  const result = sceneToUsda([{
+                    id: 'generated_part',
+                    name: `${partType}_part`,
+                    type: 'custom',
+                    position: { x: 0, y: 0, z: 0 },
+                    size: { x: s.x, y: s.y, z: s.z },
+                    customGeometry: geo,
+                  }], { projectName: `${partType} Part`, units: 'mm' });
+                  downloadUsda(result);
+                  store.showToast(`Exported ${result.fileName} — ${result.triangleCount} triangles of the generated ${partType}`);
+                } catch (e) {
+                  store.showToast(`USD export failed: ${e instanceof Error ? e.message : String(e)}`);
                 }
               }}
-              className="w-full py-2 bg-forge-purple/20 hover:bg-forge-purple/40 text-forge-purple border border-forge-purple/50 rounded flex items-center justify-center gap-2 font-mono font-bold transition-all"
+              disabled={!stlUrl}
+              title={stlUrl ? 'Export the generated part as USD (.usda)' : 'Generate a part first'}
+              className="w-full py-2 bg-forge-purple/20 hover:bg-forge-purple/40 text-forge-purple border border-forge-purple/50 rounded flex items-center justify-center gap-2 font-mono font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               EXPORT USD (OMNIVERSE)
             </button>

@@ -3,6 +3,7 @@ import { WorkspaceMode, ViewportRenderMode } from '../types';
 import { useTooltips } from '../store/TooltipContext';
 import { tooltips } from '../data/tooltips';
 import { useForgeStore } from '../store/ForgeStoreContext';
+import { useProject } from '../store/ProjectContext';
 import {
   Cpu, Layers, Box, Factory, Brain, Radio,
   Play, Pause, RotateCcw, Settings, Maximize2,
@@ -104,6 +105,8 @@ export const TopCommandBar: React.FC<Props> = ({
   const { t } = useTooltips();
   const [isExporting, setIsExporting] = useState(false);
   const store = useForgeStore();
+  const showToast = store.showToast;
+  const { bodyParts, project } = useProject();
 
   const handleRenderModeChange = async (modeId: ViewportRenderMode) => {
     setRenderMode(modeId);
@@ -126,40 +129,22 @@ export const TopCommandBar: React.FC<Props> = ({
     }
   };
 
+  // Exports the REAL scene client-side as USDA (Pixar text format).
+  // No backend round-trip, no sample parts — exactly what the viewport holds.
   const handleExportUSD = async () => {
+    if (bodyParts.length === 0) {
+      showToast('Nothing to export — load or build a part first.');
+      return;
+    }
     setIsExporting(true);
     try {
-      const res = await fetch('/api/export/usd', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_name: 'SZM_Forge_Export',
-          components: [
-            { name: 'Base_Plate', bbox: {w: 1, h: 0.1, d: 1}, position: [0, 0, 0], material_name: 'Aluminum' }
-          ],
-          materials: [
-            { name: 'Aluminum', base_color: [0.9, 0.9, 0.9], roughness: 0.2, metallic: 1.0 }
-          ]
-        })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        const downloadFile = (filename: string, content: string) => {
-          const blob = new Blob([content], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        };
-        downloadFile('scene.usda', data.usda_data);
-        downloadFile('materials.mtlx', data.mtlx_data);
-      }
+      const { sceneToUsda, downloadUsda } = await import('../offline/usdExport');
+      const result = sceneToUsda(bodyParts, { projectName: project?.projectName ?? 'SZM Forge Scene' });
+      downloadUsda(result);
+      const warnSuffix = result.warnings.length ? ` — note: ${result.warnings.join('; ')}` : '';
+      showToast(`Exported ${result.partCount} part(s), ${result.triangleCount} triangles → ${result.fileName}${warnSuffix}`);
     } catch (e) {
-      console.error('Export failed:', e);
+      showToast(`USD export failed: ${e instanceof Error ? e.message : String(e)}`);
     }
     setIsExporting(false);
   };
@@ -294,8 +279,9 @@ export const TopCommandBar: React.FC<Props> = ({
         <div className="ml-auto flex items-center gap-3">
           <button
             onClick={handleExportUSD}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-bold tracking-wider bg-forge-accent/20 text-forge-accent border border-forge-accent/40 hover:bg-forge-accent/40 disabled:opacity-50"
+            disabled={isExporting || bodyParts.length === 0}
+            title={bodyParts.length === 0 ? 'Load or build a part first — there is nothing to export' : 'Export the current scene as USD (.usda)'}
+            className="flex items-center gap-1.5 px-3 py-1 rounded text-[10px] font-bold tracking-wider bg-forge-accent/20 text-forge-accent border border-forge-accent/40 hover:bg-forge-accent/40 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Download size={11} /> {isExporting ? 'EXPORTING...' : 'EXPORT USD'}
           </button>
