@@ -662,6 +662,14 @@ app.add_middleware(
 
 app.include_router(auth_router)
 
+# Mount the engineering-stack router (step import, crawlers, reports, …).
+# These were previously defined but never registered, so the endpoints 404'd.
+try:
+    from routes.engine_routes import register_engine_routes
+    register_engine_routes(app)
+except Exception as exc:  # pragma: no cover — startup must not die on router import issues
+    logger.warning("Engine routes not mounted: %s", exc)
+
 # Initialize services
 szm_ai = SZMForgeAIService()  # New integrated AI service
 legacy_ai = AIService()  # Legacy service for backward compatibility

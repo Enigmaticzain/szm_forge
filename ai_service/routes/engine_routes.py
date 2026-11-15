@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 router = APIRouter(tags=["engineering-stack"])
@@ -367,6 +367,70 @@ async def fea_html_report(payload: Dict[str, Any]):
     from report_templates import render_fea_report
     from fastapi.responses import HTMLResponse
     return HTMLResponse(render_fea_report(payload))
+
+
+@router.post("/api/import/step")
+async def import_step_file(file: UploadFile):
+    """Convert an uploaded STEP solid to three.js-ready JSON meshes (mm coordinates).
+
+    Uses the existing build123d/OpenCascade backend. Returns an honest error
+    payload when the engine is missing or the file is unreadable — never a
+    placeholder mesh.
+    """
+    MAX_STEP_BYTES = 50 * 1024 * 1024
+    raw = await file.read(MAX_STEP_BYTES + 1)
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty upload")
+    if len(raw) > MAX_STEP_BYTES:
+        raise HTTPException(status_code=413, detail="STEP file exceeds 50 MB limit")
+    if b"ISO-10303-21" not in raw[:256]:
+        raise HTTPException(status_code=400, detail="Not a STEP file (missing ISO-10303-21 header)")
+
+    try:
+        import build123d as bd  # noqa: WPS433 — optional heavy import, loaded on demand
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="build123d not installed on this backend — use the in-browser WASM importer",
+        ) from exc
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".step", delete=False) as tmp:
+            tmp.write(raw)
+            tmp_path = tmp.name
+        shape = bd.import_step(tmp_path)
+        solids = list(shape.solids()) or [shape]
+
+        meshes: List[Dict[str, Any]] = []
+        for idx, solid in enumerate(solids):
+            vertices, triangles = solid.tessellate(tolerance=0.1)
+            positions: List[float] = []
+            for v in vertices:
+                positions.extend((v.X, v.Y, v.Z))
+            indices: List[int] = []
+            for tri in triangles:
+                indices.extend(tri)
+            if not indices:
+                continue
+            meshes.append({
+                "name": f"{file.filename or 'part'} solid {idx + 1}",
+                "positions": positions,
+                "indices": indices,
+            })
+        if not meshes:
+            raise HTTPException(status_code=422, detail="STEP contained no tessellatable solids")
+        return {"ok": True, "meshes": meshes, "units": "mm"}
+    except HTTPException:
+        raise
+    except Exception as exc:  # honest surface for corrupt/unsupported STEP content
+        raise HTTPException(status_code=422, detail=f"STEP import failed: {exc}") from exc
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def register_engine_routes(app) -> None:

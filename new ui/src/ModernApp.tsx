@@ -89,7 +89,11 @@ const ModernApp: React.FC = () => {
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
     if (!['step', 'stp', 'stl', 'dxf'].includes(ext)) {
-      store.showToast('Unsupported format — use .step .stp .stl .dxf');
+      store.showToast('Unsupported format — use .step .stp or .stl');
+      return;
+    }
+    if (ext === 'dxf') {
+      store.showToast('DXF files are 2D profiles — not importable as solids yet. Use STEP or STL.');
       return;
     }
     setImportFile(file);
@@ -128,24 +132,50 @@ const ModernApp: React.FC = () => {
             bendAngle: 0,
           },
         ]);
-      } else {
-        // STEP/DXF: placeholder bounding box until OCCT bridge loads the solid
+      } else if (ext === 'step' || ext === 'stp') {
+        // Real STEP import: OpenCascade (WASM) B-Rep → triangulated meshes.
+        const { parseStepBytes, looksLikeStep } = await import('./offline/stepImport');
+        const bytes = new Uint8Array(await importFile.arrayBuffer());
+        if (!looksLikeStep(bytes)) {
+          throw new Error(`"${importFile.name}" is not a valid STEP file (missing ISO-10303-21 header).`);
+        }
+        const summary = await parseStepBytes(bytes, name);
+        if (summary.parts.length === 0) {
+          throw new Error(summary.warnings[0] ?? 'No readable solids in this STEP file.');
+        }
         setBodyParts(prev => [
           ...prev,
-          {
-            id,
-            name,
-            type: 'box',
-            position: { x: 0, y: 0, z: 0 },
-            size: { x: 80, y: 40, z: 20 },
-            bendAngle: 0,
-          },
+          ...summary.parts.map((p, i) => {
+            const bbox = p.geometry.boundingBox;
+            const sx = bbox ? bbox.max.x - bbox.min.x : 0.1;
+            const sy = bbox ? bbox.max.y - bbox.min.y : 0.1;
+            const sz = bbox ? bbox.max.z - bbox.min.z : 0.1;
+            return {
+              id: summary.parts.length > 1 ? `${id}_${i}` : id,
+              name: p.name,
+              type: 'custom' as const,
+              position: { x: 0, y: 0, z: 0 },
+              size: { x: sx, y: sy, z: sz },
+              customGeometry: p.geometry,
+              bendAngle: 0,
+            };
+          }),
         ]);
+        const warnSuffix = summary.warnings.length ? ` (${summary.warnings.join('; ')})` : '';
+        store.showToast(
+          `Imported STEP: ${summary.parts.length} solid(s), ${Math.round(summary.totalTriangles)} triangles${warnSuffix}`,
+        );
+      } else {
+        // DXF is filtered at selection time; this branch is unreachable but
+        // must still refuse rather than create placeholder geometry.
+        store.showToast('DXF is a 2D profile format — no placeholder solid was created.');
+        setImportFile(null);
+        return;
       }
       store.setWorkspace('geometry');
       store.setImportDialogOpen(false);
       setImportFile(null);
-      store.showToast(`Added ${name} to scene`);
+      if (ext === 'stl') store.showToast(`Added ${name} to scene`);
     } catch (e: unknown) {
       store.showToast(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -499,7 +529,7 @@ const ModernApp: React.FC = () => {
             </div>
             <div className="p-6 flex flex-col gap-4">
               <p className="text-forge-text-dim font-sans text-xs">
-                Import STEP, STL, or DXF into the active scene. STL loads mesh geometry; STEP/DXF add a placeholder solid.
+                Import STEP or STL into the active scene. STEP solids are triangulated by the embedded OpenCascade kernel (mm → m); STL loads mesh geometry. DXF (2D profiles) is not yet supported — no placeholder will be created.
               </p>
               <input
                 ref={importInputRef}
