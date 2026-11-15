@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useForgeStore } from '../store/ForgeStoreContext';
+import { useSessionEvents } from '../store/SessionEventContext';
 import { createGeometryPart, analyzeGeometryPart, geometryBridgeUrl } from '../services/forgeApi';
 import { Layers, Settings, Maximize2, Play, AlertTriangle } from 'lucide-react';
 import * as THREE from 'three';
@@ -9,6 +10,7 @@ import { ViewportGuard } from './viewport/ViewportGuard';
 
 export const GeometryWorkspace: React.FC = () => {
   const store = useForgeStore();
+  const { addEvent } = useSessionEvents();
   const [partType, setPartType] = useState('bracket');
   const [isGenerating, setIsGenerating] = useState(false);
   const [stlUrl, setStlUrl] = useState<string | null>(null);
@@ -43,9 +45,11 @@ export const GeometryWorkspace: React.FC = () => {
       if (!data?.render_url) throw new Error('Could not generate part');
       setStlUrl(geometryBridgeUrl(data.render_url as string));
       store.showToast(`Successfully generated ${partType}!`);
+      addEvent('generate', `Generated parametric ${partType} (${data.render_url ? 'backend' : 'unknown source'})`, 'success');
       analyzePart();
     } catch (e: any) {
       store.showToast(`Error: ${e.message}`);
+      addEvent('generate', `Part generation failed: ${partType}`, 'critical');
     } finally {
       setIsGenerating(false);
     }
@@ -173,6 +177,7 @@ export const GeometryWorkspace: React.FC = () => {
                   }], { projectName: `${partType} Part`, units: 'mm' });
                   downloadUsda(result);
                   store.showToast(`Exported ${result.fileName} — ${result.triangleCount} triangles of the generated ${partType}`);
+                  addEvent('export', `USD export: ${result.fileName} (generated ${partType})`, 'success');
                 } catch (e) {
                   store.showToast(`USD export failed: ${e instanceof Error ? e.message : String(e)}`);
                 }

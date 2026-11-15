@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { TreeNode } from '../types';
-import { projectTree } from '../data/mockData';
 import { useProject } from '../store/ProjectContext';
 import {
   ChevronRight, ChevronDown, Box, Link2, Palette,
@@ -191,12 +190,12 @@ export const ProjectHierarchy: React.FC<Props> = ({ selectedNode, setSelectedNod
   const furnitureLabel =
     furnitureType === 'chair' ? 'Chair' : furnitureType === 'ladder' ? 'Ladder' : furnitureType === 'motor' ? 'Motor' : 'Table';
 
-  const tree: TreeNode[] =
+  const tree: TreeNode[] | null =
     hasFurniture && parts.length > 0
       ? buildFurnitureTree(project!.projectName, furnitureLabel, parts)
-      : projectTree;
+      : null;
 
-  const partCount = hasFurniture ? parts.length : 8;
+  const partCount = parts.length;
 
   return (
     <div className="h-full flex flex-col glass-panel border-r border-forge-border/40">
@@ -236,15 +235,24 @@ export const ProjectHierarchy: React.FC<Props> = ({ selectedNode, setSelectedNod
 
       {/* Tree */}
       <div className="flex-1 overflow-y-auto py-1">
-        {tree.map(node => (
-          <TreeItem
-            key={node.id}
-            node={node}
-            depth={0}
-            selectedNode={selectedNode}
-            setSelectedNode={setSelectedNode}
-          />
-        ))}
+        {tree === null ? (
+          <div className="p-4 text-center border border-dashed border-forge-border/50 rounded-lg m-3">
+            <Layers size={16} className="mx-auto text-forge-text-muted mb-2" />
+            <p className="text-[10px] text-forge-text-muted leading-relaxed">
+              Empty project — components appear here once you create geometry in Body Design.
+            </p>
+          </div>
+        ) : (
+          tree.map(node => (
+            <TreeItem
+              key={node.id}
+              node={node}
+              depth={0}
+              selectedNode={selectedNode}
+              setSelectedNode={setSelectedNode}
+            />
+          ))
+        )}
       </div>
 
       {/* Footer Stats */}
@@ -254,13 +262,13 @@ export const ProjectHierarchy: React.FC<Props> = ({ selectedNode, setSelectedNod
             <div className="text-[10px] font-mono text-forge-text-muted">PARTS</div>
             <div className="text-xs font-bold text-forge-text font-mono">{partCount}</div>
           </div>
-          <div className="text-center">
+          <div className="text-center" title="Simulation run history is not yet persistent">
             <div className="text-[10px] font-mono text-forge-text-muted">SIMS</div>
-            <div className="text-xs font-bold text-forge-accent font-mono">4</div>
+            <div className="text-xs font-bold text-forge-text-muted font-mono">—</div>
           </div>
-          <div className="text-center">
+          <div className="text-center" title="No digital twin instances are registered yet">
             <div className="text-[10px] font-mono text-forge-text-muted">TWINS</div>
-            <div className="text-xs font-bold text-forge-green font-mono">2</div>
+            <div className="text-xs font-bold text-forge-text-muted font-mono">0</div>
           </div>
         </div>
       </div>

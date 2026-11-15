@@ -8,6 +8,7 @@ import { TooltipProvider } from "./store/TooltipContext";
 import { BackendProvider } from "./store/BackendContext";
 import { ProjectProvider } from "./store/ProjectContext";
 import { ForgeStoreProvider } from "./store/ForgeStoreContext";
+import { SessionEventProvider } from "./store/SessionEventContext";
 import { AuthProvider } from "./store/AuthContext";
 
 createRoot(document.getElementById("root")!).render(
@@ -18,7 +19,9 @@ createRoot(document.getElementById("root")!).render(
           <TooltipProvider>
             <BackendProvider>
               <ProjectProvider>
-                <App />
+                <SessionEventProvider>
+                  <App />
+                </SessionEventProvider>
               </ProjectProvider>
             </BackendProvider>
           </TooltipProvider>

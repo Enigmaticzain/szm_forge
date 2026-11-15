@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { machineFleet } from '../data/mockData';
 import type { MachineUnit } from '../types';
 import { fetchJson, isOfflineMode, type SimulationStatusDto } from '../services/forgeApi';
 import {
@@ -76,7 +75,8 @@ const MachineCard: React.FC<{ machine: MachineUnit; selected: boolean; onClick: 
 export const DigitalTwinDashboard: React.FC = () => {
   const [selectedMachine, setSelectedMachine] = useState<string>('m1');
   const [liveValues, setLiveValues] = useState<Record<string, number>>({});
-  const [fleet, setFleet] = useState<MachineUnit[]>(machineFleet);
+  // Empty until real simulation data arrives — never seeded with demo machines.
+  const [fleet, setFleet] = useState<MachineUnit[]>([]);
 
   useEffect(() => {
     if (isOfflineMode()) return;
@@ -89,7 +89,6 @@ export const DigitalTwinDashboard: React.FC = () => {
         if (components.length > 0) {
           const nextLive: Record<string, number> = {};
           const mapped: MachineUnit[] = components.map((c, i) => {
-            const base = machineFleet[i % machineFleet.length];
             const rawStress = Number(c.stressRatio ?? 0);
             const rawTemp = Number(c.tempRatio ?? 0);
             const stressRatio = rawStress > 1.5 ? rawStress / 100 : rawStress;
@@ -100,17 +99,25 @@ export const DigitalTwinDashboard: React.FC = () => {
               stressRatio > 0.65 ? 'maintenance' :
               stressRatio > 0.4 ? 'degraded' :
               'online';
-            const name = c.name || base.name;
+            const name = c.name || `component_${i + 1}`;
             nextLive[`${name} Stress (MPa)`] = Number(Number(c.stress_MPa ?? 0).toFixed(2));
             nextLive[`${name} Temp (°C)`] = Number(Number(c.temperature_C ?? 0).toFixed(1));
+            // These represent simulation components, NOT registered physical
+            // machines — all machine-fleet fields are zeroed/blanked honestly.
             return {
-              ...base,
-              id: c.name || base.id,
+              id: name,
               name,
+              type: 'sim-component',
               status,
               health,
-              temperature: Number.isFinite(c.temperature_C) ? Math.round(c.temperature_C) : base.temperature,
+              uptime: 0,
+              temperature: Number.isFinite(c.temperature_C) ? Math.round(c.temperature_C) : 0,
               load: Math.round(Math.min(100, Math.max(0, stressRatio * 100))),
+              efficiency: 0,
+              location: 'simulation space',
+              lastMaintenance: '—',
+              nextMaintenance: '—',
+              telemetry: [],
             };
           });
           setFleet(mapped);
@@ -131,6 +138,14 @@ export const DigitalTwinDashboard: React.FC = () => {
   return (
     <div className="p-6 bg-forge-dark rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-forge-text mb-4">Digital Twin Dashboard</h2>
+      <div className="mb-4 px-3 py-2 rounded border border-forge-yellow/20 bg-forge-yellow/5 flex items-start gap-2">
+        <AlertTriangle size={12} className="text-forge-yellow shrink-0 mt-0.5" />
+        <p className="text-[9px] font-mono text-forge-yellow leading-tight">
+          Cards below mirror LIVE SIMULATION COMPONENTS ({`components`} from /api/simulation/status),
+          not registered physical machines. With the backend offline — or no run started — the list
+          stays empty. Asset registration + health-history pipelines are roadmap items.
+        </p>
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-forge-surface rounded-lg p-4">
           <h3 className="text-lg font-semibold text-forge-text mb-2">Active Machines</h3>

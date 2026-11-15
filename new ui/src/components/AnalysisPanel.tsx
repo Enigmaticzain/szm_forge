@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { telemetryData, simulationResults, aiInsights, solverMetrics } from '../data/mockData';
+import { telemetryData, solverMetrics } from '../data/mockData';
 import {
   Activity, TrendingUp, TrendingDown, Minus,
   AlertTriangle, CheckCircle, Info, XCircle,
@@ -51,7 +51,7 @@ const MiniSparkline: React.FC<{ data: number[]; color: string }> = ({ data, colo
 export const AnalysisPanel: React.FC = () => {
   const { connected, simulation } = useBackend();
   const { aiInsights: projectAI, limits: projectLimits, parts: projectParts } = useProject();
-  const displayAI = projectAI.length > 0 ? projectAI.map((ins, i) => ({
+  const displayAI = projectAI.map((ins, i) => ({
     id: `proj-ai-${i}`,
     type: (ins.type === 'optimization' ? 'optimization' : ins.type === 'warning' ? 'warning' : 'recommendation') as 'optimization' | 'warning' | 'recommendation' | 'diagnostic',
     title: ins.title,
@@ -59,7 +59,7 @@ export const AnalysisPanel: React.FC = () => {
     confidence: ins.confidence,
     severity: (ins.type === 'warning' ? 'critical' : 'info') as 'info' | 'warning' | 'critical' | 'success',
     timestamp: 'just now',
-  })) : aiInsights;
+  }));
   useProject();
   const { t } = useTooltips();
   const [activeTab, setActiveTab] = useState<PanelTab>('results');
@@ -163,30 +163,29 @@ export const AnalysisPanel: React.FC = () => {
               })
             ) : null}
             {projectParts.length === 0 &&
-              simulationResults.map((result, i) => (
-              <div
-                key={i}
-                className={`p-2 rounded border ${severityColors[result.status]} transition-all`}
-              >
-                <div className="flex items-center justify-between mb-0.5">
-                  <div className="flex items-center gap-1.5">
-                    {severityIcons[result.status]}
-                    <span className="text-[9px] font-medium text-forge-text-dim">{result.metric}</span>
-                  </div>
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[13px] font-bold font-mono text-forge-text">{result.value}</span>
-                </div>
-                {result.detail && (
-                  <span className="text-[8px] text-forge-text-muted mt-0.5 block">{result.detail}</span>
-                )}
+              !(connected && simulation?.components?.length) && (
+              <div className="p-4 text-center border border-dashed border-forge-border/50 rounded-lg mt-1">
+                <BarChart3 size={16} className="mx-auto text-forge-text-muted mb-2" />
+                <p className="text-[10px] text-forge-text-muted leading-relaxed">
+                  No analysis results yet.
+                </p>
+                <p className="text-[8px] text-forge-text-muted/80 leading-relaxed mt-1">
+                  Results appear after you generate geometry (Body Design → Generate) or run a
+                  simulation (Simulation workspace → RUN).
+                </p>
               </div>
-            ))}
+            )}
           </div>
         )}
 
         {activeTab === 'telemetry' && (
           <div className="p-2 space-y-1">
+            <div className="px-2 py-1.5 rounded border border-forge-yellow/20 bg-forge-yellow/5 flex items-center gap-1.5 mb-2">
+              <Info size={10} className="text-forge-yellow flex-shrink-0" />
+              <span className="text-[8px] font-mono text-forge-yellow leading-tight">
+                SIMULATED SAMPLE TELEMETRY — no physical sensors are connected to this workspace.
+              </span>
+            </div>
             {telemetryData.map(item => {
               const sparkColor = item.status === 'critical' ? '#ff3355' :
                 item.status === 'warning' ? '#ffcc00' :
@@ -225,6 +224,15 @@ export const AnalysisPanel: React.FC = () => {
                 {displayAI.length} ACTIVE INSIGHTS
               </span>
             </div>
+            {displayAI.length === 0 && (
+              <div className="p-4 text-center border border-dashed border-forge-border/50 rounded-lg">
+                <Brain size={16} className="mx-auto text-forge-text-muted mb-2" />
+                <p className="text-[10px] text-forge-text-muted leading-relaxed">
+                  No AI insights yet — insights are generated from real stress results when
+                  geometry is analyzed (Body Design → Generate / Test Limits).
+                </p>
+              </div>
+            )}
             {projectLimits.length > 0 && (
               <div className="px-2 pb-2 text-[8px] font-mono text-forge-text-muted">
                 Limit sweep: {projectLimits.filter(l => l.status === 'SAFE').pop()?.loadKg ?? 0} kg last safe
@@ -284,6 +292,13 @@ export const AnalysisPanel: React.FC = () => {
 
         {activeTab === 'solver' && (
           <div className="p-2 space-y-2">
+            <div className="p-2 rounded border border-forge-yellow/20 bg-forge-yellow/5 flex items-start gap-1.5">
+              <Info size={10} className="text-forge-yellow flex-shrink-0 mt-0.5" />
+              <span className="text-[8px] font-mono text-forge-yellow leading-tight">
+                Reference metrics from the shipped demo workload (crystal structure benchmark).
+                Per-solve instrumentation lands with FEA runtime metrics (#290).
+              </span>
+            </div>
             {/* Solver Status */}
             <div className="p-2.5 rounded border border-forge-green/20 bg-forge-green/5">
               <div className="flex items-center gap-1.5 mb-2">

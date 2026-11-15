@@ -4,6 +4,7 @@ import { useTooltips } from '../store/TooltipContext';
 import { tooltips } from '../data/tooltips';
 import { useForgeStore } from '../store/ForgeStoreContext';
 import { useProject } from '../store/ProjectContext';
+import { useSessionEvents } from '../store/SessionEventContext';
 import {
   Cpu, Layers, Box, Factory, Brain, Radio,
   Play, Pause, RotateCcw, Settings, Maximize2,
@@ -106,6 +107,7 @@ export const TopCommandBar: React.FC<Props> = ({
   const [isExporting, setIsExporting] = useState(false);
   const store = useForgeStore();
   const showToast = store.showToast;
+  const { addEvent } = useSessionEvents();
   const { bodyParts, project } = useProject();
 
   const handleRenderModeChange = async (modeId: ViewportRenderMode) => {
@@ -143,6 +145,11 @@ export const TopCommandBar: React.FC<Props> = ({
       downloadUsda(result);
       const warnSuffix = result.warnings.length ? ` — note: ${result.warnings.join('; ')}` : '';
       showToast(`Exported ${result.partCount} part(s), ${result.triangleCount} triangles → ${result.fileName}${warnSuffix}`);
+      addEvent(
+        'export',
+        `USD export: ${result.fileName} — ${result.partCount} part(s)${result.warnings.length ? ', warnings emitted' : ''}`,
+        result.warnings.length ? 'warning' : 'success',
+      );
     } catch (e) {
       showToast(`USD export failed: ${e instanceof Error ? e.message : String(e)}`);
     }

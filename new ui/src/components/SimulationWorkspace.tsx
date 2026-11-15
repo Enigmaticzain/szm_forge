@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ViewportRenderMode } from '../types';
 import { Viewport3D } from './Viewport3D';
-import { solverMetrics } from '../data/mockData';
+// NOTE: solver metrics shown below come from the actual optimize run (when one
+// has happened this session) — never from hard-coded demo numbers.
 import {
   Cpu, Play, Settings,
   Grid3x3, Layers, CheckCircle,
@@ -27,30 +28,20 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
   const [activeSim, setActiveSim] = useState('static');
   const [convergenceData, setConvergenceData] = useState<number[]>([]);
   const [optimizing, setOptimizing] = useState(false);
+  /** Metrics from the most recent real optimizer run this session; null until one happens. */
+  const [lastRun, setLastRun] = useState<{ iterations: number; wallTimeMs: number; finalStress: number | null } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { showToast } = useForgeStore();
 
-  useEffect(() => {
-    if (optimizing) return;
-    const initial = Array.from({ length: 30 }, (_, i) => Math.exp(-i * 0.1) * 100);
-    setConvergenceData(initial);
-    const interval = setInterval(() => {
-      setConvergenceData(prev => {
-        const next = [...prev];
-        const last = next[next.length - 1];
-        next.push(Math.max(0.001, last * (0.92 + Math.random() * 0.06)));
-        if (next.length > 50) next.shift();
-        return next;
-      });
-    }, 500);
-    return () => clearInterval(interval);
-  }, [optimizing]);
+  // No fabricated "convergence" in idle state: the chart is empty until a real
+  // optimize run streams results. (USER_WORKFLOW_FINDINGS: fake numbers as real.)
 
   const handleOptimize = async () => {
     setOptimizing(true);
     showToast('Initializing AI Shape Optimizer...');
     setConvergenceData([]);
-    
+    const startedAt = performance.now();
+
     try {
       const res = await fetch('/api/simulation/optimize', {
         method: 'POST',
@@ -58,7 +49,7 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
         body: JSON.stringify({ iterations: 40 })
       });
       const data = await res.json();
-      
+
       if (data.history) {
         let i = 0;
         const interval = setInterval(() => {
@@ -71,6 +62,12 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
             i++;
           } else {
             clearInterval(interval);
+            const wallTimeMs = performance.now() - startedAt;
+            setLastRun({
+              iterations: data.history.length,
+              wallTimeMs,
+              finalStress: typeof data.final_stress === 'number' ? data.final_stress : null,
+            });
             showToast(`Optimization complete! Final stress: ${data.final_stress} MPa`);
             setTimeout(() => setOptimizing(false), 5000);
           }
@@ -323,16 +320,32 @@ export const SimulationWorkspace: React.FC<Props> = ({ renderMode, viewport }) =
               <div className="flex items-center gap-1.5 mb-1">
                 <Activity size={10} className="text-forge-accent" />
                 <span className="text-[9px] font-semibold tracking-wider text-forge-text-dim">CONVERGENCE MONITOR</span>
-                <div className="w-1.5 h-1.5 rounded-full bg-forge-green animate-pulse ml-2" />
+                {optimizing && <div className="w-1.5 h-1.5 rounded-full bg-forge-green animate-pulse ml-2" />}
               </div>
-              <canvas ref={canvasRef} width={500} height={70} className="w-full h-[70px]" />
+              {convergenceData.length < 2 && !optimizing ? (
+                <div className="h-[70px] flex items-center text-[8px] font-mono text-forge-text-muted border border-dashed border-forge-border/40 rounded px-3">
+                  No run yet — press OPTIMIZE to stream a real convergence history from the backend optimizer.
+                </div>
+              ) : (
+                <canvas ref={canvasRef} width={500} height={70} className="w-full h-[70px]" />
+              )}
             </div>
             <div className="w-[180px] grid grid-cols-2 gap-2">
               {[
-                { label: 'ITERATION', value: `${solverMetrics.iterations}`, icon: <Clock size={9} /> },
-                { label: 'RESIDUAL', value: `${solverMetrics.residual.toExponential(1)}`, icon: <Gauge size={9} /> },
-                { label: 'WALL TIME', value: solverMetrics.wallTime, icon: <Clock size={9} /> },
-                { label: 'STATUS', value: 'CONVERGED', icon: <CheckCircle size={9} className="text-forge-green" /> },
+                { label: 'ITERATION', value: lastRun ? `${lastRun.iterations}` : '—', icon: <Clock size={9} /> },
+                {
+                  label: 'FINAL STRESS',
+                  value: lastRun && lastRun.finalStress !== null ? `${lastRun.finalStress.toFixed(1)} MPa` : '—',
+                  icon: <Gauge size={9} />,
+                },
+                { label: 'WALL TIME', value: lastRun ? `${(lastRun.wallTimeMs / 1000).toFixed(1)} s` : '—', icon: <Clock size={9} /> },
+                {
+                  label: 'STATUS',
+                  value: optimizing ? 'RUNNING' : lastRun ? 'COMPLETE' : 'IDLE',
+                  icon: optimizing || lastRun ?
+                    <CheckCircle size={9} className={optimizing ? 'text-forge-yellow' : 'text-forge-green'} /> :
+                    <Clock size={9} className="text-forge-text-muted" />,
+                },
               ].map((stat, i) => (
                 <div key={i} className="flex flex-col justify-center">
                   <span className="text-[7px] font-mono text-forge-text-muted flex items-center gap-1">{stat.icon} {stat.label}</span>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { machineFleet } from '../data/mockData';
 import {
-  Activity, Globe, Cpu, Shield,
-  AlertTriangle, CheckCircle, Wrench, XCircle,
+  Activity, Globe, Cpu,
+  AlertTriangle, CheckCircle, XCircle,
   Signal, Wifi, MapPin, Eye, Zap
 } from 'lucide-react';
 
@@ -19,13 +19,9 @@ export const FleetCommand: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const animRef = useRef(0);
   const timeRef = useRef(0);
-  const [alerts] = useState([
-    { id: 1, msg: 'Pump P-01 bearing temperature exceeding threshold — 95°C', severity: 'critical', time: '14:32' },
-    { id: 2, msg: 'System Beta-01 efficiency dropped below 90%', severity: 'warning', time: '14:28' },
-    { id: 3, msg: 'System Beta-02 maintenance cycle initiated', severity: 'info', time: '14:18' },
-    { id: 4, msg: 'All CNC units operating within tolerance', severity: 'success', time: '14:10' },
-    { id: 5, msg: 'Generator G-01 load balancing optimized by AI', severity: 'success', time: '14:05' },
-  ]);
+  // Real alert sources (MQTT uplink, twin mirroring) populate this; until one is
+  // connected the list is honestly empty. Never seeded with fabricated incidents.
+  const [alerts] = useState<{ id: number; msg: string; severity: string; time: string }[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -200,12 +196,8 @@ export const FleetCommand: React.FC = () => {
         </div>
         <div className="ml-auto flex items-center gap-4">
           <div className="flex items-center gap-1.5">
-            <Signal size={10} className="text-forge-green" />
-            <span className="text-[9px] font-mono text-forge-text-dim">ALL SYSTEMS LINKED</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Shield size={10} className="text-forge-accent" />
-            <span className="text-[9px] font-mono text-forge-text-dim">ENCRYPTED</span>
+            <Signal size={10} className="text-forge-yellow" />
+            <span className="text-[9px] font-mono text-forge-yellow">DEMO VISUALIZATION — NO NETWORK LINK</span>
           </div>
         </div>
       </div>
@@ -215,23 +207,12 @@ export const FleetCommand: React.FC = () => {
         <div ref={containerRef} className="flex-1 relative">
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
 
-          {/* Overlay stats */}
+          {/* Overlay stats — the orbiting nodes are simulated sample machines */}
           <div className="absolute top-3 left-3 z-10 space-y-2">
-            <div className="px-3 py-2 rounded bg-forge-dark/80 border border-forge-border/50 backdrop-blur-sm">
-              <div className="text-[8px] font-mono text-forge-text-muted">FLEET STATUS</div>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="flex items-center gap-1 text-[9px] font-mono text-forge-green">
-                  <CheckCircle size={8} /> 5 Online
-                </span>
-                <span className="flex items-center gap-1 text-[9px] font-mono text-forge-yellow">
-                  <AlertTriangle size={8} /> 1 Degraded
-                </span>
-                <span className="flex items-center gap-1 text-[9px] font-mono text-forge-red">
-                  <XCircle size={8} /> 1 Critical
-                </span>
-                <span className="flex items-center gap-1 text-[9px] font-mono text-forge-orange">
-                  <Wrench size={8} /> 1 Maint
-                </span>
+            <div className="px-3 py-2 rounded bg-forge-dark/80 border border-forge-yellow/30 backdrop-blur-sm">
+              <div className="text-[8px] font-mono text-forge-yellow">SIMULATED SAMPLE MACHINES</div>
+              <div className="text-[7px] font-mono text-forge-text-muted mt-1">
+                Connect an MQTT uplink (right panel) to visualize real assets — until then no counts are claimed.
               </div>
             </div>
           </div>
@@ -239,11 +220,11 @@ export const FleetCommand: React.FC = () => {
           <div className="absolute bottom-3 left-3 z-10">
             <div className="px-3 py-2 rounded bg-forge-dark/80 border border-forge-border/50 backdrop-blur-sm">
               <div className="flex items-center gap-2">
-                <Wifi size={10} className="text-forge-green" />
-                <span className="text-[8px] font-mono text-forge-text-dim">UPLINK: 847 Mbps</span>
+                <Wifi size={10} className="text-forge-text-muted" />
+                <span className="text-[8px] font-mono text-forge-text-muted">UPLINK: not connected</span>
                 <span className="text-[8px] font-mono text-forge-text-muted">|</span>
-                <Cpu size={10} className="text-forge-accent" />
-                <span className="text-[8px] font-mono text-forge-text-dim">EDGE COMPUTE: ACTIVE</span>
+                <Cpu size={10} className="text-forge-text-muted" />
+                <span className="text-[8px] font-mono text-forge-text-muted">EDGE COMPUTE: idle</span>
               </div>
             </div>
           </div>
@@ -256,6 +237,15 @@ export const FleetCommand: React.FC = () => {
             <span className="text-[9px] font-semibold tracking-widest text-forge-text-dim">LIVE ALERTS</span>
           </div>
           <div className="p-2 space-y-1.5">
+            {alerts.length === 0 && (
+              <div className="p-3 text-center border border-dashed border-forge-border/50 rounded-lg">
+                <AlertTriangle size={12} className="mx-auto text-forge-text-muted mb-1.5" />
+                <p className="text-[8px] font-mono text-forge-text-muted leading-relaxed">
+                  No alerts — no monitoring source is connected. Real alerts appear
+                  here once the MQTT uplink below is started.
+                </p>
+              </div>
+            )}
             {alerts.map(alert => (
               <div
                 key={alert.id}

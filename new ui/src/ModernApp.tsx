@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { useForgeStore } from './store/ForgeStoreContext';
+import { useSessionEvents } from './store/SessionEventContext';
 import { TopCommandBar } from './components/TopCommandBar';
 import { ProjectHierarchy } from './components/ProjectHierarchy';
 import { ViewportShell } from './components/ViewportShell';
@@ -47,6 +48,7 @@ const ModernApp: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showWorkspaces, setShowWorkspaces] = useState(false);
   const store = useForgeStore();
+  const { addEvent } = useSessionEvents();
   const { user, logout } = useAuth();
   const { connected, refresh } = useBackend();
   const {
@@ -180,6 +182,11 @@ const ModernApp: React.FC = () => {
         store.showToast(
           `Imported STEP: ${summary.parts.length} solid(s), ${Math.round(summary.totalTriangles)} triangles${warnSuffix}`,
         );
+        addEvent(
+          'import',
+          `STEP import: ${name} — ${summary.parts.length} solid(s)${summary.warnings.length ? ', warnings emitted' : ''}`,
+          summary.warnings.length ? 'warning' : 'success',
+        );
       } else {
         // DXF is filtered at selection time; this branch is unreachable but
         // must still refuse rather than create placeholder geometry.
@@ -190,9 +197,13 @@ const ModernApp: React.FC = () => {
       store.setWorkspace('geometry');
       store.setImportDialogOpen(false);
       setImportFile(null);
-      if (ext === 'stl') store.showToast(`Added ${name} to scene`);
+      if (ext === 'stl') {
+        store.showToast(`Added ${name} to scene`);
+        addEvent('import', `STL import: ${name}`, 'success');
+      }
     } catch (e: unknown) {
       store.showToast(`Import failed: ${e instanceof Error ? e.message : String(e)}`);
+      addEvent('import', `Import failed: ${name}`, 'critical');
     }
   }, [importFile, setBodyParts, store]);
 
