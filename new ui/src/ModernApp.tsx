@@ -61,12 +61,14 @@ const ModernApp: React.FC = () => {
     bodyParts,
     bodyJoints,
     setBodyParts,
+    enqueueSketchImport,
   } = useProject();
   const furnitureLoadKg = project?.loadKg ?? 0;
   const { t } = useTooltips();
   const handleLoadComplete = useCallback(() => setLoading(false), []);
   const [fps, setFps] = useState(0);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [forceSketchMode, setForceSketchMode] = useState(false);
   const [importDragging, setImportDragging] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -106,11 +108,7 @@ const ModernApp: React.FC = () => {
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
     if (!['step', 'stp', 'stl', 'dxf'].includes(ext)) {
-      store.showToast('Unsupported format — use .step .stp or .stl');
-      return;
-    }
-    if (ext === 'dxf') {
-      store.showToast('DXF files are 2D profiles — not importable as solids yet. Use STEP or STL.');
+      store.showToast('Unsupported format — use .step .stp .stl or .dxf');
       return;
     }
     setImportFile(file);
@@ -188,9 +186,25 @@ const ModernApp: React.FC = () => {
           summary.warnings.length ? 'warning' : 'success',
         );
       } else {
-        // DXF is filtered at selection time; this branch is unreachable but
-        // must still refuse rather than create placeholder geometry.
-        store.showToast('DXF is a 2D profile format — no placeholder solid was created.');
+        // DXF: genuine 2D profile import into the Sketch workspace — parsed
+        // client-side (offline-first), converted to real editable segments.
+        const bytes = new Uint8Array(await importFile.arrayBuffer());
+        const { parseDxfBytes, profileToSketchSegments } = await import('./offline/dxfImport');
+        const parsed = parseDxfBytes(bytes, importFile.name);
+        const segments = profileToSketchSegments(parsed.profiles[0], 360, 240);
+        enqueueSketchImport({ name: importFile.name, segments, warnings: parsed.warnings });
+        store.setWorkspace('geometry');
+        setForceSketchMode(true);
+        store.showToast(
+          `DXF imported into SKETCH: ${segments.length} segments (${parsed.units})` +
+          (parsed.warnings.length ? ` — ${parsed.warnings.join('; ')}` : ''),
+        );
+        addEvent(
+          'import',
+          `DXF → Sketch: ${name} — ${segments.length} segments${parsed.warnings.length ? ', warnings emitted' : ''}`,
+          parsed.warnings.length ? 'warning' : 'success',
+        );
+        store.setImportDialogOpen(false);
         setImportFile(null);
         return;
       }
@@ -340,7 +354,12 @@ const ModernApp: React.FC = () => {
         return (
           <WorkspaceLayout
             showLeft={false}
-            center={<UnifiedGeometryWorkspace />}
+            center={
+              <UnifiedGeometryWorkspace
+                forceMode={forceSketchMode ? 'sketch' : undefined}
+                onForceModeConsumed={() => setForceSketchMode(false)}
+              />
+            }
             showRight={false}
           />
         );

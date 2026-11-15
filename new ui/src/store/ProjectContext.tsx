@@ -103,6 +103,26 @@ interface ProjectContextValue {
   };
   /** Delete the locally persisted project snapshot. */
   clearSavedProject: () => void;
+  /**
+   * A 2D profile (from DXF import) waiting to be dropped into the Sketch
+   * workspace as line segments — sketch model coordinates (mm, y-up, centred).
+   */
+  pendingSketchImport: {
+    name: string;
+    segments: { p1: [number, number]; p2: [number, number] }[];
+    warnings: string[];
+  } | null;
+  enqueueSketchImport: (payload: {
+    name: string;
+    segments: { p1: [number, number]; p2: [number, number] }[];
+    warnings: string[];
+  }) => void;
+  /** Read and clear the pending sketch import (single-shot handoff). */
+  consumeSketchImport: () => {
+    name: string;
+    segments: { p1: [number, number]; p2: [number, number] }[];
+    warnings: string[];
+  } | null;
 }
 
 // stressToParts removed since solveAssembly is removed.
@@ -203,6 +223,29 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
       error: null,
     }));
     setLastAction('Saved project snapshot deleted.');
+  }, []);
+
+  // —— DXF → Sketch single-shot import handoff ————————————————
+  const [pendingSketchImport, setPendingSketchImport] = useState<{
+    name: string;
+    segments: { p1: [number, number]; p2: [number, number] }[];
+    warnings: string[];
+  } | null>(null);
+  const pendingSketchImportRef = useRef(pendingSketchImport);
+  pendingSketchImportRef.current = pendingSketchImport;
+
+  const enqueueSketchImport = useCallback((payload: {
+    name: string;
+    segments: { p1: [number, number]; p2: [number, number] }[];
+    warnings: string[];
+  }) => {
+    setPendingSketchImport(payload);
+  }, []);
+
+  const consumeSketchImport = useCallback(() => {
+    const current = pendingSketchImportRef.current;
+    setPendingSketchImport(null);
+    return current;
   }, []);
 
   const ensureBackend = useCallback(async () => {
@@ -556,6 +599,9 @@ export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ child
         saveMotorProject,
         persistStatus,
         clearSavedProject,
+        pendingSketchImport,
+        enqueueSketchImport,
+        consumeSketchImport,
       }}
     >
       {children}

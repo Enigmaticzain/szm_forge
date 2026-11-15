@@ -50,7 +50,7 @@ function pointToSegDist(p: [number, number], a: [number, number], b: [number, nu
 let nextId = 1;
 
 export const SketchEditor: React.FC = () => {
-  const { bodyParts, setBodyParts } = useProject();
+  const { bodyParts, setBodyParts, pendingSketchImport, consumeSketchImport } = useProject();
   const [tool, setTool] = useState<SketchTool>('line');
   const [entities, setEntities] = useState<SketchEntityDto[]>([]);
   const [draft, setDraft] = useState<{
@@ -75,6 +75,25 @@ export const SketchEditor: React.FC = () => {
   }>>([]);
   const svgRef = useRef<SVGSVGElement>(null);
   const panRef = useRef<{ sx: number; sy: number; vx: number; vy: number } | null>(null);
+
+  // DXF import handoff: a profile pushed by the file importer materialises
+  // here as real, editable line segments (single-shot consume).
+  useEffect(() => {
+    if (!pendingSketchImport) return;
+    const payload = consumeSketchImport();
+    if (!payload) return;
+    const segs = payload.segments.map((s) => ({
+      id: nextId++,
+      type: 'line' as const,
+      p1: s.p1,
+      p2: s.p2,
+    }));
+    setEntities(segs);
+    setDimensionText(
+      `Imported ${payload.name}: ${segs.length} segments` +
+      (payload.warnings.length ? ` — ${payload.warnings.join('; ')}` : ''),
+    );
+  }, [pendingSketchImport, consumeSketchImport]);
 
   const screenToSvg = useCallback((clientX: number, clientY: number): [number, number] => {
     const svg = svgRef.current;

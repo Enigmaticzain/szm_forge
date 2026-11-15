@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   PenTool, Box, Layers, Wand2, Puzzle, Download, Upload,
   Ruler, Grid3x3, Cylinder, Combine, Sparkles,
@@ -80,10 +80,25 @@ const FEATURE_MATRIX = [
   ]},
 ];
 
-export const UnifiedGeometryWorkspace: React.FC = () => {
+export interface UnifiedGeometryWorkspaceProps {
+  /** One-shot request from outside (e.g. DXF import) to open a specific mode. */
+  forceMode?: GeometryMode;
+  onForceModeConsumed?: () => void;
+}
+
+export const UnifiedGeometryWorkspace: React.FC<UnifiedGeometryWorkspaceProps> = ({
+  forceMode,
+  onForceModeConsumed,
+}) => {
   const [mode, setMode] = useState<GeometryMode>('mesh');
   const [showFeatures, setShowFeatures] = useState(false);
   const { bodyParts, bodyJoints, setBodyJoints } = useProject();
+
+  useEffect(() => {
+    if (!forceMode) return;
+    setMode(forceMode);
+    onForceModeConsumed?.();
+  }, [forceMode, onForceModeConsumed]);
 
   return (
     <div className="h-full w-full flex flex-col bg-forge-black overflow-hidden">
