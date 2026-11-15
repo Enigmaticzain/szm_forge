@@ -2,6 +2,7 @@ export * from './knowledge';
 export * from './materials';
 export * from './structuralSolver';
 export * from './geometry';
+export * from './profileLoops';
 export * from './furnitureWorkshop';
 export * from './machineConfig';
 export * from './storage';

@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
+import { assembleLoops } from './profileLoops';
+
+/** Endpoint snap tolerance when assembling unordered sketch segments (mm). */
+const SKETCH_SNAP_TOLERANCE_MM = 0.05;
 
 export interface CadSpec {
   shape: string;
@@ -266,24 +270,41 @@ export function createSketchExtrusion(
     shape.absarc(circle.p1[0], circle.p1[1], radius, 0, Math.PI * 2, false);
     areaMm2 = Math.PI * radius * radius;
   } else if (lines.length >= 3 && lines.length === sketch.entities.length) {
+    // Fast path: entities already in draw order.
     const first = lines[0];
     const points: THREE.Vector2[] = [new THREE.Vector2(...first.p1)];
     let previous = first.p1;
     const closeEnough = (a: [number, number], b: [number, number]) =>
       Math.hypot(a[0] - b[0], a[1] - b[1]) <= 1e-3;
+    let ordered = true;
 
     for (const line of lines) {
-      if (!line.p2 || !closeEnough(line.p1, previous)) return null;
+      if (!line.p2 || !closeEnough(line.p1, previous)) { ordered = false; break; }
       points.push(new THREE.Vector2(...line.p2));
       previous = line.p2;
     }
 
-    if (!closeEnough(previous, first.p1)) return null;
-    shape.moveTo(first.p1[0], first.p1[1]);
-    for (const line of lines) shape.lineTo(line.p2![0], line.p2![1]);
-    shape.closePath();
-    areaMm2 = Math.abs(THREE.ShapeUtils.area(points));
-    if (areaMm2 <= 0) return null;
+    if (ordered && closeEnough(previous, first.p1)) {
+      shape.moveTo(first.p1[0], first.p1[1]);
+      for (const line of lines) shape.lineTo(line.p2![0], line.p2![1]);
+      shape.closePath();
+      areaMm2 = Math.abs(THREE.ShapeUtils.area(points));
+      if (areaMm2 <= 0) return null;
+    } else {
+      // Order-agnostic path: snap endpoints and assemble closed loops
+      // (handles DXF imports and multi-stroke sketches).
+      const assembly = assembleLoops(
+        lines.map(l => ({ p1: l.p1, p2: l.p2! })),
+        SKETCH_SNAP_TOLERANCE_MM,
+      );
+      const loop = assembly.loops[0];
+      if (!loop) return null;
+      shape.moveTo(loop[0][0], loop[0][1]);
+      for (const pt of loop.slice(1)) shape.lineTo(pt[0], pt[1]);
+      shape.closePath();
+      areaMm2 = Math.abs(THREE.ShapeUtils.area(loop.map(p => new THREE.Vector2(p[0], p[1]))));
+      if (areaMm2 <= 0) return null;
+    }
   } else {
     return null;
   }
@@ -292,10 +313,91 @@ export function createSketchExtrusion(
   return { geometry, volumeM3: areaMm2 * distanceMm / 1e9 };
 }
 
+export interface SketchRevolution {
+  geometry: THREE.LatheGeometry;
+  /** Approximate spun volume (m³) via Pappus on the largest profile loop. */
+  volumeM3: number;
+  warnings: string[];
+}
+
+/**
+ * Spin the sketch's largest closed loop around the sketch's vertical axis
+ * (v-axis through the origin). Points must sit at u >= 0; negatives are clamped
+ * to the axis with an explicit warning (never silently mirrored).
+ */
+export function createSketchRevolution(
+  sketch: { entities: SketchEntity[] },
+  segments = 64,
+): SketchRevolution | null {
+  const warnings: string[] = [];
+  const lines = sketch.entities.filter(e => e.type === 'line' && e.p2);
+  if (lines.length < 3 || lines.length !== sketch.entities.length) return null;
+
+  const assembly = assembleLoops(
+    lines.map(l => ({ p1: l.p1, p2: l.p2! })),
+    SKETCH_SNAP_TOLERANCE_MM,
+  );
+  const loop = assembly.loops[0];
+  if (!loop || loop.length < 3) return null;
+  if (assembly.loops.length > 1) {
+    warnings.push(`${assembly.loops.length} loops found — revolving only the largest`);
+  }
+  if (assembly.openChains > 0) {
+    warnings.push(`${assembly.openChains} open chain(s) ignored`);
+  }
+
+  // Pappus centroidal theorem: V = 2π · Rc · A (valid when the whole loop is
+  // on one side of the axis).
+  const area = Math.abs(THREE.ShapeUtils.area(loop.map(p => new THREE.Vector2(p[0], p[1]))));
+  const centroidU = loop.reduce((acc, p) => acc + p[0], 0) / loop.length;
+  const minU = loop.reduce((acc, p) => Math.min(acc, p[0]), Infinity);
+
+  let uShift = 0;
+  if (minU < -SKETCH_SNAP_TOLERANCE_MM) {
+    uShift = -minU;
+    warnings.push('Profile crossed the axis — shifted so it starts at the axis');
+  } else if (minU < 0) {
+    uShift = -minU;
+  }
+
+  const pts = loop.map(p => new THREE.Vector2(Math.max(0, p[0] + uShift), p[1]));
+  pts.push(pts[0].clone()); // Lathe wants the profile outline closed for caps
+  const geometry = new THREE.LatheGeometry(pts, segments);
+  const volumeM3 = (2 * Math.PI * Math.max(0, centroidU + uShift) * area) / 1e9;
+  return { geometry, volumeM3, warnings };
+}
+
 export function solveSketchOffline(sketch: {
   entities: SketchEntity[];
 }): { solved: boolean; dof: number; entities: SketchEntity[] } {
   return { solved: true, dof: Math.max(0, sketch.entities.length * 2 - 4), entities: sketch.entities };
+}
+
+export function revolveSketchOffline(
+  sketch: { entities: SketchEntity[] },
+  segments = 64,
+): { ok: boolean; volume_m3: number; vertex_count: number; face_count: number; warnings: string[]; error?: string } {
+  const rev = createSketchRevolution(sketch, segments);
+  if (!rev) {
+    return {
+      ok: false,
+      volume_m3: 0,
+      vertex_count: 0,
+      face_count: 0,
+      warnings: [],
+      error: 'Revolve needs a closed line profile (draw right of the vertical axis through origin).',
+    };
+  }
+  const vertexCount = rev.geometry.attributes.position.count;
+  const faceCount = rev.geometry.index ? rev.geometry.index.count / 3 : vertexCount / 3;
+  rev.geometry.dispose();
+  return {
+    ok: true,
+    volume_m3: rev.volumeM3,
+    vertex_count: vertexCount,
+    face_count: faceCount,
+    warnings: rev.warnings,
+  };
 }
 
 export function extrudeSketchOffline(

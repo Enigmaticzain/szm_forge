@@ -3,14 +3,15 @@ import * as THREE from 'three';
 import {
   Circle, Minus, MousePointer2, Play, Square, Layers,
   Ruler, AlignHorizontalJustifyCenter, AlignVerticalJustifyCenter,
-  Spline, Scissors, CircleDot, Move,
+  Spline, Scissors, CircleDot, Move, RotateCw,
 } from 'lucide-react';
 import {
   extrudeSketch, solveSketch, SketchDto, SketchEntityDto, SketchSolveResult,
 } from '../../services/forgeApi';
-import { createSketchExtrusion } from '../../offline/geometry';
+import { createSketchExtrusion, createSketchRevolution } from '../../offline/geometry';
 import type { SceneObject } from '../BodyDesign/InteractivePartEditor';
 import { useProject } from '../../store/ProjectContext';
+import { useSessionEvents } from '../../store/SessionEventContext';
 
 type SketchTool =
   | 'select'
@@ -51,6 +52,7 @@ let nextId = 1;
 
 export const SketchEditor: React.FC = () => {
   const { bodyParts, setBodyParts, pendingSketchImport, consumeSketchImport } = useProject();
+  const { addEvent } = useSessionEvents();
   const [tool, setTool] = useState<SketchTool>('line');
   const [entities, setEntities] = useState<SketchEntityDto[]>([]);
   const [draft, setDraft] = useState<{
@@ -378,6 +380,9 @@ export const SketchEditor: React.FC = () => {
         return;
       }
 
+      // Scene units are metres (STEP imports scale mm→m at import) — bake the
+      // same conversion here so a 100mm profile is 0.1 scene units, not 100.
+      extrusion.geometry.scale(0.001, 0.001, 0.001);
       extrusion.geometry.computeBoundingBox();
       const bounds = extrusion.geometry.boundingBox;
       if (!bounds) {
@@ -411,6 +416,48 @@ export const SketchEditor: React.FC = () => {
     } finally {
       setBusy(false);
     }
+  };
+
+  const runRevolve = () => {
+    const rev = createSketchRevolution(buildSketch(), 64);
+    if (!rev) {
+      setExtrudeResult({
+        error: 'Revolve needs a closed line profile (draw right of the vertical axis through origin).',
+      });
+      return;
+    }
+    rev.geometry.scale(0.001, 0.001, 0.001); // mm sketch → m scene (matches STEP imports)
+    rev.geometry.computeBoundingBox();
+    const bounds = rev.geometry.boundingBox;
+    if (!bounds) {
+      rev.geometry.dispose();
+      setExtrudeResult({ error: 'The revolution did not produce usable geometry.' });
+      return;
+    }
+    const size = new THREE.Vector3();
+    bounds.getSize(size);
+    const name = `Sketch Revolution ${bodyParts.length + 1}`;
+    const part: SceneObject = {
+      id: `sketch_revolution_${Date.now()}`,
+      name,
+      type: 'custom',
+      position: { x: 0, y: 0, z: 0 },
+      size: { x: size.x, y: size.y, z: size.z },
+      customGeometry: rev.geometry,
+      bendAngle: 0,
+    };
+    setBodyParts(previous => [...previous, part]);
+    setExtrudeResult({
+      ok: true,
+      volume_m3: rev.volumeM3,
+      createdPart: name,
+      error: rev.warnings.length ? rev.warnings.join('; ') : undefined,
+    });
+    addEvent(
+      'generate',
+      `Revolve → ${name} (${64} radial segments)${rev.warnings.length ? ', warnings emitted' : ''}`,
+      rev.warnings.length ? 'warning' : 'success',
+    );
   };
 
   useEffect(() => {
@@ -543,8 +590,14 @@ export const SketchEditor: React.FC = () => {
               className="flex-1 bg-forge-black border border-forge-border rounded px-1.5 py-0.5 text-[9px] font-mono text-forge-text" />
           </div>
           <button onClick={runExtrude} disabled={busy || entities.length === 0}
+            title="Prism the closed profile straight up by the given distance (works offline)"
             className="flex items-center justify-center gap-1.5 py-2 rounded bg-forge-purple/20 text-forge-purple border border-forge-purple/50 text-[9px] font-bold font-mono disabled:opacity-40">
             <Layers size={12} /> EXTRUDE
+          </button>
+          <button onClick={runRevolve} disabled={busy || entities.length === 0}
+            title="Spin the largest closed profile around the vertical axis (lathe-style, offline engine)"
+            className="flex items-center justify-center gap-1.5 py-2 rounded bg-forge-teal/20 text-forge-teal border border-forge-teal/50 text-[9px] font-bold font-mono disabled:opacity-40">
+            <RotateCw size={12} /> REVOLVE
           </button>
         </div>
       </div>
